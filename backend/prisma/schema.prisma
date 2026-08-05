@@ -1,0 +1,75 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Define the Role Enum from your User schema
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+// 2. The User Model
+model User {
+  id          String  @id @default(uuid())
+  username    String
+  email       String  @unique
+  password    String
+  countryCode String
+  phoneNo     String
+  role        Role    @default(USER)
+  verified    Boolean @default(false)
+
+  // Relations: A user can have multiple OTPs and Sessions
+  otps     Otp[]
+  sessions Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users") // This maps the Prisma model to your existing "users" table name convention
+}
+
+// 3. The OTP Model
+model Otp {
+  id      String @id @default(uuid())
+  email   String
+  otpHash String
+
+  // Foreign Key Relation to User
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("otps")
+}
+
+// 4. The Session Model
+model Session {
+  id               String  @id @default(uuid())
+  refreshTokenHash String
+  ip               String
+  userAgent        String
+  revoked          Boolean @default(false)
+
+  // Foreign Key Relation to User
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sessions")
+}

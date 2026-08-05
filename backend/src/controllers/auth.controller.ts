@@ -1,13 +1,18 @@
-import express from 'express';
-import type { Application, Request, Response } from 'express';
+// controllers/auth.controller.ts
+import type { Request, Response } from 'express';
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import config from "../config/config";
-import userModel from '../models/user.model';
-import sessionModel from "../models/session.model";
-import otpModel from "../models/otp.model";
+import { prisma } from "../lib/prisma"; // Your Prisma connection
 import { sendEmail } from "../services/email.service";
-import { getOtpHtml,generateOtp } from "../utils/utils";
+import { getOtpHtml, generateOtp } from "../utils/utils";
+
+// Cookie options for secure storage
+const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production", // false in dev, true in prod
+    sameSite: "lax" as const, // 'lax' is best for smooth local testing and most Next.js apps
+};
 
 // Define an interface for your JWT payload
 interface JwtPayload {
@@ -16,17 +21,20 @@ interface JwtPayload {
 }
 
 export async function register(req: Request, res: Response) {
-    const { username, email, password } = req.body;
+    // 1. EXTRACT ALL FIELDS sent from the Next.js frontend
+    const { username, email, password, countryCode, phoneNo } = req.body;
 
-    const isAlreadyRegistered = await userModel.findOne({
-        $or: [
-            { username },
-            { email }
-        ]
+    // Prisma: Check if username or email already exists
+    const isAlreadyRegistered = await prisma.user.findFirst({
+        where: {
+            OR: [
+                { username },
+                { email }
+            ]
+        }
     });
 
     if (isAlreadyRegistered) {
-        // FIXED: Added 'return' here to prevent the rest of the function from executing
         return res.status(409).json({
             message: "Username or email already exists"
         });
@@ -34,20 +42,29 @@ export async function register(req: Request, res: Response) {
 
     const hashedPassword = crypto.createHash("sha256").update(password).digest("hex");
 
-    const user = await userModel.create({
-        username,
-        email,
-        password: hashedPassword
+    // 2. PASS ALL FIELDS to Prisma
+    const user = await prisma.user.create({
+        data: {
+            username,
+            email,
+            password: hashedPassword,
+            countryCode, 
+            phoneNo      
+        }
     });
 
     const otp = generateOtp();
     const html = getOtpHtml(otp);
 
     const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
-    await otpModel.create({
-        email,
-        user: user._id,
-        otpHash
+    
+    // Prisma: Create OTP record linking to user.id
+    await prisma.otp.create({
+        data: {
+            email,
+            userId: user.id,
+            otpHash
+        }
     });
 
     await sendEmail(email, "OTP Verification", `Your OTP code is ${otp}`, html);
@@ -65,7 +82,10 @@ export async function register(req: Request, res: Response) {
 export async function login(req: Request, res: Response) {
     const { email, password } = req.body;
 
-    const user = await userModel.findOne({ email });
+    // Prisma: Find strictly by unique email
+    const user = await prisma.user.findUnique({ 
+        where: { email } 
+    });
 
     if (!user) {
         return res.status(401).json({
@@ -80,7 +100,6 @@ export async function login(req: Request, res: Response) {
     }
 
     const hashedPassword = crypto.createHash("sha256").update(password).digest("hex");
-
     const isPasswordValid = hashedPassword === user.password;
 
     if (!isPasswordValid) {
@@ -90,30 +109,31 @@ export async function login(req: Request, res: Response) {
     }
 
     const refreshToken = jwt.sign(
-        { id: user._id }, 
+        { id: user.id }, 
         config.JWT_SECRET,
         { expiresIn: "7d" }
     );
 
     const refreshTokenHash = crypto.createHash("sha256").update(refreshToken).digest("hex");
 
-    const session = await sessionModel.create({
-        user: user._id,
-        refreshTokenHash,
-        ip: req.ip,
-        userAgent: req.headers["user-agent"] || "unknown"
+    // Prisma: Create new session
+    const session = await prisma.session.create({
+        data: {
+            userId: user.id,
+            refreshTokenHash,
+            ip: req.ip || "unknown",
+            userAgent: req.headers["user-agent"] || "unknown"
+        }
     });
 
     const accessToken = jwt.sign(
-        { id: user._id, sessionId: session._id }, 
+        { id: user.id, sessionId: session.id }, 
         config.JWT_SECRET,
         { expiresIn: "15m" }
     );
 
     res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: true, // Make sure this is false in development if not using HTTPS
-        sameSite: "strict",
+        ...cookieOptions,
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
@@ -139,7 +159,10 @@ export async function getMe(req: Request, res: Response) {
     try {
         const decoded = jwt.verify(token, config.JWT_SECRET) as JwtPayload;
 
-        const user = await userModel.findById(decoded.id);
+        // Prisma: Find by ID
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.id }
+        });
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });
@@ -171,9 +194,12 @@ export async function refreshToken(req: Request, res: Response) {
 
         const refreshTokenHash = crypto.createHash("sha256").update(refreshToken).digest("hex");
 
-        const session = await sessionModel.findOne({
-            refreshTokenHash,
-            revoked: false
+        // Prisma: Find valid active session
+        const session = await prisma.session.findFirst({
+            where: {
+                refreshTokenHash,
+                revoked: false
+            }
         });
 
         if (!session) {
@@ -196,13 +222,14 @@ export async function refreshToken(req: Request, res: Response) {
 
         const newRefreshTokenHash = crypto.createHash("sha256").update(newRefreshToken).digest("hex");
 
-        session.refreshTokenHash = newRefreshTokenHash;
-        await session.save();
+        // Prisma: Update session with new hash
+        await prisma.session.update({
+            where: { id: session.id },
+            data: { refreshTokenHash: newRefreshTokenHash }
+        });
 
         res.cookie("refreshToken", newRefreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "strict",
+           ...cookieOptions,
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
 
@@ -219,28 +246,32 @@ export async function logout(req: Request, res: Response) {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
-        return res.status(400).json({
-            message: "Refresh token not found"
-        });
+        res.clearCookie("refreshToken", cookieOptions);
+        return res.status(200).json({ message: "Already logged out" });
     }
 
     const refreshTokenHash = crypto.createHash("sha256").update(refreshToken).digest("hex");
 
-    const session = await sessionModel.findOne({
-        refreshTokenHash,
-        revoked: false
+    // Prisma: Find session
+    const session = await prisma.session.findFirst({
+        where: {
+            refreshTokenHash,
+            revoked: false
+        }
     });
 
     if (!session) {
-        return res.status(400).json({
-            message: "Invalid refresh token"
-        });
+        res.clearCookie("refreshToken", cookieOptions);
+        return res.status(200).json({ message: "Already logged out" });
     }
 
-    session.revoked = true;
-    await session.save();
+    // Prisma: Revoke session
+    await prisma.session.update({
+        where: { id: session.id },
+        data: { revoked: true }
+    });
 
-    res.clearCookie("refreshToken");
+    res.clearCookie("refreshToken", cookieOptions);
 
     res.status(200).json({
         message: "Logged out successfully"
@@ -251,22 +282,25 @@ export async function logoutAll(req: Request, res: Response) {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
-        return res.status(400).json({
-            message: "Refresh token not found"
-        });
+        res.clearCookie("refreshToken", cookieOptions);
+        return res.status(200).json({ message: "Already logged out" });
     }
 
     try {
         const decoded = jwt.verify(refreshToken, config.JWT_SECRET) as JwtPayload;
 
-        await sessionModel.updateMany({
-            user: decoded.id,
-            revoked: false
-        }, {
-            revoked: true
+        // Prisma: Bulk update many sessions
+        await prisma.session.updateMany({
+            where: {
+                userId: decoded.id,
+                revoked: false
+            }, 
+            data: {
+                revoked: true
+            }
         });
 
-        res.clearCookie("refreshToken");
+        res.clearCookie("refreshToken", cookieOptions);
 
         res.status(200).json({
             message: "Logged out from all devices successfully"
@@ -281,9 +315,12 @@ export async function verifyEmail(req: Request, res: Response) {
 
     const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
 
-    const otpDoc = await otpModel.findOne({
-        email,
-        otpHash
+    // Prisma: Find OTP Document
+    const otpDoc = await prisma.otp.findFirst({
+        where: {
+            email,
+            otpHash
+        }
     });
 
     if (!otpDoc) {
@@ -292,24 +329,59 @@ export async function verifyEmail(req: Request, res: Response) {
         });
     }
 
-    const user = await userModel.findByIdAndUpdate(otpDoc.user, {
-        verified: true
-    }, { new: true }); // added {new: true} to return the updated user document
+    // Prisma: Update user verification status
+    const user = await prisma.user.update({
+        where: { id: otpDoc.userId },
+        data: { verified: true }
+    });
 
     if (!user) {
         return res.status(404).json({ message: "User not found" });
     }
 
-    await otpModel.deleteMany({
-        user: otpDoc.user
+    // Prisma: Delete used OTPs for this user
+    await prisma.otp.deleteMany({
+        where: { userId: otpDoc.userId }
+    });
+
+    // --- LOG THE USER IN AFTER SUCCESSFUL VERIFICATION ---
+    const refreshToken = jwt.sign(
+        { id: user.id }, 
+        config.JWT_SECRET,
+        { expiresIn: "7d" }
+    );
+
+    const refreshTokenHash = crypto.createHash("sha256").update(refreshToken).digest("hex");
+
+    // Prisma: Create new authenticated session
+    const session = await prisma.session.create({
+        data: {
+            userId: user.id,
+            refreshTokenHash,
+            ip: req.ip || "unknown",
+            userAgent: req.headers["user-agent"] || "unknown"
+        }
+    });
+
+    const accessToken = jwt.sign(
+        { id: user.id, sessionId: session.id }, 
+        config.JWT_SECRET,
+        { expiresIn: "15m" }
+    );
+
+    // Set the cookie so the frontend is fully authenticated
+    res.cookie("refreshToken", refreshToken, {
+       ...cookieOptions,
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
     return res.status(200).json({
-        message: "Email verified successfully",
+        message: "Email verified and logged in successfully",
         user: {
             username: user.username,
             email: user.email,
             verified: user.verified
-        }
+        },
+        accessToken, // Send access token to frontend memory
     });
 }
