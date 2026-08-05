@@ -1,65 +1,99 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useState, useEffect } from "react";
+import { Menu } from "lucide-react";
+
+export default function LandingPage() {
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Handle scroll to reveal navigation elements
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 50);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            hello world
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <div className="min-h-screen bg-white text-gray-900 font-sans w-full">
+      <div className="w-full relative pb-32">
+        {/* Floating Top Menu Button */}
+        <button
+          className={`fixed top-4 right-4 md:top-8 md:right-8 z-50 bg-white border border-gray-200 text-gray-800 p-3.5 md:p-4 rounded-full shadow-sm hover:bg-gray-50 transition-all duration-300 transform 
+            ${
+              isScrolled
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 -translate-y-4 pointer-events-none"
+            }`}
+          aria-label="Menu"
+        >
+          <Menu size={24} strokeWidth={2} />
+        </button>
+
+        {/* Hero Section: Full viewport height */}
+        <div className="h-[100dvh] w-full p-4 md:p-8">
+          {/* Image Container */}
+          <div className="relative w-full h-full rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-200 bg-gray-50 overflow-hidden shadow-sm">
+            {/* 1. Mobile Image (Visible by default, hidden on md screens and up) */}
+            <img
+              src="/afds1.png"
+              alt="Mobile Campaign"
+              className="block md:hidden w-full h-full object-cover"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <div className="absolute inset-0 p-8 md:p-12 flex flex-col justify-end pointer-events-none">
+              <h1 className="text-8xl md:text-9xl font-bold text-white tracking-tight leading-none drop-shadow-md">
+                Growing
+                <br />
+                Joy
+              </h1>
+            </div>
+            {/* 2. Desktop Image (Hidden by default, visible on md screens and up) */}
+            <img
+              src="/ads1w.png"
+              alt="Desktop Campaign"
+              className="w-full h-full object-cover"
+            />
+
+            {/* Optional Overlay Content (Remove if you just want the pure image) */}
+          </div>
         </div>
-      </main>
+
+        {/* Content below the fold */}
+        <div className="px-6 md:px-12 lg:px-24 py-12 space-y-6 max-w-screen-2xl mx-auto">
+          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 tracking-tight">
+            Scroll to reveal UI
+          </h2>
+          <p className="text-gray-600 leading-relaxed text-sm md:text-base max-w-3xl">
+            The layout elegantly swaps the background asset using CSS
+            breakpoints, ensuring optimal aspect ratios across devices without
+            sacrificing the clean UI aesthetic.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
+            <div className="h-40 rounded-[2rem] bg-gray-50 border border-gray-100" />
+            <div className="h-40 rounded-[2rem] bg-gray-50 border border-gray-100" />
+            <div className="h-40 rounded-[2rem] bg-gray-50 border border-gray-100" />
+          </div>
+        </div>
+
+        {/* Fixed Bottom Action Bar */}
+        <div
+          className={`fixed bottom-6 left-0 w-full flex justify-center px-4 z-50 transition-all duration-300 transform 
+            ${
+              isScrolled
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-8 pointer-events-none"
+            }`}
+        >
+          <div className="w-full max-w-md md:max-w-lg pointer-events-auto">
+            <button className="w-full bg-gray-900 text-white font-medium text-lg py-4 px-8 rounded-full shadow-sm hover:bg-black active:scale-[0.98] transition-all">
+              Get started
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
