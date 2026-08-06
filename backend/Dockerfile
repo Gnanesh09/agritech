@@ -11,5 +11,5 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV NODE_ENV=production
-
+RUN bunx prisma generate
 CMD ["bun", "run", "server.ts"]
