@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Menu } from "lucide-react";
-
+import Image from "next/image";
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -37,10 +37,14 @@ export default function LandingPage() {
           {/* Image Container */}
           <div className="relative w-full h-full rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-200 bg-gray-50 overflow-hidden shadow-sm">
             {/* 1. Mobile Image (Visible by default, hidden on md screens and up) */}
-            <img
+            <Image
               src="/afds1.png"
               alt="Mobile Campaign"
               className="block md:hidden w-full h-full object-cover"
+              fill
+              priority
+              quality={100}
+              sizes="100vw"
             />
             <div className="absolute inset-0 p-8 md:p-12 flex flex-col justify-end pointer-events-none">
               <h1 className="text-8xl md:text-9xl font-bold text-white tracking-tight leading-none drop-shadow-md">
@@ -50,10 +54,16 @@ export default function LandingPage() {
               </h1>
             </div>
             {/* 2. Desktop Image (Hidden by default, visible on md screens and up) */}
-            <img
+            <Image
               src="/ads1w.png"
               alt="Desktop Campaign"
               className="w-full h-full object-cover"
+              width={2816}
+              height={1536}
+              priority
+              quality={85}
+              sizes="100vw"
+              // style={{ width: "100%", height: "auto" }}
             />
 
             {/* Optional Overlay Content (Remove if you just want the pure image) */}
