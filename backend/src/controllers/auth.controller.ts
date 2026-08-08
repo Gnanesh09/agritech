@@ -232,6 +232,9 @@ export async function login(req: Request, res: Response) {
 });
 }
 
+
+
+
 export async function getMe(req: Request, res: Response) {
     const token = req.headers.authorization?.split(" ")[1];
 

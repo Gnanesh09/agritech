@@ -19,6 +19,19 @@ enum Role {
   SUPER_ADMIN
 }
 
+enum DeviceStatus {
+  AVAILABLE
+  LINKED
+  BLOCKED
+  RETIRED
+}
+
+enum DeviceModelStatus {
+  ACTIVE
+  INACTIVE
+  DISCONTINUED
+}
+
 // 2. The User Model
 model User {
   id          String  @id @default(uuid())
@@ -33,6 +46,7 @@ model User {
   // Relations: A user can have multiple OTPs and Sessions
   otps     Otp[]
   sessions Session[]
+  devices  Device[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -72,4 +86,59 @@ model Session {
   updatedAt DateTime @updatedAt
 
   @@map("sessions")
+}
+
+model DeviceModel {
+  id          String            @id @default(uuid())
+  name        String
+  code        String            @unique
+  description String?
+  version     String?
+  status      DeviceModelStatus @default(ACTIVE)
+
+  devices Device[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("device_models")
+}
+
+model Device {
+  id String @id @default(uuid())
+
+  // Device identification
+  deviceCode   String @unique
+  serialNumber String @unique
+
+  // Physical hardware identification
+  macAddress String? @unique
+  chipId     String? @unique
+
+  // Device model
+  deviceModelId String
+  deviceModel   DeviceModel @relation(fields: [deviceModelId], references: [id])
+
+  // Current owner
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  // Device lifecycle
+  status DeviceStatus @default(AVAILABLE)
+
+  // Manufacturing information
+  batchNumber    String?
+  manufacturedAt DateTime?
+
+  // Linking information
+  linkedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([deviceModelId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([batchNumber])
+  @@map("devices")
 }
