@@ -15,8 +15,8 @@ import {
   Command,
   User,
 } from "lucide-react";
-import api from "../lib/axios";
-import { toast } from "../../components/ui/toast";
+import api from "../../lib/axios";
+import { toast } from "../../../components/ui/toast";
 
 import {
   DropdownMenu,
@@ -26,8 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuGroup,
-} from "../../components/ui/dropdown-menu";
-import { logoutServerAction } from "../actions/auth";
+} from "../../../components/ui/dropdown-menu";
+import { logoutServerAction } from "../../actions/auth";
 
 export default function HomeLayout({
   children,
@@ -97,7 +97,7 @@ export default function HomeLayout({
         <div className="h-20 flex items-center px-6 border-b border-brand-border">
           <div className="flex items-center gap-3 text-brand-dark font-black tracking-tight text-4xl">
             <span className="bg-gradient-to-r from-black via-[#208c73] to-[#00ffc3] bg-clip-text text-transparent font-bold">
-              brand
+              admin
             </span>
           </div>
         </div>
@@ -213,7 +213,7 @@ export default function HomeLayout({
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-2 lg:p-2 bg-taupe-700 m-1 rounded-3xl scrollbar-none">
+        <div className="flex-1 overflow-y-auto p-2 lg:p-2 bg-purple-300 m-1 rounded-3xl scrollbar-none">
           {children}
         </div>
       </main>

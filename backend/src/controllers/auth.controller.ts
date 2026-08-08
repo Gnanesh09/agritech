@@ -21,63 +21,145 @@ interface JwtPayload {
 }
 
 export async function register(req: Request, res: Response) {
-    // 1. EXTRACT ALL FIELDS sent from the Next.js frontend
-    const { username, email, password, countryCode, phoneNo } = req.body;
+  try {
+    // ---------------------------------------------------------
+    // GET DATA FROM FRONTEND
+    // ---------------------------------------------------------
 
-    // Prisma: Check if username or email already exists
-    const isAlreadyRegistered = await prisma.user.findFirst({
-        where: {
-            OR: [
-                { username },
-                { email }
-            ]
-        }
-    });
+    const {
+      username,
+      email,
+      password,
+      countryCode,
+      phoneNo,
+      role,
+    } = req.body;
 
-    if (isAlreadyRegistered) {
-        return res.status(409).json({
-            message: "Username or email already exists"
-        });
+    console.log("========== REGISTER ==========");
+console.log("Request role:", role);
+console.log("Request body:", req.body);
+
+    // ---------------------------------------------------------
+    // VALIDATE ROLE
+    // ---------------------------------------------------------
+
+    if (
+      role !== "USER" &&
+      role !== "ADMIN" &&
+      role !== "SUPER_ADMIN"
+    ) {
+      return res.status(400).json({
+        message: "Invalid account role",
+      });
     }
 
-    const hashedPassword = crypto.createHash("sha256").update(password).digest("hex");
+    // ---------------------------------------------------------
+    // CHECK EXISTING USER
+    // ---------------------------------------------------------
 
-    // 2. PASS ALL FIELDS to Prisma
+    const isAlreadyRegistered =
+      await prisma.user.findFirst({
+        where: {
+          OR: [
+            { username },
+            { email },
+          ],
+        },
+      });
+
+    if (isAlreadyRegistered) {
+      return res.status(409).json({
+        message: "Username or email already exists",
+      });
+    }
+
+    // ---------------------------------------------------------
+    // HASH PASSWORD
+    // ---------------------------------------------------------
+
+    const hashedPassword = crypto
+      .createHash("sha256")
+      .update(password)
+      .digest("hex");
+
+    // ---------------------------------------------------------
+    // CREATE USER
+    // ---------------------------------------------------------
+
     const user = await prisma.user.create({
-        data: {
-            username,
-            email,
-            password: hashedPassword,
-            countryCode, 
-            phoneNo      
-        }
+      data: {
+        username,
+        email,
+        password: hashedPassword,
+        countryCode,
+        phoneNo,
+        role,
+      },
     });
+
+    console.log("Created user:", user);
+console.log("Created user role:", user.role);
+
+    // ---------------------------------------------------------
+    // GENERATE OTP
+    // ---------------------------------------------------------
 
     const otp = generateOtp();
+
     const html = getOtpHtml(otp);
 
-    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
-    
-    // Prisma: Create OTP record linking to user.id
+    const otpHash = crypto
+      .createHash("sha256")
+      .update(otp)
+      .digest("hex");
+
+    // ---------------------------------------------------------
+    // SAVE OTP
+    // ---------------------------------------------------------
+
     await prisma.otp.create({
-        data: {
-            email,
-            userId: user.id,
-            otpHash
-        }
+      data: {
+        email,
+        userId: user.id,
+        otpHash,
+      },
     });
 
-    await sendEmail(email, "OTP Verification", `Your OTP code is ${otp}`, html);
+    // ---------------------------------------------------------
+    // SEND OTP EMAIL
+    // ---------------------------------------------------------
 
-    res.status(201).json({
-        message: "User registered successfully",
-        user: {
-            username: user.username,
-            email: user.email,
-            verified: user.verified
-        },
+    await sendEmail(
+      email,
+      "OTP Verification",
+      `Your OTP code is ${otp}`,
+      html
+    );
+
+    // ---------------------------------------------------------
+    // RESPONSE
+    // ---------------------------------------------------------
+
+    return res.status(201).json({
+      message: "User registered successfully",
+
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        verified: user.verified,
+      },
     });
+  } catch (error) {
+    console.error("Registration error:", error);
+
+    return res.status(500).json({
+      message: "Registration failed",
+    });
+  }
 }
+
 
 export async function login(req: Request, res: Response) {
     const { email, password } = req.body;
@@ -137,14 +219,17 @@ export async function login(req: Request, res: Response) {
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    res.status(200).json({
-        message: "Logged in successfully",
-        user: {
-            username: user.username,
-            email: user.email,
-        },
-        accessToken,
-    });
+    return res.status(200).json({
+    message: "Logged in successfully",
+    user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        verified: user.verified,
+        role: user.role,
+    },
+    accessToken,
+});
 }
 
 export async function getMe(req: Request, res: Response) {
@@ -309,79 +394,112 @@ export async function logoutAll(req: Request, res: Response) {
         return res.status(401).json({ message: "Invalid token" });
     }
 }
-
 export async function verifyEmail(req: Request, res: Response) {
     const { otp, email } = req.body;
 
-    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+    const otpHash = crypto
+        .createHash("sha256")
+        .update(otp)
+        .digest("hex");
 
-    // Prisma: Find OTP Document
+    // Find OTP
     const otpDoc = await prisma.otp.findFirst({
         where: {
             email,
-            otpHash
-        }
+            otpHash,
+        },
     });
 
     if (!otpDoc) {
         return res.status(400).json({
-            message: "Invalid OTP"
+            message: "Invalid OTP",
         });
     }
 
-    // Prisma: Update user verification status
+    // Update user verification status
     const user = await prisma.user.update({
-        where: { id: otpDoc.userId },
-        data: { verified: true }
+        where: {
+            id: otpDoc.userId,
+        },
+        data: {
+            verified: true,
+        },
     });
 
     if (!user) {
-        return res.status(404).json({ message: "User not found" });
+        return res.status(404).json({
+            message: "User not found",
+        });
     }
 
-    // Prisma: Delete used OTPs for this user
+    // Delete used OTP
     await prisma.otp.deleteMany({
-        where: { userId: otpDoc.userId }
+        where: {
+            userId: otpDoc.userId,
+        },
     });
 
-    // --- LOG THE USER IN AFTER SUCCESSFUL VERIFICATION ---
+    // ---------------------------------------------------------
+    // LOG THE USER IN AFTER SUCCESSFUL VERIFICATION
+    // ---------------------------------------------------------
+
     const refreshToken = jwt.sign(
-        { id: user.id }, 
+        { id: user.id },
         config.JWT_SECRET,
-        { expiresIn: "7d" }
+        {
+            expiresIn: "7d",
+        }
     );
 
-    const refreshTokenHash = crypto.createHash("sha256").update(refreshToken).digest("hex");
+    const refreshTokenHash = crypto
+        .createHash("sha256")
+        .update(refreshToken)
+        .digest("hex");
 
-    // Prisma: Create new authenticated session
+    // Create authenticated session
     const session = await prisma.session.create({
         data: {
             userId: user.id,
             refreshTokenHash,
             ip: req.ip || "unknown",
-            userAgent: req.headers["user-agent"] || "unknown"
-        }
+            userAgent:
+                req.headers["user-agent"] || "unknown",
+        },
     });
 
+    // Create access token
     const accessToken = jwt.sign(
-        { id: user.id, sessionId: session.id }, 
+        {
+            id: user.id,
+            sessionId: session.id,
+        },
         config.JWT_SECRET,
-        { expiresIn: "15m" }
+        {
+            expiresIn: "15m",
+        }
     );
 
-    // Set the cookie so the frontend is fully authenticated
+    // Set refresh token cookie
     res.cookie("refreshToken", refreshToken, {
-       ...cookieOptions,
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        ...cookieOptions,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+
+    // ---------------------------------------------------------
+    // IMPORTANT: RETURN ROLE
+    // ---------------------------------------------------------
 
     return res.status(200).json({
         message: "Email verified and logged in successfully",
+
         user: {
+            id: user.id,
             username: user.username,
             email: user.email,
-            verified: user.verified
+            verified: user.verified,
+            role: user.role, // ⭐ THIS IS THE FIX
         },
-        accessToken, // Send access token to frontend memory
+
+        accessToken,
     });
 }

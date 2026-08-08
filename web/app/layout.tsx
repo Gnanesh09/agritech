@@ -31,7 +31,7 @@ export default function RootLayout({
       {/* 2. Force Next.js to apply the font directly to the body! */}
       {/* We removed 'font-sans' because montserrat.className handles it directly */}
       <body
-        className={`${lato.className} antialiased bg-brand-light text-brand-dark`}
+        className={`${poppins.className} antialiased bg-brand-light text-brand-dark`}
       >
         {children}
         <Toaster />

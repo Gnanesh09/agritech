@@ -12,6 +12,8 @@ import {
   Loader2,
   KeyRound,
   ArrowLeft,
+  ShieldCheck,
+  Crown,
 } from "lucide-react";
 
 import {
@@ -21,8 +23,9 @@ import {
 } from "../actions/auth";
 
 type AuthStep = "LOGIN" | "REGISTER" | "OTP";
+type AdminRole = "ADMIN" | "SUPER_ADMIN";
 
-export default function AuthPage() {
+export default function AdminAuthPage() {
   const router = useRouter();
 
   // ---------------------------------------------------------
@@ -32,14 +35,20 @@ export default function AuthPage() {
   const [step, setStep] = useState<AuthStep>("LOGIN");
 
   // ---------------------------------------------------------
-  // LOADING / ERROR STATES
+  // ADMIN ROLE
+  // ---------------------------------------------------------
+
+  const [selectedRole, setSelectedRole] = useState<AdminRole>("ADMIN");
+
+  // ---------------------------------------------------------
+  // LOADING / ERROR
   // ---------------------------------------------------------
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // ---------------------------------------------------------
-  // FORM STATES
+  // FORM DATA
   // ---------------------------------------------------------
 
   const [formData, setFormData] = useState({
@@ -78,7 +87,28 @@ export default function AuthPage() {
   };
 
   // ---------------------------------------------------------
-  // FORM SUBMIT
+  // REDIRECT BASED ON ROLE
+  // ---------------------------------------------------------
+
+  const redirectByRole = (role: string) => {
+    if (role === "SUPER_ADMIN") {
+      router.refresh();
+      router.push("/superadmin");
+      return;
+    }
+
+    if (role === "ADMIN") {
+      router.refresh();
+      router.push("/admin/dashboard");
+      return;
+    }
+
+    // USER or unknown role
+    setError("You do not have permission to access the admin portal.");
+  };
+
+  // ---------------------------------------------------------
+  // SUBMIT
   // ---------------------------------------------------------
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -98,20 +128,35 @@ export default function AuthPage() {
           formData.password,
         );
 
-        if (result.success) {
-          /*
-           * Refresh Next.js so server components
-           * receive the newly-created authentication cookie.
-           */
-          router.refresh();
-
-          /*
-           * Move the user to the authenticated area.
-           */
-          router.push("/home");
-        } else {
+        if (!result.success) {
           setError(result.error);
+          return;
         }
+
+        /*
+         * IMPORTANT:
+         *
+         * We do NOT trust selectedRole here.
+         *
+         * The backend/database role is the real role.
+         */
+        const actualRole = result.user?.role;
+
+        if (actualRole !== "ADMIN" && actualRole !== "SUPER_ADMIN") {
+          setError("This account does not have admin access.");
+          return;
+        }
+
+        /*
+         * Optional protection:
+         *
+         * If the user selected ADMIN but their actual
+         * account is SUPERADMIN, still send them to the
+         * correct dashboard.
+         *
+         * The database role always wins.
+         */
+        redirectByRole(actualRole);
 
         return;
       }
@@ -121,22 +166,30 @@ export default function AuthPage() {
       // =====================================================
 
       if (step === "REGISTER") {
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT blindly allow the browser to create a
+         * SUPERADMIN account.
+         *
+         * Your backend should validate whether this user
+         * is authorized to create an ADMIN/SUPERADMIN.
+         *
+         * This sends the selected role to the backend.
+         * Your backend MUST validate it.
+         */
         const result = await registerServerAction({
           username: formData.username,
           email: formData.email,
           password: formData.password,
           countryCode: formData.countryCode,
           phoneNo: formData.phoneNo,
-          role: "USER",
-        });
+
+          // Admin registration role
+          role: selectedRole,
+        } as any);
 
         if (result.success) {
-          /*
-           * Registration succeeded.
-           *
-           * Backend has created the user and
-           * sent the OTP email.
-           */
           setOtp("");
           setStep("OTP");
         } else {
@@ -147,28 +200,30 @@ export default function AuthPage() {
       }
 
       // =====================================================
-      // OTP VERIFICATION
+      // OTP
       // =====================================================
 
       if (step === "OTP") {
         const result = await verifyEmailServerAction(formData.email, otp);
 
-        if (result.success) {
-          /*
-           * The Server Action has already captured
-           * the refreshToken cookie from Express.
-           */
-          router.refresh();
-
-          router.push("/home");
-        } else {
+        if (!result.success) {
           setError(result.error);
+          return;
         }
+
+        const actualRole = result.user?.role;
+
+        if (actualRole !== "ADMIN" && actualRole !== "SUPER_ADMIN") {
+          setError("This account does not have admin access.");
+          return;
+        }
+
+        redirectByRole(actualRole);
 
         return;
       }
     } catch (err) {
-      console.error("Authentication error:", err);
+      console.error("Admin authentication error:", err);
 
       setError("Something went wrong. Please try again.");
     } finally {
@@ -177,7 +232,7 @@ export default function AuthPage() {
   };
 
   // ---------------------------------------------------------
-  // LOGIN <-> REGISTER
+  // TOGGLE LOGIN / REGISTER
   // ---------------------------------------------------------
 
   const toggleMode = () => {
@@ -187,7 +242,7 @@ export default function AuthPage() {
   };
 
   // ---------------------------------------------------------
-  // BACK TO REGISTER FROM OTP
+  // BACK FROM OTP
   // ---------------------------------------------------------
 
   const handleBackToRegister = () => {
@@ -201,14 +256,14 @@ export default function AuthPage() {
   // ---------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-brand-light flex items-center justify-center px-4">
+    <div className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        {/* ===================================================
+        {/* =================================================
             HEADER
-        =================================================== */}
+        ================================================= */}
 
-        <div className="relative mb-20 text-center">
-          {/* Back button on OTP */}
+        <div className="relative mb-8 text-center">
+          {/* Back button */}
           {step === "OTP" && (
             <button
               type="button"
@@ -218,42 +273,126 @@ export default function AuthPage() {
                 left-0
                 top-1
                 flex
-                items-center
-                justify-center
                 h-9
                 w-9
+                items-center
+                justify-center
                 rounded-lg
                 text-gray-400
-                hover:text-black
-                hover:bg-gray-100
                 transition-all
+                hover:bg-gray-100
+                hover:text-black
               "
-              aria-label="Back to registration"
+              aria-label="Back"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
 
-          {/* Title */}
-          <h1 className="text-6xl font-semibold tracking-tight text-green-900 text-left">
-            {step === "LOGIN" && "Welcome back"}
-            {step === "REGISTER" && "Create an account"}
+          {/* Admin icon */}
+          {step !== "OTP" && (
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white">
+              {selectedRole === "SUPER_ADMIN" ? (
+                <Crown className="h-6 w-6" />
+              ) : (
+                <ShieldCheck className="h-6 w-6" />
+              )}
+            </div>
+          )}
+
+          <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
+            {step === "LOGIN" && "Admin Portal"}
+            {step === "REGISTER" && "Create Admin Account"}
             {step === "OTP" && "Verify your email"}
           </h1>
 
-          {/* Subtitle */}
-          <p className="mt-2 text-sm text-gray-500 text-left">
-            {step === "LOGIN" && "Enter your details to access your account"}
+          <p className="mt-2 text-sm text-gray-500">
+            {step === "LOGIN" && "Sign in to access the administration portal"}
 
-            {step === "REGISTER" && "Fill in your details to get started"}
+            {step === "REGISTER" && "Create your administration account"}
 
-            {step === "OTP" && `We sent a code to ${formData.email}`}
+            {step === "OTP" &&
+              `We sent a verification code to ${formData.email}`}
           </p>
         </div>
 
-        {/* ===================================================
-            ERROR MESSAGE
-        =================================================== */}
+        {/* =================================================
+            ROLE SELECTOR
+        ================================================= */}
+
+        {step !== "OTP" && (
+          <div className="mb-6">
+            <p className="mb-2 text-sm font-medium text-gray-700">
+              Account type
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* ADMIN */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRole("ADMIN");
+                  clearErrors();
+                }}
+                className={`
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-xl
+                  border
+                  px-4
+                  py-3
+                  text-sm
+                  font-medium
+                  transition-all
+                  ${
+                    selectedRole === "ADMIN"
+                      ? "border-black bg-black text-white"
+                      : "border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 hover:bg-gray-100"
+                  }
+                `}
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Admin
+              </button>
+
+              {/* SUPERADMIN */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRole("SUPER_ADMIN");
+                  clearErrors();
+                }}
+                className={`
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-xl
+                  border
+                  px-4
+                  py-3
+                  text-sm
+                  font-medium
+                  transition-all
+                  ${
+                    selectedRole === "SUPER_ADMIN"
+                      ? "border-black bg-black text-white"
+                      : "border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 hover:bg-gray-100"
+                  }
+                `}
+              >
+                <Crown className="h-4 w-4" />
+                Super Admin
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* =================================================
+            ERROR
+        ================================================= */}
 
         {error && (
           <div
@@ -274,9 +413,9 @@ export default function AuthPage() {
           </div>
         )}
 
-        {/* ===================================================
+        {/* =================================================
             FORM
-        =================================================== */}
+        ================================================= */}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* =================================================
@@ -304,9 +443,6 @@ export default function AuthPage() {
                 placeholder="Enter 6-digit code"
                 value={otp}
                 onChange={(e) => {
-                  /*
-                   * Only allow numbers.
-                   */
                   const value = e.target.value.replace(/\D/g, "").slice(0, 6);
 
                   setOtp(value);
@@ -343,13 +479,12 @@ export default function AuthPage() {
             </div>
           ) : (
             <>
-              {/* =============================================
-                  REGISTER ONLY FIELDS
-              ============================================= */}
+              {/* =================================================
+                  USERNAME - REGISTER
+              ================================================= */}
 
               {step === "REGISTER" && (
                 <div className="space-y-4">
-                  {/* Username */}
                   <div className="relative">
                     <User
                       className="
@@ -390,9 +525,9 @@ export default function AuthPage() {
                     />
                   </div>
 
-                  {/* Country Code + Phone */}
+                  {/* PHONE */}
+
                   <div className="flex gap-3">
-                    {/* Country Code */}
                     <div className="relative w-1/3">
                       <Globe
                         className="
@@ -423,7 +558,6 @@ export default function AuthPage() {
                           pr-3
                           outline-none
                           transition-all
-                          placeholder:text-gray-400
                           focus:border-black
                           focus:bg-white
                           focus:ring-2
@@ -432,7 +566,6 @@ export default function AuthPage() {
                       />
                     </div>
 
-                    {/* Phone Number */}
                     <div className="relative w-2/3">
                       <Phone
                         className="
@@ -464,7 +597,6 @@ export default function AuthPage() {
                           pr-4
                           outline-none
                           transition-all
-                          placeholder:text-gray-400
                           focus:border-black
                           focus:bg-white
                           focus:ring-2
@@ -476,9 +608,9 @@ export default function AuthPage() {
                 </div>
               )}
 
-              {/* =============================================
+              {/* =================================================
                   EMAIL
-              ============================================= */}
+              ================================================= */}
 
               <div className="relative">
                 <Mail
@@ -520,9 +652,9 @@ export default function AuthPage() {
                 />
               </div>
 
-              {/* =============================================
+              {/* =================================================
                   PASSWORD
-              ============================================= */}
+              ================================================= */}
 
               <div className="relative">
                 <Lock
@@ -598,8 +730,8 @@ export default function AuthPage() {
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               <>
-                {step === "LOGIN" && "Sign In"}
-                {step === "REGISTER" && "Create Account"}
+                {step === "LOGIN" && "Admin Sign In"}
+                {step === "REGISTER" && "Create Admin Account"}
                 {step === "OTP" && "Verify & Continue"}
 
                 <ArrowRight className="h-4 w-4" />
@@ -608,9 +740,9 @@ export default function AuthPage() {
           </button>
         </form>
 
-        {/* ===================================================
+        {/* =================================================
             LOGIN / REGISTER TOGGLE
-        =================================================== */}
+        ================================================= */}
 
         {step !== "OTP" && (
           <div className="mt-8 text-center text-sm text-gray-500">

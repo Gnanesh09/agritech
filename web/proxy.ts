@@ -1,31 +1,98 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-// Notice we changed "middleware" to "proxy" here!
 export function proxy(request: NextRequest) {
-  // 1. Check if the user has a refreshToken cookie
-  const refreshToken = request.cookies.get('refreshToken')?.value;
-  
-  // 2. Get the current URL path (e.g., /login, /home)
+  const refreshToken =
+    request.cookies.get("refreshToken")?.value;
+
   const { pathname } = request.nextUrl;
 
-  // 3. If they HAVE a token and try to visit the login page -> Redirect to /home
-  if (refreshToken && pathname === '/login') {
-    return NextResponse.redirect(new URL('/home', request.url));
+  // =========================================================
+  // PUBLIC AUTH PAGES
+  // =========================================================
+
+  const isUserLoginPage = pathname === "/login";
+  const isAdminLoginPage = pathname === "/admin";
+
+  // =========================================================
+  // PRIVATE ROUTES
+  // =========================================================
+
+  const isUserPrivateRoute =
+    pathname === "/home" ||
+    pathname.startsWith("/home/") ||
+    pathname === "/profile" ||
+    pathname.startsWith("/profile/");
+
+  const isAdminPrivateRoute =
+    pathname === "/admin/dashboard" ||
+    pathname.startsWith("/admin/dashboard/");
+
+  const isSuperAdminPrivateRoute =
+    pathname === "/superadmin/dashboard" ||
+    pathname.startsWith("/superadmin/dashboard/");
+
+  // =========================================================
+  // USER LOGIN
+  // =========================================================
+
+  /*
+   * If already authenticated and they visit /login,
+   * send them to /home.
+   *
+   * NOTE:
+   * This assumes /login is for normal users.
+   */
+  if (refreshToken && isUserLoginPage) {
+    return NextResponse.redirect(
+      new URL("/home", request.url)
+    );
   }
 
-  // 4. Protect your private routes. If they DON'T have a token and try to visit /home -> Redirect to /login
-  const isPrivateRoute = pathname.startsWith('/home') || pathname.startsWith('/profile');
-  
-  if (!refreshToken && isPrivateRoute) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  // =========================================================
+  // USER PRIVATE ROUTES
+  // =========================================================
+
+  if (!refreshToken && isUserPrivateRoute) {
+    return NextResponse.redirect(
+      new URL("/login", request.url)
+    );
   }
 
-  // Otherwise, let them proceed normally
+  // =========================================================
+  // ADMIN DASHBOARD
+  // =========================================================
+
+  if (!refreshToken && isAdminPrivateRoute) {
+    return NextResponse.redirect(
+      new URL("/admin", request.url)
+    );
+  }
+
+  // =========================================================
+  // SUPER ADMIN DASHBOARD
+  // =========================================================
+
+  if (!refreshToken && isSuperAdminPrivateRoute) {
+    return NextResponse.redirect(
+      new URL("/admin", request.url)
+    );
+  }
+
+  // =========================================================
+  // OTHERWISE
+  // =========================================================
+
   return NextResponse.next();
 }
 
-// 5. Tell Next.js which routes this proxy should run on
 export const config = {
-  matcher: ['/login', '/home/:path*', '/profile/:path*'],
+  matcher: [
+    "/login",
+    "/home/:path*",
+    "/profile/:path*",
+    "/admin",
+    "/admin/dashboard/:path*",
+    "/superadmin/dashboard/:path*",
+  ],
 };
