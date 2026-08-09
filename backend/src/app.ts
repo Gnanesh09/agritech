@@ -3,12 +3,19 @@ import cookieParser from 'cookie-parser';
 import authRouter from './routes/auth.routes';
 import adminRouter from './routes/admin.routes';
 import userRouter from './routes/user.route';
-
+import  cors from "cors";
 
 const app = express();
 
 app.use(express.json());
 app.use(cookieParser());
+
+app.use(
+    cors({
+        origin: true,
+        credentials: true,
+    })
+);
 
 // app.use("/api/auth");
 

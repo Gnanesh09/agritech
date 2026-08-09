@@ -4,7 +4,7 @@
 import { cookies } from "next/headers";
 
 const apiUrl =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3050";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 /**
  * LOGIN
@@ -231,3 +231,5 @@ export async function logoutServerAction() {
     };
   }
 }
+
+

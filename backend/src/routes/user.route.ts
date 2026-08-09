@@ -15,7 +15,7 @@ userRouter.patch("/profile", protectRoute,userController.updateProfile);
 userRouter.get("/devices", protectRoute,userController.getMyDevices);
 userRouter.post("/devices/claim", protectRoute,userController.claimDevice);
 userRouter.get("/devices/:id", protectRoute,userController.getMyDevice);
-userRouter.delete("/devices/:id", protectRoute,userController.getMyDevice);
+userRouter.delete("/devices/:id", protectRoute,userController.unlinkDevice);
 
 
 
