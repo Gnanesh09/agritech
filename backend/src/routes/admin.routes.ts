@@ -18,6 +18,13 @@ adminRouter.delete("/devicemodel/:id", protectRouteAdmin,authorizeRole("ADMIN","
 
 // device routes
 adminRouter.post("/devices/register", protectRouteAdmin,authorizeRole("ADMIN","SUPER_ADMIN"),adminController.registerDevice);
+adminRouter.get("/devices", protectRouteAdmin,authorizeRole("ADMIN","SUPER_ADMIN"),adminController.getAllDevices);
+adminRouter.get("/devices/stats", protectRouteAdmin,authorizeRole("ADMIN","SUPER_ADMIN"),adminController.getDeviceStats);
+adminRouter.get("/devices/:id", protectRouteAdmin,authorizeRole("ADMIN","SUPER_ADMIN"),adminController.getDevice);
+adminRouter.patch("/devices/:id", protectRouteAdmin,authorizeRole("ADMIN","SUPER_ADMIN"),adminController.updateDevice);
+adminRouter.patch("/devices/:id/status", protectRouteAdmin,authorizeRole("ADMIN","SUPER_ADMIN"),adminController.updateDeviceStatus);
+adminRouter.patch("/devices/:id", protectRouteAdmin,authorizeRole("ADMIN","SUPER_ADMIN"),adminController.updateDeviceStatus);
+
 
 
 
