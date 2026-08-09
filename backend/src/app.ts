@@ -2,6 +2,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import authRouter from './routes/auth.routes';
 import adminRouter from './routes/admin.routes';
+import userRouter from './routes/user.route';
 
 
 const app = express();
@@ -19,6 +20,7 @@ app.get("/health", (req,res)=>{
 
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/user", userRouter);
 
 export default app
 
