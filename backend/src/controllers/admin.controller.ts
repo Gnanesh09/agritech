@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import type { AuthRequest } from '../middleware/auth.middleware';
 import { log } from 'node:console';
 import { model } from 'mongoose';
+import { DeviceStatus } from '../../generated/prisma/enums';
 
 
 
@@ -362,9 +363,6 @@ export async function deleteDeviceModel(
 
 
 
-
-
-
 // ============================================================
 // REGISTER A NEW PHYSICAL DEVICE
 // ADMIN / SUPER_ADMIN ONLY
@@ -527,3 +525,596 @@ export async function registerDevice(req: Request, res: Response) {
         });
     }
 }
+
+
+
+export async function getAllDevices(req: Request, res: Response) {
+    try {
+
+        const {
+            status,
+            deviceModelId,
+            search,
+            page = "1",
+            limit = "20"
+        } = req.query;
+
+        const pageNumber = Math.max(Number(page), 1);
+        const limitNumber = Math.min(
+            Math.max(Number(limit), 1),
+            100
+        );
+
+        const skip =
+            (pageNumber - 1) * limitNumber;
+
+        // -----------------------------
+        // Build filters
+        // -----------------------------
+
+        const where: any = {};
+
+        if (status) {
+            where.status = status;
+        }
+
+        if (deviceModelId) {
+            where.deviceModelId = String(deviceModelId);
+        }
+
+        if (search) {
+            const searchValue = String(search);
+
+            where.OR = [
+                {
+                    deviceCode: {
+                        contains: searchValue,
+                        mode: "insensitive"
+                    }
+                },
+                {
+                    serialNumber: {
+                        contains: searchValue,
+                        mode: "insensitive"
+                    }
+                },
+                {
+                    macAddress: {
+                        contains: searchValue,
+                        mode: "insensitive"
+                    }
+                }
+            ];
+        }
+
+        // -----------------------------
+        // Fetch devices + count
+        // -----------------------------
+
+        const [devices, total] =
+            await prisma.$transaction([
+                prisma.device.findMany({
+                    where,
+
+                    include: {
+                        deviceModel: true,
+                        owner: {
+                            select: {
+                                id: true,
+                                username: true,
+                                email: true
+                            }
+                        }
+                    },
+
+                    orderBy: {
+                        createdAt: "desc"
+                    },
+
+                    skip,
+                    take: limitNumber
+                }),
+
+                prisma.device.count({
+                    where
+                })
+            ]);
+
+        return res.status(200).json({
+            devices,
+
+            pagination: {
+                page: pageNumber,
+                limit: limitNumber,
+                total,
+                totalPages: Math.ceil(
+                    total / limitNumber
+                )
+            }
+        });
+
+    } catch (error) {
+        console.error("getAllDevices:", error);
+
+        return res.status(500).json({
+            message: "Failed to fetch devices"
+        });
+    }
+}
+
+
+export async function getDevice(req: Request, res: Response) {
+    try {
+
+        const { id } = req.params;
+if (!id || Array.isArray(id)) {
+    return res.status(400).json({
+        message: "Invalid device ID"
+    });
+}
+        const device = await prisma.device.findUnique({
+            where: {
+                id
+            },
+
+            include: {
+                deviceModel: true,
+
+                owner: {
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                        phoneNo: true
+                    }
+                }
+            }
+        });
+
+        if (!device) {
+            return res.status(404).json({
+                message: "Device not found"
+            });
+        }
+
+        return res.status(200).json({
+            device
+        });
+
+    } catch (error) {
+        console.error("getDevice:", error);
+
+        return res.status(500).json({
+            message: "Failed to fetch device"
+        });
+    }
+}
+
+
+
+// ======================================================
+// UPDATE DEVICE
+// PATCH /api/admin/devices/:id
+// ======================================================
+
+export async function updateDevice(req: Request, res: Response) {
+    try {
+
+        const { id } = req.params;
+ if (!id || Array.isArray(id)) {
+            return res.status(400).json({
+                message: "Invalid device ID"
+            });
+        }
+
+        const {
+            deviceCode,
+            serialNumber,
+            macAddress,
+            chipId,
+            deviceModelId,
+            batchNumber,
+            manufacturedAt
+        } = req.body;
+
+        // -----------------------------
+        // Check device
+        // -----------------------------
+
+        const existingDevice =
+            await prisma.device.findUnique({
+                where: {
+                    id
+                }
+            });
+
+        if (!existingDevice) {
+            return res.status(404).json({
+                message: "Device not found"
+            });
+        }
+
+        // -----------------------------
+        // Check Device Model
+        // -----------------------------
+
+        if (deviceModelId) {
+
+            const model =
+                await prisma.deviceModel.findUnique({
+                    where: {
+                        id: deviceModelId
+                    }
+                });
+
+            if (!model) {
+                return res.status(404).json({
+                    message: "Device model not found"
+                });
+            }
+
+            if (model.status !== "ACTIVE") {
+                return res.status(400).json({
+                    message: "Device model is not active"
+                });
+            }
+        }
+
+        // -----------------------------
+        // Duplicate protection
+        // -----------------------------
+
+        const duplicate =
+            await prisma.device.findFirst({
+                where: {
+                    AND: [
+                        {
+                            id: {
+                                not: id
+                            }
+                        },
+
+                        {
+                            OR: [
+                                ...(deviceCode
+                                    ? [{ deviceCode }]
+                                    : []),
+
+                                ...(serialNumber
+                                    ? [{ serialNumber }]
+                                    : []),
+
+                                ...(macAddress
+                                    ? [{ macAddress }]
+                                    : []),
+
+                                ...(chipId
+                                    ? [{ chipId }]
+                                    : [])
+                            ]
+                        }
+                    ]
+                }
+            });
+
+        if (duplicate) {
+            return res.status(409).json({
+                message:
+                    "Another device already uses one of these identifiers"
+            });
+        }
+
+        // -----------------------------
+        // Update
+        // -----------------------------
+
+        const updatedDevice =
+            await prisma.device.update({
+                where: {
+                    id
+                },
+
+                data: {
+                    ...(deviceCode !== undefined && {
+                        deviceCode
+                    }),
+
+                    ...(serialNumber !== undefined && {
+                        serialNumber
+                    }),
+
+                    ...(macAddress !== undefined && {
+                        macAddress:
+                            macAddress || null
+                    }),
+
+                    ...(chipId !== undefined && {
+                        chipId:
+                            chipId || null
+                    }),
+
+                    ...(deviceModelId !== undefined && {
+                        deviceModelId
+                    }),
+
+                    ...(batchNumber !== undefined && {
+                        batchNumber:
+                            batchNumber || null
+                    }),
+
+                    ...(manufacturedAt !== undefined && {
+                        manufacturedAt:
+                            manufacturedAt
+                                ? new Date(manufacturedAt)
+                                : null
+                    })
+                },
+
+                include: {
+                    deviceModel: true,
+                    owner: {
+                        select: {
+                            id: true,
+                            username: true,
+                            email: true
+                        }
+                    }
+                }
+            });
+
+        return res.status(200).json({
+            message: "Device updated successfully",
+            device: updatedDevice
+        });
+
+    } catch (error) {
+        console.error("updateDevice:", error);
+
+        return res.status(500).json({
+            message: "Failed to update device"
+        });
+    }
+}
+
+
+// ======================================================
+// UPDATE DEVICE STATUS
+// PATCH /api/admin/devices/:id/status
+// ======================================================
+
+export async function updateDeviceStatus(
+    req: Request,
+    res: Response
+) {
+    try {
+
+        const { id } = req.params;
+        if (!id || Array.isArray(id)) {
+            return res.status(400).json({
+                message: "Invalid device ID"
+            });
+        }
+
+        const { status } = req.body;
+
+        // -----------------------------
+        // Validate status
+        // -----------------------------
+
+        const validStatuses = [
+            DeviceStatus.AVAILABLE,
+            DeviceStatus.LINKED,
+            DeviceStatus.BLOCKED,
+            DeviceStatus.RETIRED
+        ];
+
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({
+                message:
+                    "Invalid device status",
+                allowedStatuses: validStatuses
+            });
+        }
+
+        // -----------------------------
+        // Find device
+        // -----------------------------
+
+        const device =
+            await prisma.device.findUnique({
+                where: {
+                    id
+                }
+            });
+
+        if (!device) {
+            return res.status(404).json({
+                message: "Device not found"
+            });
+        }
+
+        // -----------------------------
+        // Prevent invalid lifecycle changes
+        // -----------------------------
+
+        if (
+            device.status === DeviceStatus.RETIRED &&
+            status !== DeviceStatus.RETIRED
+        ) {
+            return res.status(400).json({
+                message:
+                    "A retired device cannot be reactivated"
+            });
+        }
+
+        // -----------------------------
+        // Update status
+        // -----------------------------
+
+        const updatedDevice =
+            await prisma.device.update({
+                where: {
+                    id
+                },
+
+                data: {
+                    status
+                }
+            });
+
+        return res.status(200).json({
+            message:
+                "Device status updated successfully",
+
+            device: updatedDevice
+        });
+
+    } catch (error) {
+        console.error("updateDeviceStatus:", error);
+
+        return res.status(500).json({
+            message:
+                "Failed to update device status"
+        });
+    }
+}
+
+
+// ======================================================
+// DELETE DEVICE
+// DELETE /api/admin/devices/:id
+// ======================================================
+
+export async function deleteDevice(req: Request, res: Response) {
+    try {
+
+        const { id } = req.params;
+        if (!id || Array.isArray(id)) {
+            return res.status(400).json({
+                message: "Invalid device ID"
+            });
+        }
+        // -----------------------------
+        // Find device
+        // -----------------------------
+
+        const device =
+            await prisma.device.findUnique({
+                where: {
+                    id
+                }
+            });
+
+        if (!device) {
+            return res.status(404).json({
+                message: "Device not found"
+            });
+        }
+
+        // -----------------------------
+        // Don't delete linked devices
+        // -----------------------------
+
+        if (
+            device.status === DeviceStatus.LINKED
+        ) {
+            return res.status(400).json({
+                message:
+                    "Linked devices cannot be deleted. Unlink or retire the device first."
+            });
+        }
+
+        // -----------------------------
+        // Delete
+        // -----------------------------
+
+        await prisma.device.delete({
+            where: {
+                id
+            }
+        });
+
+        return res.status(200).json({
+            message:
+                "Device deleted successfully"
+        });
+
+    } catch (error) {
+        console.error("deleteDevice:", error);
+
+        return res.status(500).json({
+            message:
+                "Failed to delete device"
+        });
+    }
+}
+
+
+// ======================================================
+// DEVICE STATISTICS
+// GET /api/admin/devices/stats
+// ======================================================
+
+export async function getDeviceStats(
+    req: Request,
+    res: Response
+) {
+    try {
+
+        const [
+            total,
+            available,
+            linked,
+            blocked,
+            retired
+        ] = await prisma.$transaction([
+
+            prisma.device.count(),
+
+            prisma.device.count({
+                where: {
+                    status:
+                        DeviceStatus.AVAILABLE
+                }
+            }),
+
+            prisma.device.count({
+                where: {
+                    status:
+                        DeviceStatus.LINKED
+                }
+            }),
+
+            prisma.device.count({
+                where: {
+                    status:
+                        DeviceStatus.BLOCKED
+                }
+            }),
+
+            prisma.device.count({
+                where: {
+                    status:
+                        DeviceStatus.RETIRED
+                }
+            })
+        ]);
+
+        return res.status(200).json({
+            total,
+            available,
+            linked,
+            blocked,
+            retired
+        });
+
+    } catch (error) {
+        console.error("getDeviceStats:", error);
+
+        return res.status(500).json({
+            message:
+                "Failed to fetch device statistics"
+        });
+    }
+}
+
