@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -12,7 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// 1. Define the Role Enum from your User schema
 enum Role {
   USER
   ADMIN
@@ -32,7 +26,6 @@ enum DeviceModelStatus {
   DISCONTINUED
 }
 
-// 2. The User Model
 model User {
   id          String  @id @default(uuid())
   username    String
@@ -43,24 +36,21 @@ model User {
   role        Role    @default(USER)
   verified    Boolean @default(false)
 
-  // Relations: A user can have multiple OTPs and Sessions
-  otps     Otp[]
-  sessions Session[]
-  devices  Device[]
+  otps        Otp[]
+  sessions    Session[]
+  userDevices UserDevice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("users") // This maps the Prisma model to your existing "users" table name convention
+  @@map("users")
 }
 
-// 3. The OTP Model
 model Otp {
   id      String @id @default(uuid())
   email   String
   otpHash String
 
-  // Foreign Key Relation to User
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -70,7 +60,6 @@ model Otp {
   @@map("otps")
 }
 
-// 4. The Session Model
 model Session {
   id               String  @id @default(uuid())
   refreshTokenHash String
@@ -78,7 +67,6 @@ model Session {
   userAgent        String
   revoked          Boolean @default(false)
 
-  // Foreign Key Relation to User
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -94,6 +82,7 @@ model DeviceModel {
   code        String            @unique
   description String?
   version     String?
+  imageUrl    String?
   status      DeviceModelStatus @default(ACTIVE)
 
   devices Device[]
@@ -107,38 +96,77 @@ model DeviceModel {
 model Device {
   id String @id @default(uuid())
 
-  // Device identification
-  deviceCode   String @unique
-  serialNumber String @unique
+  deviceCode   String  @unique
+  serialNumber String  @unique
+  macAddress   String? @unique
+  chipId       String? @unique
 
-  // Physical hardware identification
-  macAddress String? @unique
-  chipId     String? @unique
-
-  // Device model
   deviceModelId String
   deviceModel   DeviceModel @relation(fields: [deviceModelId], references: [id])
 
-  // Current owner
-  ownerId String?
-  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-
-  // Device lifecycle
   status DeviceStatus @default(AVAILABLE)
 
-  // Manufacturing information
   batchNumber    String?
   manufacturedAt DateTime?
 
-  // Linking information
   linkedAt DateTime?
+
+  credential DeviceCredential?
+  telemetry  DeviceTelemetry[]
+
+  userDevices UserDevice[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([deviceModelId])
-  @@index([ownerId])
   @@index([status])
   @@index([batchNumber])
   @@map("devices")
+}
+
+model DeviceCredential {
+  id         String    @id @default(uuid())
+  deviceId   String    @unique
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("device_credentials")
+}
+
+model DeviceTelemetry {
+  id          String   @id @default(uuid())
+  deviceId    String
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  temperature Float?
+  humidity    Float?
+  recordedAt  DateTime @default(now())
+
+  @@index([deviceId])
+  @@index([recordedAt])
+  @@map("device_telemetry")
+}
+
+model UserDevice {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  name String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@index([deviceId])
+  @@map("user_devices")
 }
