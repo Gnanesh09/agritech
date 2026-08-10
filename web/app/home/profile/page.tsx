@@ -256,8 +256,8 @@ export default function ProfilePage() {
 
         <section className="mt-6 rounded-[22px] bg-white p-5 shadow-[0_4px_20px_rgba(0,0,0,0.035)]">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] bg-blue-50">
-              <span className="text-xl font-bold text-blue-600">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] bg-[#a5fd02]/20">
+              <span className="text-xl font-bold text-black">
                 {user.username?.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -333,7 +333,7 @@ export default function ProfilePage() {
                   Upgrade your experience
                 </h3>
 
-                <span className="rounded-md bg-blue-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                <span className="rounded-md bg-[#a5fd02] px-1.5 py-0.5 text-[9px] font-bold text-black">
                   PRO
                 </span>
               </div>
@@ -344,7 +344,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <button className="mt-4 flex py-5 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-[13px] font-semibold text-white shadow-sm transition active:scale-[0.98]">
+          <button className="mt-4 flex py-4 w-full items-center justify-center gap-2 rounded-xl bg-[#a5fd02] text-[13px] font-semibold text-black shadow-sm transition active:scale-[0.98]">
             Upgrade
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -362,8 +362,8 @@ export default function ProfilePage() {
             className="flex w-full items-center justify-between px-4 py-4 text-left transition active:bg-gray-50"
           >
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50">
-                <Smartphone className="h-4 w-4 text-blue-600" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#a5fd02]/20">
+                <Smartphone className="h-4 w-4 text-black" />
               </div>
 
               <div>
