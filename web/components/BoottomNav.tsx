@@ -25,6 +25,7 @@ export default function BottomNav() {
                     p-1
                     shadow-[0_8px_30px_rgba(0,0,0,0.12)]
                     backdrop-blur-xl
+                    h-16
                 "
       >
         {/* HOME */}
@@ -34,7 +35,7 @@ export default function BottomNav() {
           className={`
                         flex
                         
-                        h-18
+                        h-full
                         min-w-[92px]
                         flex-col
                         items-center
@@ -49,7 +50,7 @@ export default function BottomNav() {
                         }
                     `}
         >
-          <Home size={21} strokeWidth={isHome ? 2.5 : 2} />
+          <Home size={18} strokeWidth={isHome ? 2.5 : 2} />
 
           <span className="mt-1 text-[11px] font-medium">Home</span>
         </Link>
@@ -60,7 +61,7 @@ export default function BottomNav() {
           href="/home/monitor"
           className={`
                         flex
-                        h-18
+                        h-full
                         min-w-[82px]
                         flex-col
                         items-center
@@ -75,7 +76,7 @@ export default function BottomNav() {
                         }
                     `}
         >
-          <Radar size={21} strokeWidth={isMonitor ? 2.5 : 2} />
+          <Radar size={18} strokeWidth={isMonitor ? 2.5 : 2} />
 
           <span className="mt-1 text-[11px] font-medium">Monitor</span>
         </Link>
@@ -83,7 +84,7 @@ export default function BottomNav() {
           href="/home/profile"
           className={`
                         flex
-                        h-18
+                        h-full
                         min-w-[82px]
                         flex-col
                         items-center
@@ -98,7 +99,7 @@ export default function BottomNav() {
                         }
                     `}
         >
-          <User size={21} strokeWidth={isProfile ? 2.5 : 2} />
+          <User size={18} strokeWidth={isProfile ? 2.5 : 2} />
 
           <span className="mt-1 text-[11px] font-medium">Profile</span>
         </Link>
