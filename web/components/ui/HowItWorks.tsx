@@ -1,101 +1,167 @@
 "use client";
 
 import { motion } from "framer-motion";
-
 import {
-  Thermometer,
-  Cpu,
-  Cloud,
+  Sprout,
   BrainCircuit,
-  MonitorSmartphone,
   Zap,
+  Smartphone,
 } from "lucide-react";
 
 const steps = [
   {
-    icon: Thermometer,
-    title: "Sensors",
-    text: "Temperature, humidity, light and soil moisture are continuously monitored.",
+    icon: <Sprout size={30} />,
+    title: "Sensors Collect Data",
+    description:
+      "Temperature, humidity, soil moisture and light sensors continuously monitor your farm environment in real time.",
   },
   {
-    icon: Cpu,
-    title: "ESP32 Edge Device",
-    text: "The ESP32 collects sensor readings and securely sends them to the cloud.",
+    icon: <BrainCircuit size={30} />,
+    title: "AI Analyzes Everything",
+    description:
+      "Our AI studies sensor readings, detects patterns and predicts what your crops need before problems occur.",
   },
   {
-    icon: Cloud,
-    title: "Cloud Platform",
-    text: "Telemetry is stored, processed and made available in real time.",
+    icon: <Zap size={30} />,
+    title: "Automation Takes Action",
+    description:
+      "The system automatically controls pumps, fans and lighting whenever conditions require intervention.",
   },
   {
-    icon: BrainCircuit,
-    title: "AI Engine",
-    text: "AI analyzes environmental data and recommends intelligent actions.",
-  },
-  {
-    icon: MonitorSmartphone,
-    title: "Dashboard",
-    text: "Monitor your farm anywhere using the web or mobile dashboard.",
-  },
-  {
-    icon: Zap,
-    title: "Automation",
-    text: "Automatically control pumps, fans and lighting when conditions change.",
+    icon: <Smartphone size={30} />,
+    title: "Monitor Anywhere",
+    description:
+      "View live data, receive alerts and control your farm remotely from your mobile dashboard.",
   },
 ];
 
 export default function HowItWorks() {
   return (
-    <section className="py-28 px-6">
-      <div className="max-w-6xl mx-auto">
+    <section
+      id="how-it-works"
+      className="relative overflow-hidden bg-white py-32"
+    >
+      {/* Background Glow */}
+      <div className="absolute inset-0 -z-10">
+        <div className="absolute left-0 top-20 h-96 w-96 rounded-full bg-green-100 blur-3xl opacity-40" />
+        <div className="absolute right-0 bottom-10 h-96 w-96 rounded-full bg-emerald-100 blur-3xl opacity-40" />
+      </div>
 
-        <div className="text-center mb-20">
+      <div className="mx-auto max-w-7xl px-6">
 
-          <p className="uppercase tracking-[0.25em] text-green-600 font-semibold">
-            HOW IT WORKS
-          </p>
+        {/* Heading */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7 }}
+          className="mb-24 text-center"
+        >
+          <span className="font-semibold uppercase tracking-[4px] text-green-700">
+            Process
+          </span>
 
-          <h2 className="text-5xl font-bold mt-4 text-zinc-900">
-            One Intelligent Ecosystem
+          <h2 className="mt-4 text-5xl font-extrabold text-slate-900">
+            How It Works
           </h2>
 
-          <p className="mt-6 text-zinc-600 max-w-2xl mx-auto">
-            From sensors in the field to AI-powered automation,
-            every component works together to create a smarter farm.
+          <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-600">
+            From collecting sensor data to making intelligent decisions,
+            our autonomous ecosystem keeps your farm healthy with minimal effort.
           </p>
+        </motion.div>
 
-        </div>
+        {/* Timeline */}
+        <div className="relative mx-auto max-w-5xl">
 
-        <div className="space-y-10">
+          {/* Desktop Line */}
+          <div className="absolute left-1/2 top-0 hidden h-full w-1 -translate-x-1/2 rounded-full bg-green-100 md:block" />
 
-          {steps.map((step, index) => {
-            const Icon = step.icon;
+          {/* Mobile Line */}
+          <div className="absolute left-6 top-0 h-full w-1 rounded-full bg-green-100 md:hidden" />
 
-            return (
-              <motion.div
-                key={step.title}
-                initial={{ opacity: 0, x: index % 2 === 0 ? -40 : 40 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5 }}
-                className="flex gap-6 items-start"
-              >
-                <div className="w-16 h-16 rounded-2xl bg-green-50 flex items-center justify-center flex-shrink-0">
-                  <Icon className="text-green-600" size={30} />
-                </div>
+          {steps.map((step, index) => (
+            <motion.div
+              key={step.title}
+              initial={{
+                opacity: 0,
+                x: index % 2 === 0 ? -120 : 120,
+              }}
+              whileInView={{
+                opacity: 1,
+                x: 0,
+              }}
+              viewport={{ once: true }}
+              transition={{
+                duration: 0.8,
+                delay: index * 0.15,
+              }}
+              className={`relative mb-20 flex ${
+                index % 2 === 0
+                  ? "md:flex-row"
+                  : "md:flex-row-reverse"
+              }`}
+            >
 
-                <div>
-                  <h3 className="text-2xl font-bold text-zinc-900">
+              {/* Mobile Circle */}
+              <div className="absolute left-0 top-8 flex h-12 w-12 items-center justify-center rounded-full border-4 border-green-200 bg-white shadow-lg md:hidden">
+                <span className="font-bold text-green-700">
+                  {index + 1}
+                </span>
+              </div>
+
+              {/* Left / Right Card */}
+              <div className="ml-20 w-full md:ml-0 md:w-5/12">
+
+                <motion.div
+                  whileHover={{
+                    y: -8,
+                    scale: 1.02,
+                  }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 300,
+                  }}
+                  className="group rounded-3xl border border-green-100 bg-white/80 p-8 shadow-xl backdrop-blur-xl"
+                >
+
+                  <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-green-100 to-emerald-50 text-green-700 transition-all duration-500 group-hover:rotate-6 group-hover:scale-110">
+
+                    {step.icon}
+
+                  </div>
+
+                  <h3 className="mb-4 text-2xl font-bold text-slate-900">
                     {step.title}
                   </h3>
 
-                  <p className="mt-2 text-zinc-600 leading-7">
-                    {step.text}
+                  <p className="leading-7 text-slate-600">
+                    {step.description}
                   </p>
-                </div>
-              </motion.div>
-            );
-          })}
+
+                </motion.div>
+
+              </div>
+
+              {/* Desktop Circle */}
+              <div className="hidden md:flex md:w-2/12 justify-center">
+
+                <motion.div
+                  whileHover={{ scale: 1.15 }}
+                  className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-green-200 bg-white shadow-lg"
+                >
+                  <span className="font-bold text-green-700">
+                    {index + 1}
+                  </span>
+                </motion.div>
+
+              </div>
+
+              {/* Empty Side */}
+              <div className="hidden md:block md:w-5/12" />
+
+            </motion.div>
+          ))}
 
         </div>
 

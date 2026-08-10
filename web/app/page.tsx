@@ -1,10 +1,14 @@
 import Navbar from "@/components/ui/Navbar";
 import Hero from "@/components/ui/Hero";
 import Features from "@/components/ui/Features";
+import AIDecisionLayer from "@/components/ui/AIDecisionLayer";
 import HowItWorks from "@/components/ui/HowItWorks";
 import Platform from "@/components/ui/Platform";
 import Dashboard from "@/components/ui/Dashboard";
 import Footer from "@/components/ui/Footer";
+import DashboardPreview from "@/components/ui/DashboardPreview";
+import MobileAppPreview from "@/components/ui/mobile/MobileAppPreview";
+
 
 export default function Home() {
   return (
@@ -12,7 +16,10 @@ export default function Home() {
       <Navbar />
       <Hero />
       <Features />
+      <AIDecisionLayer />
       <HowItWorks />
+      <DashboardPreview />
+      <MobileAppPreview />
       <Platform />
       <Dashboard />
       <Footer />
