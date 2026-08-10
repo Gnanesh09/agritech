@@ -12,17 +12,17 @@ export default function BottomNav() {
   const isMonitor = pathname.startsWith("/home/monitor");
 
   return (
-    <nav className="fixed bottom-10 left-1/2 z-50 -translate-x-1/2">
+    <nav className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2">
       <div
         className="
                     flex
                     items-center
-                    gap-1
-                    rounded-[22px]
+                    gap-10
+                    rounded-full
                     border
-                    border-gray-200/80
+                    border-gray-300/80
                     bg-white/95
-                    p-3
+                    p-1
                     shadow-[0_8px_30px_rgba(0,0,0,0.12)]
                     backdrop-blur-xl
                 "
@@ -33,12 +33,13 @@ export default function BottomNav() {
           href="/home"
           className={`
                         flex
+                        
                         h-18
-                        min-w-[82px]
+                        min-w-[92px]
                         flex-col
                         items-center
                         justify-center
-                        rounded-[17px]
+                        rounded-full
                         transition-all
                         duration-200
                         ${
@@ -87,7 +88,7 @@ export default function BottomNav() {
                         flex-col
                         items-center
                         justify-center
-                        rounded-[17px]
+                        rounded-full
                         transition-all
                         duration-200
                         ${
