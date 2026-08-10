@@ -82,6 +82,7 @@ model DeviceModel {
   code        String            @unique
   description String?
   version     String?
+  imageUrl    String?
   status      DeviceModelStatus @default(ACTIVE)
 
   devices Device[]
