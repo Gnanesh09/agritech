@@ -10,7 +10,7 @@ export default function BottomNav() {
   const isHome = pathname === "/home";
   const isProfile = pathname.startsWith("/home/profile");
   const isMonitor = pathname.startsWith("/home/monitor");
-  const isAdd = pathname.startsWith("/home/monitor");
+  const isAdd = pathname.startsWith("/home/add");
 
   return (
     <nav className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2">
@@ -91,7 +91,7 @@ export default function BottomNav() {
                         flex-col
                         items-center
                         justify-center
-                        rounded-[17px]
+                        rounded-full
                         transition-all
                         duration-200
                         ${

@@ -195,7 +195,8 @@ export async function getMyDevices(
                 deviceModel: {
                     id: item.device.deviceModel.id,
                     name: item.device.deviceModel.name,
-                    code: item.device.deviceModel.code
+                    code: item.device.deviceModel.code,
+                    imageUrl:item.device.deviceModel.imageUrl
                 }
             }))
         });
@@ -535,12 +536,12 @@ export async function unlinkDevice(
 }
 
 
-
 export async function getMyDeviceTelemetry(
     req: AuthRequest,
     res: Response
 ) {
     try {
+
         if (!req.userId) {
             return res.status(401).json({
                 message: "Authentication required"
@@ -555,47 +556,42 @@ export async function getMyDeviceTelemetry(
             });
         }
 
-        // --------------------------------------------------
-        // Make sure device belongs to logged-in user
-        // --------------------------------------------------
+        // ---------------------------------------------
+        // Check USER owns/has linked this device
+        // ---------------------------------------------
 
-        const device = await prisma.device.findFirst({
-            where: {
-                id,
-                ownerId: req.userId
-            }
-        });
+        const userDevice =
+            await prisma.userDevice.findFirst({
+                where: {
+                    userId: req.userId,
+                    deviceId: id
+                }
+            });
 
-        if (!device) {
+        if (!userDevice) {
             return res.status(404).json({
                 message:
                     "Device not found or does not belong to you"
             });
         }
 
-        // --------------------------------------------------
+        // ---------------------------------------------
         // Get telemetry
-        // --------------------------------------------------
+        // ---------------------------------------------
 
         const telemetry =
             await prisma.deviceTelemetry.findMany({
                 where: {
                     deviceId: id
                 },
-
                 orderBy: {
                     recordedAt: "desc"
                 },
-
                 take: 50
             });
 
         return res.status(200).json({
-            device: {
-                id: device.id,
-                deviceCode: device.deviceCode
-            },
-
+            deviceId: id,
             telemetry
         });
 
@@ -612,7 +608,6 @@ export async function getMyDeviceTelemetry(
         });
     }
 }
-
 
 export async function updateMyDeviceName(
     req: AuthRequest,

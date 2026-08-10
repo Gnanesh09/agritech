@@ -20,6 +20,7 @@ export async function createDeviceModel(
       code,
       description,
       version,
+      imageUrl
     } = req.body;
 
     // --------------------------------------------------
@@ -60,6 +61,7 @@ export async function createDeviceModel(
           code,
           description: description || null,
           version: version || null,
+          imageUrl:imageUrl,
           status: "ACTIVE",
         },
       });
@@ -79,6 +81,7 @@ export async function createDeviceModel(
         version: deviceModel.version,
         status: deviceModel.status,
         createdAt: deviceModel.createdAt,
+        imageUrl:deviceModel.imageUrl
       },
     });
   } catch (error) {
@@ -125,6 +128,7 @@ export async function getAllDeviceModel(
         description: model.description,
         version: model.version,
         status: model.status,
+        imageUrl:model.imageUrl,
 
         // Number of physical devices registered
         deviceCount: model._count.devices,
@@ -181,6 +185,7 @@ export async function getDeviceModelById(req:AuthRequest, res:Response) {
         description: deviceModel.description,
         version: deviceModel.version,
         status: deviceModel.status,
+        imageUrl:deviceModel.imageUrl,
 
         deviceCount: deviceModel._count.devices,
 
@@ -215,6 +220,7 @@ export async function updateDeviceModel(
       description,
       version,
       status,
+      imageUrl
     } = req.body;
 
     const existingModel =
@@ -275,6 +281,9 @@ export async function updateDeviceModel(
 
           ...(status !== undefined && {
             status,
+          }),
+          ...(imageUrl !== undefined && {
+            imageUrl,
           }),
         },
       });
@@ -367,9 +376,12 @@ export async function deleteDeviceModel(
 // REGISTER A NEW PHYSICAL DEVICE
 // ADMIN / SUPER_ADMIN ONLY
 // ============================================================
-
-export async function registerDevice(req: Request, res: Response) {
+export async function registerDevice(
+    req: Request,
+    res: Response
+) {
     try {
+
         const {
             deviceCode,
             serialNumber,
@@ -379,6 +391,7 @@ export async function registerDevice(req: Request, res: Response) {
             batchNumber,
             manufacturedAt
         } = req.body;
+
 
         // --------------------------------------------------
         // 1. Validate required fields
@@ -395,6 +408,7 @@ export async function registerDevice(req: Request, res: Response) {
             });
         }
 
+
         // --------------------------------------------------
         // 2. Check whether device already exists
         // --------------------------------------------------
@@ -405,9 +419,11 @@ export async function registerDevice(req: Request, res: Response) {
                     OR: [
                         { deviceCode },
                         { serialNumber },
+
                         ...(macAddress
                             ? [{ macAddress }]
                             : []),
+
                         ...(chipId
                             ? [{ chipId }]
                             : [])
@@ -415,23 +431,32 @@ export async function registerDevice(req: Request, res: Response) {
                 }
             });
 
+
         if (existingDevice) {
+
             return res.status(409).json({
-                message: "Device already exists",
+                message:
+                    "Device already exists",
+
                 device: {
-                    id: existingDevice.id,
+                    id:
+                        existingDevice.id,
+
                     deviceCode:
                         existingDevice.deviceCode,
+
                     serialNumber:
                         existingDevice.serialNumber,
+
                     status:
                         existingDevice.status
                 }
             });
         }
 
+
         // --------------------------------------------------
-        // 3. Check that DeviceModel exists
+        // 3. Check DeviceModel
         // --------------------------------------------------
 
         const deviceModel =
@@ -441,32 +466,43 @@ export async function registerDevice(req: Request, res: Response) {
                 }
             });
 
+
         if (!deviceModel) {
+
             return res.status(404).json({
-                message: "Device model not found"
+                message:
+                    "Device model not found"
             });
         }
+
 
         // --------------------------------------------------
         // 4. Model must be ACTIVE
         // --------------------------------------------------
 
-        if (deviceModel.status !== "ACTIVE") {
+        if (
+            deviceModel.status !== "ACTIVE"
+        ) {
+
             return res.status(400).json({
                 message:
                     "Device model is not active"
             });
         }
 
+
         // --------------------------------------------------
-        // 5. Generate unique device token
+        // 5. Generate device token
         // --------------------------------------------------
 
         const deviceToken =
-            crypto.randomBytes(32).toString("hex");
+            crypto
+                .randomBytes(32)
+                .toString("hex");
+
 
         // --------------------------------------------------
-        // 6. Hash token before storing it
+        // 6. Hash token before storing
         // --------------------------------------------------
 
         const tokenHash =
@@ -475,8 +511,9 @@ export async function registerDevice(req: Request, res: Response) {
                 .update(deviceToken)
                 .digest("hex");
 
+
         // --------------------------------------------------
-        // 7. Create Device + Credential together
+        // 7. Create Device + Credential
         // --------------------------------------------------
 
         const device =
@@ -486,7 +523,9 @@ export async function registerDevice(req: Request, res: Response) {
                     const newDevice =
                         await tx.device.create({
                             data: {
+
                                 deviceCode,
+
                                 serialNumber,
 
                                 macAddress:
@@ -497,11 +536,10 @@ export async function registerDevice(req: Request, res: Response) {
 
                                 deviceModelId,
 
-                                // Admin registers inventory.
-                                // Admin is NOT the owner.
-                                ownerId: null,
-
-                                status: "AVAILABLE",
+                                // Device is inventory only.
+                                // No user assigned yet.
+                                status:
+                                    "AVAILABLE",
 
                                 batchNumber:
                                     batchNumber || null,
@@ -521,9 +559,14 @@ export async function registerDevice(req: Request, res: Response) {
                             }
                         });
 
-                    // Create credential for this device
+
+                    // ------------------------------------------
+                    // Create device credential
+                    // ------------------------------------------
+
                     await tx.deviceCredential.create({
                         data: {
+
                             deviceId:
                                 newDevice.id,
 
@@ -531,12 +574,14 @@ export async function registerDevice(req: Request, res: Response) {
                         }
                     });
 
+
                     return newDevice;
                 }
             );
 
+
         // --------------------------------------------------
-        // 8. Return device + token
+        // 8. Return device
         // --------------------------------------------------
 
         return res.status(201).json({
@@ -545,7 +590,9 @@ export async function registerDevice(req: Request, res: Response) {
                 "Device registered successfully",
 
             device: {
-                id: device.id,
+
+                id:
+                    device.id,
 
                 deviceCode:
                     device.deviceCode,
@@ -563,6 +610,7 @@ export async function registerDevice(req: Request, res: Response) {
                     device.status,
 
                 deviceModel: {
+
                     id:
                         device.deviceModel.id,
 
@@ -572,9 +620,6 @@ export async function registerDevice(req: Request, res: Response) {
                     code:
                         device.deviceModel.code
                 },
-
-                ownerId:
-                    device.ownerId,
 
                 batchNumber:
                     device.batchNumber,
@@ -587,8 +632,7 @@ export async function registerDevice(req: Request, res: Response) {
             },
 
             // IMPORTANT:
-            // This is the raw device secret.
-            // It is returned only during registration.
+            // Raw secret is returned only once.
             deviceToken
         });
 
@@ -605,7 +649,6 @@ export async function registerDevice(req: Request, res: Response) {
         });
     }
 }
-
 
 export async function getAllDevices(req: Request, res: Response) {
     try {

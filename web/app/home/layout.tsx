@@ -9,7 +9,7 @@ export default function HomeLayout({
     <div className="min-h-screen bg-gray-100">
       <div className="relative mx-auto min-h-screen w-full bg-white lg:max-w-[430px]">
         {/* Page content */}
-        <main className="min-h-screen pb-24">{children}</main>
+        <main className="min-h-screen ">{children}</main>
 
         {/* Bottom navigation */}
         <BottomNav />
