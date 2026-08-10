@@ -16,6 +16,7 @@ userRouter.get("/devices", protectRoute,userController.getMyDevices);
 userRouter.post("/devices/claim", protectRoute,userController.claimDevice);
 userRouter.get("/devices/:id", protectRoute,userController.getMyDevice);
 userRouter.delete("/devices/:id", protectRoute,userController.unlinkDevice);
+userRouter.get("/devices/:id/telemetry", protectRoute,userController.getMyDeviceTelemetry);
 
 
 

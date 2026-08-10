@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, User, Radar } from "lucide-react";
+import { Home, User, Radar, Plus } from "lucide-react";
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -10,6 +10,7 @@ export default function BottomNav() {
   const isHome = pathname === "/home";
   const isProfile = pathname.startsWith("/home/profile");
   const isMonitor = pathname.startsWith("/home/monitor");
+  const isAdd = pathname.startsWith("/home/monitor");
 
   return (
     <nav className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2">
@@ -17,7 +18,7 @@ export default function BottomNav() {
         className="
                     flex
                     items-center
-                    gap-10
+                    gap-full
                     rounded-full
                     border
                     border-gray-300/80
@@ -53,6 +54,30 @@ export default function BottomNav() {
           <Home size={18} strokeWidth={isHome ? 2.5 : 2} />
 
           <span className="mt-1 text-[11px] font-medium">Home</span>
+        </Link>
+        <Link
+          href="/home/add"
+          className={`
+                        flex
+                        
+                        h-full
+                        min-w-[92px]
+                        flex-col
+                        items-center
+                        justify-center
+                        rounded-full
+                        transition-all
+                        duration-200
+                        ${
+                          isAdd
+                            ? "bg-gray-100 text-blue-600 shadow-sm"
+                            : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
+                        }
+                    `}
+        >
+          <Plus size={18} strokeWidth={isAdd ? 2.5 : 2} />
+
+          <span className="mt-1 text-[11px] font-medium">Add</span>
         </Link>
 
         {/* PROFILE */}

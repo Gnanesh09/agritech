@@ -7,7 +7,7 @@ import { DeviceStatus } from '../../generated/prisma/enums';
 
 
 
-
+import * as crypto from "node:crypto";
 
 
 export async function createDeviceModel(
@@ -368,11 +368,8 @@ export async function deleteDeviceModel(
 // ADMIN / SUPER_ADMIN ONLY
 // ============================================================
 
-
-
 export async function registerDevice(req: Request, res: Response) {
     try {
-        // Data coming from admin
         const {
             deviceCode,
             serialNumber,
@@ -402,25 +399,33 @@ export async function registerDevice(req: Request, res: Response) {
         // 2. Check whether device already exists
         // --------------------------------------------------
 
-        const existingDevice = await prisma.device.findFirst({
-            where: {
-                OR: [
-                    { deviceCode },
-                    { serialNumber },
-                    ...(macAddress ? [{ macAddress }] : []),
-                    ...(chipId ? [{ chipId }] : [])
-                ]
-            }
-        });
+        const existingDevice =
+            await prisma.device.findFirst({
+                where: {
+                    OR: [
+                        { deviceCode },
+                        { serialNumber },
+                        ...(macAddress
+                            ? [{ macAddress }]
+                            : []),
+                        ...(chipId
+                            ? [{ chipId }]
+                            : [])
+                    ]
+                }
+            });
 
         if (existingDevice) {
             return res.status(409).json({
                 message: "Device already exists",
                 device: {
                     id: existingDevice.id,
-                    deviceCode: existingDevice.deviceCode,
-                    serialNumber: existingDevice.serialNumber,
-                    status: existingDevice.status
+                    deviceCode:
+                        existingDevice.deviceCode,
+                    serialNumber:
+                        existingDevice.serialNumber,
+                    status:
+                        existingDevice.status
                 }
             });
         }
@@ -429,11 +434,12 @@ export async function registerDevice(req: Request, res: Response) {
         // 3. Check that DeviceModel exists
         // --------------------------------------------------
 
-        const deviceModel = await prisma.deviceModel.findUnique({
-            where: {
-                id: deviceModelId
-            }
-        });
+        const deviceModel =
+            await prisma.deviceModel.findUnique({
+                where: {
+                    id: deviceModelId
+                }
+            });
 
         if (!deviceModel) {
             return res.status(404).json({
@@ -442,90 +448,163 @@ export async function registerDevice(req: Request, res: Response) {
         }
 
         // --------------------------------------------------
-        // 4. Make sure model can actually be used
+        // 4. Model must be ACTIVE
         // --------------------------------------------------
 
         if (deviceModel.status !== "ACTIVE") {
             return res.status(400).json({
-                message: "Device model is not active"
+                message:
+                    "Device model is not active"
             });
         }
 
         // --------------------------------------------------
-        // 5. Create device
+        // 5. Generate unique device token
         // --------------------------------------------------
 
-        const device = await prisma.device.create({
-            data: {
-                deviceCode,
-                serialNumber,
-                macAddress: macAddress || null,
-                chipId: chipId || null,
-
-                deviceModelId,
-
-                // IMPORTANT:
-                // Admin registers inventory,
-                // but admin does NOT become owner.
-                ownerId: null,
-
-                status: "AVAILABLE",
-
-                batchNumber: batchNumber || null,
-
-                manufacturedAt: manufacturedAt
-                    ? new Date(manufacturedAt)
-                    : null,
-
-                linkedAt: null
-            },
-
-            include: {
-                deviceModel: true
-            }
-        });
+        const deviceToken =
+            crypto.randomBytes(32).toString("hex");
 
         // --------------------------------------------------
-        // 6. Return created device
+        // 6. Hash token before storing it
+        // --------------------------------------------------
+
+        const tokenHash =
+            crypto
+                .createHash("sha256")
+                .update(deviceToken)
+                .digest("hex");
+
+        // --------------------------------------------------
+        // 7. Create Device + Credential together
+        // --------------------------------------------------
+
+        const device =
+            await prisma.$transaction(
+                async (tx) => {
+
+                    const newDevice =
+                        await tx.device.create({
+                            data: {
+                                deviceCode,
+                                serialNumber,
+
+                                macAddress:
+                                    macAddress || null,
+
+                                chipId:
+                                    chipId || null,
+
+                                deviceModelId,
+
+                                // Admin registers inventory.
+                                // Admin is NOT the owner.
+                                ownerId: null,
+
+                                status: "AVAILABLE",
+
+                                batchNumber:
+                                    batchNumber || null,
+
+                                manufacturedAt:
+                                    manufacturedAt
+                                        ? new Date(
+                                            manufacturedAt
+                                        )
+                                        : null,
+
+                                linkedAt: null
+                            },
+
+                            include: {
+                                deviceModel: true
+                            }
+                        });
+
+                    // Create credential for this device
+                    await tx.deviceCredential.create({
+                        data: {
+                            deviceId:
+                                newDevice.id,
+
+                            tokenHash
+                        }
+                    });
+
+                    return newDevice;
+                }
+            );
+
+        // --------------------------------------------------
+        // 8. Return device + token
         // --------------------------------------------------
 
         return res.status(201).json({
-            message: "Device registered successfully",
+
+            message:
+                "Device registered successfully",
 
             device: {
                 id: device.id,
-                deviceCode: device.deviceCode,
-                serialNumber: device.serialNumber,
-                macAddress: device.macAddress,
-                chipId: device.chipId,
 
-                status: device.status,
+                deviceCode:
+                    device.deviceCode,
+
+                serialNumber:
+                    device.serialNumber,
+
+                macAddress:
+                    device.macAddress,
+
+                chipId:
+                    device.chipId,
+
+                status:
+                    device.status,
 
                 deviceModel: {
-                    id: device.deviceModel.id,
-                    name: device.deviceModel.name,
-                    code: device.deviceModel.code
+                    id:
+                        device.deviceModel.id,
+
+                    name:
+                        device.deviceModel.name,
+
+                    code:
+                        device.deviceModel.code
                 },
 
-                ownerId: device.ownerId,
+                ownerId:
+                    device.ownerId,
 
-                batchNumber: device.batchNumber,
-                manufacturedAt: device.manufacturedAt,
+                batchNumber:
+                    device.batchNumber,
 
-                createdAt: device.createdAt
-            }
+                manufacturedAt:
+                    device.manufacturedAt,
+
+                createdAt:
+                    device.createdAt
+            },
+
+            // IMPORTANT:
+            // This is the raw device secret.
+            // It is returned only during registration.
+            deviceToken
         });
 
     } catch (error) {
 
-        console.error("Register Device Error:", error);
+        console.error(
+            "Register Device Error:",
+            error
+        );
 
         return res.status(500).json({
-            message: "Failed to register device"
+            message:
+                "Failed to register device"
         });
     }
 }
-
 
 
 export async function getAllDevices(req: Request, res: Response) {
