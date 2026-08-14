@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { MouseGlow } from "@/components/animations";
 
 type FeatureCardProps = {
   icon: React.ReactNode;
@@ -14,14 +14,7 @@ export default function FeatureCard({
   description,
 }: FeatureCardProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.5 }}
-      whileHover={{
-        y: -8,
-      }}
+    <MouseGlow
       className="
         group
         rounded-3xl
@@ -32,6 +25,7 @@ export default function FeatureCard({
         p-9
         transition-all
         duration-300
+        hover:-translate-y-2
         hover:shadow-xl
         hover:shadow-green-100
       "
@@ -62,6 +56,6 @@ export default function FeatureCard({
       <p className="text-base leading-8 text-zinc-600">
         {description}
       </p>
-    </motion.div>
+    </MouseGlow>
   );
 }

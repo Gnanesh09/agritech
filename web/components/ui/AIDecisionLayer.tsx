@@ -7,7 +7,7 @@ import {
   Zap,
   ArrowRight,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { FadeLeft, FadeRight, FadeUp, ScaleIn } from "@/components/animations";
 
 const cards = [
   {
@@ -49,19 +49,7 @@ export default function AIDecisionLayer() {
 
       <div className="max-w-7xl mx-auto px-6">
 
-        <motion.div
-          initial={{
-            opacity: 0,
-            x: -120,
-          }}
-          whileInView={{
-            opacity: 1,
-            x: 0,
-          }}
-          viewport={{ once: true }}
-          transition={{ duration: .7 }}
-          className="text-center mb-20"
-        >
+        <FadeUp className="text-center mb-20">
 
           <span className="uppercase tracking-[4px] text-green-700 font-semibold">
             Artificial Intelligence
@@ -77,24 +65,18 @@ export default function AIDecisionLayer() {
             actions before problems become visible.
           </p>
 
-        </motion.div>
+        </FadeUp>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
 
-          {cards.map((card, index) => (
+          {cards.map((card, index) => {
+            const CardAnimation = index < 2 ? FadeLeft : FadeRight;
 
-            <motion.div
+            return (
+
+            <CardAnimation
               key={card.title}
-              initial={{ opacity: 0, y: 70 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{
-  duration: 0.9,
-  delay: index * 0.18,
-  type: "spring",
-  stiffness: 80,
-  damping: 18,
-}}
+              delay={index * 0.18}
               className="
               group
               relative
@@ -149,19 +131,14 @@ export default function AIDecisionLayer() {
                 {card.desc}
               </p>
 
-            </motion.div>
+            </CardAnimation>
 
-          ))}
+            );
+          })}
 
         </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ delay: .5 }}
-          className="mt-24"
-        >
+        <ScaleIn className="mt-24" delay={0.5}>
 
           <div className="flex flex-wrap justify-center items-center gap-5">
 
@@ -181,7 +158,7 @@ export default function AIDecisionLayer() {
 
           </div>
 
-        </motion.div>
+        </ScaleIn>
 
       </div>
 

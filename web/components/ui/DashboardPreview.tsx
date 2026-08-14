@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { FadeLeft, FadeUp, ScaleIn } from "@/components/animations";
 import {
   Thermometer,
   Droplets,
@@ -53,13 +53,7 @@ export default function DashboardPreview() {
 
       <div className="mx-auto max-w-7xl px-6">
 
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: .7 }}
-          className="text-center"
-        >
+        <FadeUp className="text-center">
 
           <span className="uppercase tracking-[4px] text-green-700 font-semibold">
             Live Dashboard
@@ -74,9 +68,10 @@ export default function DashboardPreview() {
             automation controls, and AI insights from anywhere.
           </p>
 
-        </motion.div>
+        </FadeUp>
 
-        <div className="mt-20 rounded-[36px] border border-white/60 bg-white/70 p-8 shadow-2xl backdrop-blur-xl">
+        <FadeLeft className="mt-20">
+        <div className="rounded-[36px] border border-white/60 bg-white/70 p-8 shadow-2xl backdrop-blur-xl">
 
           {/* Dashboard Header */}
 
@@ -102,24 +97,10 @@ export default function DashboardPreview() {
 
             {sensors.map((sensor, index) => (
 
-              <motion.div
+              <ScaleIn
                 key={sensor.title}
-                initial={{
-                  opacity: 0,
-                  y: 40,
-                }}
-                whileInView={{
-                  opacity: 1,
-                  y: 0,
-                }}
-                viewport={{ once: true }}
-                transition={{
-                  delay: index * .15,
-                }}
-                whileHover={{
-                  scale: 1.04,
-                }}
-                className="rounded-3xl border border-green-100 bg-white p-6 shadow-lg"
+                delay={index * 0.15}
+                className="rounded-3xl border border-green-100 bg-white p-6 shadow-lg transition-transform duration-300 hover:scale-[1.04]"
               >
 
                 <div className={`${sensor.color} mb-4`}>
@@ -134,7 +115,7 @@ export default function DashboardPreview() {
                   {sensor.value}
                 </h4>
 
-              </motion.div>
+              </ScaleIn>
 
             ))}
 
@@ -144,9 +125,9 @@ export default function DashboardPreview() {
 
           <div className="mt-10 grid gap-6 lg:grid-cols-2">
 
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="rounded-3xl border border-green-100 bg-white p-8 shadow-lg"
+            <ScaleIn
+              className="rounded-3xl border border-green-100 bg-white p-8 shadow-lg transition-transform duration-300 hover:scale-[1.02]"
+              delay={0.15}
             >
 
               <h4 className="text-xl font-bold">
@@ -158,11 +139,11 @@ export default function DashboardPreview() {
                 within the next 20 minutes.
               </p>
 
-            </motion.div>
+            </ScaleIn>
 
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="rounded-3xl border border-green-100 bg-white p-8 shadow-lg"
+            <ScaleIn
+              className="rounded-3xl border border-green-100 bg-white p-8 shadow-lg transition-transform duration-300 hover:scale-[1.02]"
+              delay={0.3}
             >
 
               <div className="flex items-center justify-between">
@@ -209,11 +190,12 @@ export default function DashboardPreview() {
 
               </div>
 
-            </motion.div>
+            </ScaleIn>
 
           </div>
 
         </div>
+        </FadeLeft>
 
       </div>
 
