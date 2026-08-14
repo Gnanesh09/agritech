@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { FadeUp, Stagger, StaggerItem } from "@/components/animations";
 import {
   Warehouse,
   Sprout,
@@ -71,12 +71,9 @@ export default function UseCases() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-6">
         {/* Heading */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
+        <FadeUp
           className="mx-auto mb-20 max-w-3xl text-center"
+          duration={0.8}
         >
           <span className="font-semibold uppercase tracking-[4px] text-green-700">
             Use Cases
@@ -94,22 +91,26 @@ export default function UseCases() {
             gardens to commercial greenhouses and research facilities—helping
             growers make better decisions with AI and automation.
           </p>
-        </motion.div>
+        </FadeUp>
 
         {/* Cards */}
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <Stagger
+          className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3"
+          staggerChildren={0.1}
+        >
           {useCases.map((item, index) => (
-            <UseCaseCard
-              key={item.title}
-              index={index}
-              icon={item.icon}
-              title={item.title}
-              description={item.description}
-              gradient={item.gradient}
-              tags={item.tags}
-            />
+            <StaggerItem key={item.title}>
+              <UseCaseCard
+                index={index}
+                icon={item.icon}
+                title={item.title}
+                description={item.description}
+                gradient={item.gradient}
+                tags={item.tags}
+              />
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </div>
     </section>
   );

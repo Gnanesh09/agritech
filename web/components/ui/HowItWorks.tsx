@@ -1,5 +1,6 @@
 "use client";
 
+import { FadeUp } from "@/components/animations";
 import { motion } from "framer-motion";
 import {
   Sprout,
@@ -50,13 +51,7 @@ export default function HowItWorks() {
       <div className="mx-auto max-w-7xl px-6">
 
         {/* Heading */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7 }}
-          className="mb-24 text-center"
-        >
+        <FadeUp className="mb-24 text-center">
           <span className="font-semibold uppercase tracking-[4px] text-green-700">
             Process
           </span>
@@ -69,7 +64,7 @@ export default function HowItWorks() {
             From collecting sensor data to making intelligent decisions,
             our autonomous ecosystem keeps your farm healthy with minimal effort.
           </p>
-        </motion.div>
+        </FadeUp>
 
         {/* Timeline */}
         <div className="relative mx-auto max-w-5xl">

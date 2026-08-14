@@ -1,6 +1,7 @@
 "use client";
 
 import FeatureCard from "./FeatureCard";
+import { FadeUp, Stagger, StaggerItem } from "@/components/animations";
 
 import {
   Thermometer,
@@ -57,7 +58,7 @@ export default function Features() {
       className="py-28 px-6"
     >
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-20">
+        <FadeUp className="text-center mb-20">
           <p className="text-green-400 font-semibold tracking-widest uppercase">
             Powerful Features
           </p>
@@ -67,18 +68,19 @@ export default function Features() {
             <br />
             an autonomous farm.
           </h2>
-        </div>
+        </FadeUp>
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <Stagger className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
-            <FeatureCard
-              key={feature.title}
-              icon={feature.icon}
-              title={feature.title}
-              description={feature.description}
-            />
+            <StaggerItem key={feature.title}>
+              <FeatureCard
+                icon={feature.icon}
+                title={feature.title}
+                description={feature.description}
+              />
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </div>
     </section>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { Floating, MouseGlow } from "@/components/animations";
 import { LucideIcon } from "lucide-react";
 
 interface UseCaseCardProps {
@@ -21,25 +21,8 @@ export default function UseCaseCard({
   index,
 }: UseCaseCardProps) {
   return (
-    <motion.div
-      initial={{
-        opacity: 0,
-        y: 40,
-      }}
-      whileInView={{
-        opacity: 1,
-        y: 0,
-      }}
-      viewport={{ once: true }}
-      transition={{
-        duration: 0.7,
-        delay: index * 0.1,
-      }}
-      whileHover={{
-        y: -10,
-        scale: 1.02,
-      }}
-      className="group relative overflow-hidden rounded-[30px] border border-green-100 bg-white/80 p-8 shadow-xl backdrop-blur-xl transition-all duration-500 hover:shadow-[0_30px_60px_rgba(34,197,94,0.18)]"
+    <MouseGlow
+      className="group relative rounded-[30px] border border-green-100 bg-white/80 p-8 shadow-xl backdrop-blur-xl transition-[transform,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-2 hover:scale-[1.02] hover:shadow-[0_30px_60px_rgba(34,197,94,0.18)]"
     >
       {/* Background Glow */}
       <div
@@ -47,19 +30,13 @@ export default function UseCaseCard({
       />
 
       {/* Icon */}
-      <motion.div
-        whileHover={{
-          rotate: 8,
-          scale: 1.08,
-        }}
-        transition={{
-          type: "spring",
-          stiffness: 250,
-        }}
-        className={`relative z-10 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient} text-white shadow-lg`}
-      >
-        <Icon size={30} />
-      </motion.div>
+      <Floating y={3} duration={4.5} delay={index * 0.15}>
+        <div
+          className={`relative z-10 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient} text-white shadow-lg transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-[8deg] group-hover:scale-[1.08]`}
+        >
+          <Icon size={30} />
+        </div>
+      </Floating>
 
       {/* Content */}
       <div className="relative z-10 mt-8">
@@ -85,18 +62,9 @@ export default function UseCaseCard({
       </div>
 
       {/* Bottom Accent */}
-      <motion.div
-        initial={{
-          width: "0%",
-        }}
-        whileHover={{
-          width: "100%",
-        }}
-        transition={{
-          duration: 0.4,
-        }}
-        className={`absolute bottom-0 left-0 h-1 bg-gradient-to-r ${gradient}`}
+      <div
+        className={`absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r ${gradient} transition-[width] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:w-full`}
       />
-    </motion.div>
+    </MouseGlow>
   );
 }
