@@ -3,12 +3,14 @@ import Hero from "@/components/ui/Hero";
 import Features from "@/components/ui/Features";
 import AIDecisionLayer from "@/components/ui/AIDecisionLayer";
 import HowItWorks from "@/components/ui/HowItWorks";
-import Platform from "@/components/ui/Platform";
-import Dashboard from "@/components/ui/Dashboard";
-import Footer from "@/components/ui/Footer";
 import DashboardPreview from "@/components/ui/DashboardPreview";
 import MobileAppPreview from "@/components/ui/mobile/MobileAppPreview";
-
+import Ecosystem from "@/components/ui/ecosystem/Ecosystem";
+import WhySmartAgri from "@/components/ui/why-smart-agri/WhySmartAgri";
+import UseCases from "@/components/ui/use-cases/UseCases";
+import FAQ from "@/components/ui/faq/FAQ";
+import CTA from "@/components/ui/cta/CTA";
+import Footer from "@/components/ui/footer/Footer";
 
 export default function Home() {
   return (
@@ -20,8 +22,11 @@ export default function Home() {
       <HowItWorks />
       <DashboardPreview />
       <MobileAppPreview />
-      <Platform />
-      <Dashboard />
+      <Ecosystem />
+      <WhySmartAgri />
+      <UseCases />
+      <FAQ />
+      <CTA />
       <Footer />
     </main>
   );
