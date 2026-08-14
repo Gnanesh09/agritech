@@ -36,7 +36,7 @@ export default function Hero() {
         <span aria-hidden="true" />
       </Floating>
 
-      <div className="mx-auto flex max-w-7xl flex-col-reverse items-center gap-14 px-6 py-20 sm:py-24 lg:flex-row lg:gap-20 lg:py-28">
+      <div className="mx-auto flex max-w-[1500px] flex-col-reverse items-center gap-12 px-6 py-20 sm:py-24 lg:flex-row lg:gap-16 lg:py-28">
         <div className="relative z-10 flex-1 text-center lg:text-left">
           <div className="flex flex-col items-center lg:items-start">
             <FadeUp>
@@ -46,7 +46,7 @@ export default function Hero() {
             </FadeUp>
 
             <FadeUp className="mt-7 sm:mt-8" delay={0.1}>
-              <h1 className="max-w-3xl text-5xl font-extrabold leading-[1.03] tracking-[-0.045em] text-gray-950 sm:text-6xl lg:text-7xl">
+              <h1 className="max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-[-0.04em] text-gray-950 sm:text-5xl lg:text-6xl xl:text-[68px]">
                 <RevealText className="block">Autonomous</RevealText>
                 <RevealText className="block">Intelligence</RevealText>
                 <RevealText className="block">for Agriculture</RevealText>
@@ -89,7 +89,7 @@ export default function Hero() {
           </div>
         </div>
 
-        <ScaleIn className="relative flex-1" delay={0.15}>
+        <ScaleIn className="relative flex-[1.15]" delay={0.15}>
           <Floating y={8} duration={6}>
             <div
             className="relative overflow-hidden rounded-[2rem] border border-green-100/80 bg-white p-1.5 shadow-[0_24px_70px_rgba(20,83,45,0.16)] sm:rounded-[2.25rem]"
@@ -98,19 +98,19 @@ export default function Hero() {
             <Image
               src="/hero.png"
               alt="Smart Agriculture"
-              width={900}
-              height={700}
+              width={1500}
+              height={1500}
               priority
-              className="relative aspect-[9/7] w-full rounded-[1.6rem] object-cover sm:rounded-[1.9rem]"
+              className="relative aspect-[20/14] w-full rounded-[1.6rem] object-cover sm:rounded-[1.9rem]"
             />
 
             <Floating
-              className="absolute left-5 top-5 rounded-xl border border-white/80 bg-white/90 px-3 py-2 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-md sm:left-7 sm:top-7 sm:px-4"
-              y={5}
-              duration={4.5}
-            >
-              🌡️ 24°C
-            </Floating>
+  className="absolute bottom-5 left-5 rounded-xl border border-white/80 bg-white/90 px-3 py-2 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-md sm:bottom-7 sm:left-7 sm:px-4"
+  y={-5}
+  duration={5.5}
+>
+  🌡️ 24°C
+</Floating>
             <Floating
               className="absolute bottom-5 right-5 rounded-xl border border-white/80 bg-white/90 px-3 py-2 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-md sm:bottom-7 sm:right-7 sm:px-4"
               y={-5}
