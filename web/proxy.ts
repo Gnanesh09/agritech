@@ -2,9 +2,6 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
-  const refreshToken =
-    request.cookies.get("refreshToken")?.value;
-
   const { pathname } = request.nextUrl;
 
   // =========================================================
@@ -15,7 +12,7 @@ export function proxy(request: NextRequest) {
   const isAdminLoginPage = pathname === "/admin";
 
   // =========================================================
-  // PRIVATE ROUTES
+  // PRIVATE USER ROUTES
   // =========================================================
 
   const isUserPrivateRoute =
@@ -24,67 +21,100 @@ export function proxy(request: NextRequest) {
     pathname === "/profile" ||
     pathname.startsWith("/profile/");
 
+  // =========================================================
+  // ADMIN ROUTES
+  // =========================================================
+
   const isAdminPrivateRoute =
     pathname === "/admin/dashboard" ||
     pathname.startsWith("/admin/dashboard/");
+
+  // =========================================================
+  // SUPER ADMIN ROUTES
+  // =========================================================
 
   const isSuperAdminPrivateRoute =
     pathname === "/superadmin/dashboard" ||
     pathname.startsWith("/superadmin/dashboard/");
 
+
   // =========================================================
-  // USER LOGIN
+  // IMPORTANT
+  //
+  // Authentication for user API requests is handled by:
+  //
+  // Axios
+  //   ↓
+  // access token
+  //   ↓
+  // refresh token
+  //   ↓
+  // backend protectRoute
+  //
+  // Therefore proxy does NOT redirect /home based on
+  // refreshToken anymore.
   // =========================================================
 
-  /*
-   * If already authenticated and they visit /login,
-   * send them to /home.
-   *
-   * NOTE:
-   * This assumes /login is for normal users.
-   */
-  if (refreshToken && isUserLoginPage) {
-    return NextResponse.redirect(
-      new URL("/home", request.url)
-    );
+
+  // =========================================================
+  // PUBLIC USER LOGIN
+  // =========================================================
+
+  if (isUserLoginPage) {
+    return NextResponse.next();
   }
+
 
   // =========================================================
   // USER PRIVATE ROUTES
   // =========================================================
 
-  if (!refreshToken && isUserPrivateRoute) {
-    return NextResponse.redirect(
-      new URL("/login", request.url)
-    );
+  if (isUserPrivateRoute) {
+    return NextResponse.next();
   }
 
+
   // =========================================================
-  // ADMIN DASHBOARD
+  // ADMIN
+  //
+  // Keep these protected separately for now.
   // =========================================================
 
-  if (!refreshToken && isAdminPrivateRoute) {
-    return NextResponse.redirect(
-      new URL("/admin", request.url)
-    );
+  if (isAdminPrivateRoute) {
+    const refreshToken =
+      request.cookies.get("refreshToken")?.value;
+
+    if (!refreshToken) {
+      return NextResponse.redirect(
+        new URL("/admin", request.url)
+      );
+    }
+
+    return NextResponse.next();
   }
 
+
   // =========================================================
-  // SUPER ADMIN DASHBOARD
+  // SUPER ADMIN
   // =========================================================
 
-  if (!refreshToken && isSuperAdminPrivateRoute) {
-    return NextResponse.redirect(
-      new URL("/admin", request.url)
-    );
+  if (isSuperAdminPrivateRoute) {
+    const refreshToken =
+      request.cookies.get("refreshToken")?.value;
+
+    if (!refreshToken) {
+      return NextResponse.redirect(
+        new URL("/admin", request.url)
+      );
+    }
+
+    return NextResponse.next();
   }
 
-  // =========================================================
-  // OTHERWISE
-  // =========================================================
 
   return NextResponse.next();
 }
+
 
 export const config = {
   matcher: [
