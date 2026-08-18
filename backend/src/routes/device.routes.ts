@@ -1,17 +1,29 @@
 import { Router } from "express";
-import * as adminController from "../controllers/admin.controller";
-import { protectRoute, protectRouteAdmin } from "../middleware/auth.middleware";
-import { authorizeRole } from "../middleware/authorizeRole";
-import * as deviceController from"../controllers/deviceTelemetry.controller";
+
 import { deviceAuth } from "../middleware/deviceAuth";
+
+import * as deviceController from "../controllers/deviceTelemetry.controller";
+
+import * as commandController from "../controllers/deviceCommand.controller";
+
 const deviceRouter = Router();
 
-/**
- * POST /api/auth/register
- */
+// ============================================================
+// TELEMETRY
+// ============================================================
 
-// devicemodels routes 
-deviceRouter.post("/telemetry",deviceAuth,deviceController.receiveTelemetry);
+deviceRouter.post("/telemetry", deviceAuth, deviceController.receiveTelemetry);
 
+// ============================================================
+// DEVICE COMMANDS
+// ============================================================
 
-export default deviceRouter
+deviceRouter.get("/commands", deviceAuth, commandController.pollCommands);
+
+deviceRouter.post(
+  "/commands/:commandId/ack",
+  deviceAuth,
+  commandController.acknowledgeCommand,
+);
+
+export default deviceRouter;
