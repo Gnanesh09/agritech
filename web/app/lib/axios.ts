@@ -56,12 +56,14 @@ api.interceptors.request.use(
 
 
 // ======================================================
-// REFRESH TOKEN
+// REFRESH STATE
 // ======================================================
 
 let isRefreshing = false;
 
-let refreshSubscribers: Array<(token: string) => void> = [];
+let refreshSubscribers: Array<
+    (token: string) => void
+> = [];
 
 function subscribeTokenRefresh(
     callback: (token: string) => void
@@ -85,26 +87,32 @@ function onRefreshed(token: string) {
 
 api.interceptors.response.use(
 
-    // Normal response
     (response) => {
         return response;
     },
 
     async (error) => {
 
-        const originalRequest = error.config;
+        const originalRequest =
+            error.config;
 
+        // --------------------------------------------------
         // Only handle 401
+        // --------------------------------------------------
+
         if (
             error.response?.status !== 401 ||
-            originalRequest?._retry
+            !originalRequest
         ) {
             return Promise.reject(error);
         }
 
-        // Don't try to refresh the refresh endpoint itself
+        // --------------------------------------------------
+        // Never refresh the refresh endpoint itself
+        // --------------------------------------------------
+
         if (
-            originalRequest?.url?.includes(
+            originalRequest.url?.includes(
                 "/auth/refresh-token"
             )
         ) {
@@ -113,6 +121,13 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
+        // --------------------------------------------------
+        // Prevent infinite retry
+        // --------------------------------------------------
+
+        if (originalRequest._retry) {
+            return Promise.reject(error);
+        }
 
         originalRequest._retry = true;
 
@@ -123,10 +138,13 @@ api.interceptors.response.use(
 
         if (isRefreshing) {
 
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
 
                 subscribeTokenRefresh(
                     (token) => {
+
+                        originalRequest.headers =
+                            originalRequest.headers || {};
 
                         originalRequest.headers.Authorization =
                             `Bearer ${token}`;
@@ -138,7 +156,6 @@ api.interceptors.response.use(
                 );
 
             });
-
         }
 
 
@@ -150,9 +167,23 @@ api.interceptors.response.use(
 
         try {
 
-            const response = await api.get(
-                "/auth/refresh-token"
+            /*
+             * IMPORTANT:
+             *
+             * Do NOT use `api.get()` here.
+             *
+             * Use a separate axios request so the
+             * refresh request itself doesn't participate
+             * in the normal interceptor chain.
+             */
+
+            const response = await axios.get(
+                `${apiUrl}/api/auth/refresh-token`,
+                {
+                    withCredentials: true,
+                }
             );
+
 
             const newAccessToken =
                 response.data.accessToken;
@@ -164,19 +195,31 @@ api.interceptors.response.use(
             }
 
 
-            // Store new token
+            // ------------------------------------------------
+            // Store new access token
+            // ------------------------------------------------
+
             setAccessToken(
                 newAccessToken
             );
 
 
-            // Resolve queued requests
+            // ------------------------------------------------
+            // Resolve waiting requests
+            // ------------------------------------------------
+
             onRefreshed(
                 newAccessToken
             );
 
 
+            // ------------------------------------------------
             // Retry original request
+            // ------------------------------------------------
+
+            originalRequest.headers =
+                originalRequest.headers || {};
+
             originalRequest.headers.Authorization =
                 `Bearer ${newAccessToken}`;
 
