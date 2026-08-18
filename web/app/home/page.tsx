@@ -48,37 +48,43 @@ const products: Product[] = [
     id: 1,
     name: "Humide",
     price: 2499,
-    image: "/products/humide.png",
+    image:
+      "https://rexus.id/cdn/shop/files/b7735e993ff74d8cb0b21f674bdc626b.jpg?v=1755493197&width=720",
   },
   {
     id: 2,
     name: "Soil Pro",
     price: 3999,
-    image: "/products/soil-pro.png",
+    image:
+      "https://s.alicdn.com/@sc04/kf/H2ba4a43b7c454984b988b90ee8594e81S/Multi-function-Cleaning-Kits-Electronic-Products-Portable-Computer-Mobile-Phone-Cleaning-Tools.jpg_300x300.jpg",
   },
   {
     id: 3,
     name: "Weather Mini",
     price: 2999,
-    image: "/products/weather-mini.png",
+    image:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTOq-WqlJraqymvPHGj-NK_byNT9vPQsTcmYAPKcu9EmKKnQS-BsQ9cKwCe&s=10",
   },
   {
     id: 4,
     name: "Farm Hub",
     price: 5499,
-    image: "/products/farm-hub.png",
+    image:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQzD7RdIb_7YHSRwLd_Ooo80eTyI1zRAkowjVrK1-BM1ufdxrY1Cb2Wwelk&s=10",
   },
   {
     id: 5,
     name: "Leaf Sense",
     price: 3299,
-    image: "/products/leaf-sense.png",
+    image:
+      "https://www.techwelike.com/wp-content/uploads/2019/07/Sevenhugs-Smart-Remote-X-SRX-3-1024x1024.jpg",
   },
   {
     id: 6,
     name: "Climate Pro",
     price: 6999,
-    image: "/products/climate-pro.png",
+    image:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS9vKN8A5VI74cgIVyUbz7A-d25xX_k3IrXjWqj7ZMb9g&s=10",
   },
 ];
 
@@ -300,8 +306,8 @@ export default function HomePage() {
                     ================================================= */
 
           <section className="mt-6 rounded-[30px] bg-white px-6 py-14 text-center shadow-[0_5px_25px_rgba(0,0,0,0.045)]">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#eef2e6]">
-              <Wifi size={30} className="text-[#83a45d]" />
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand/20">
+              <Wifi size={30} className="text-black" />
             </div>
 
             <h2 className="mt-5 text-[22px] font-semibold tracking-[-0.04em]">
@@ -481,7 +487,7 @@ export default function HomePage() {
                   <img
                     src={product.image}
                     alt={product.name}
-                    className="h-full w-full object-contain p-2"
+                    className="h-full w-full object-cover "
                   />
                 </div>
 

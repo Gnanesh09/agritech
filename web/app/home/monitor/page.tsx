@@ -871,10 +871,6 @@ export default function MonitorPage() {
 
         <header className="flex items-end justify-between">
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#aaa9a2]">
-              Monitoring
-            </p>
-
             <h1 className="mt-1 text-[29px] font-semibold tracking-[-0.06em] text-[#202020]">
               My devices
             </h1>
@@ -902,8 +898,8 @@ export default function MonitorPage() {
         <section className="mt-6 space-y-3">
           {devices.length === 0 ? (
             <div className="rounded-[30px] bg-white px-6 py-14 text-center shadow-[0_5px_25px_rgba(0,0,0,0.035)]">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#eef3df]">
-                <Wifi size={28} className="text-[#789354]" />
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand/30">
+                <Wifi size={28} className="text-black" />
               </div>
 
               <h2 className="mt-5 text-[20px] font-semibold tracking-[-0.04em]">

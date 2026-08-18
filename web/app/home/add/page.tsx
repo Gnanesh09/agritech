@@ -292,7 +292,7 @@ export default function AddDevicePage() {
   }
   if (step === "found") {
     return (
-      <main className="fixed inset-0 z-[200] flex min-h-screen items-center justify-center overflow-hidden bg-[#3f29ff]">
+      <main className="fixed inset-0 z-[200] flex min-h-screen items-center justify-center overflow-hidden bg-black">
         {/* subtle background glow */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/10 blur-3xl" />
 
@@ -464,7 +464,7 @@ export default function AddDevicePage() {
               <h1 className="text-[48px] font-semibold leading-[0.92] tracking-[-0.07em]">
                 You're
                 <br />
-                <span className="text-[#829f3d]">connected.</span>
+                <span className="">connected.</span>
               </h1>
 
               <p className="mx-auto mt-5 max-w-[275px] text-[12px] leading-[1.7] text-[#92948d]">
@@ -474,7 +474,7 @@ export default function AddDevicePage() {
           </div>
 
           {/* Device card */}
-          <div className="rounded-[24px] border border-black/[0.06] bg-white p-4 shadow-[0_15px_45px_rgba(0,0,0,0.06)]">
+          <div className="rounded-[24px] border border-black/[0.06] bg-white p-4 pb-10 shadow-[0_15px_45px_rgba(0,0,0,0.06)]">
             <div className="flex items-center gap-4">
               {/* Device image */}
               <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[18px] bg-[#f3f5ec]">

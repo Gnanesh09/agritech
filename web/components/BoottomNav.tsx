@@ -46,7 +46,7 @@ export default function BottomNav() {
                         duration-200
                         ${
                           isHome
-                            ? "bg-gray-100 text-blue-600 shadow-sm"
+                            ? "bg-brand/30 text-black shadow-sm"
                             : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
                         }
                     `}
@@ -70,7 +70,7 @@ export default function BottomNav() {
                         duration-200
                         ${
                           isAdd
-                            ? "bg-gray-100 text-blue-600 shadow-sm"
+                            ? "bg-brand/30 text-black shadow-sm"
                             : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
                         }
                     `}
@@ -96,7 +96,7 @@ export default function BottomNav() {
                         duration-200
                         ${
                           isMonitor
-                            ? "bg-gray-100 text-blue-600 shadow-sm"
+                            ? "bg-brand/30 text-black shadow-sm"
                             : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
                         }
                     `}
@@ -119,7 +119,7 @@ export default function BottomNav() {
                         duration-200
                         ${
                           isProfile
-                            ? "bg-gray-100 text-blue-600 shadow-sm"
+                            ? "bg-brand/30 text-black shadow-sm"
                             : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
                         }
                     `}
