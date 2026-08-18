@@ -1,6 +1,7 @@
-// lib/axios.ts
-
-import axios from "axios";
+import axios, {
+    type AxiosError,
+    type InternalAxiosRequestConfig,
+} from "axios";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
@@ -9,6 +10,11 @@ if (!apiUrl) {
         "NEXT_PUBLIC_API_URL environment variable is not set"
     );
 }
+
+
+// ======================================================
+// AXIOS INSTANCE
+// ======================================================
 
 const api = axios.create({
     baseURL: `${apiUrl}/api`,
@@ -27,10 +33,18 @@ let accessToken: string | null = null;
 
 export function setAccessToken(token: string) {
     accessToken = token;
+
+    console.log(
+        "[AUTH] Access token stored"
+    );
 }
 
 export function clearAccessToken() {
     accessToken = null;
+
+    console.log(
+        "[AUTH] Access token cleared"
+    );
 }
 
 
@@ -42,8 +56,13 @@ api.interceptors.request.use(
     (config) => {
 
         if (accessToken) {
+
+            config.headers =
+                config.headers || {};
+
             config.headers.Authorization =
                 `Bearer ${accessToken}`;
+
         }
 
         return config;
@@ -56,26 +75,52 @@ api.interceptors.request.use(
 
 
 // ======================================================
-// REFRESH TOKEN
+// REFRESH STATE
 // ======================================================
 
-let isRefreshing = false;
+let refreshPromise: Promise<string> | null = null;
 
-let refreshSubscribers: Array<(token: string) => void> = [];
 
-function subscribeTokenRefresh(
-    callback: (token: string) => void
-) {
-    refreshSubscribers.push(callback);
-}
+// ======================================================
+// REFRESH ACCESS TOKEN
+// ======================================================
 
-function onRefreshed(token: string) {
+async function refreshAccessToken(): Promise<string> {
 
-    refreshSubscribers.forEach(
-        (callback) => callback(token)
+    /*
+     * IMPORTANT:
+     *
+     * Use plain axios here, NOT `api`.
+     *
+     * This prevents the refresh request from
+     * entering the normal 401 interceptor again.
+     */
+
+    const response = await axios.get(
+        `${apiUrl}/api/auth/refresh-token`,
+        {
+            withCredentials: true,
+        }
     );
 
-    refreshSubscribers = [];
+    const newAccessToken =
+        response.data?.accessToken;
+
+    if (!newAccessToken) {
+        throw new Error(
+            "Refresh endpoint did not return an access token"
+        );
+    }
+
+    setAccessToken(
+        newAccessToken
+    );
+
+    console.log(
+        "[AUTH] Access token refreshed successfully"
+    );
+
+    return newAccessToken;
 }
 
 
@@ -85,119 +130,142 @@ function onRefreshed(token: string) {
 
 api.interceptors.response.use(
 
+    // --------------------------------------------------
     // Normal response
+    // --------------------------------------------------
+
     (response) => {
         return response;
     },
 
-    async (error) => {
 
-        const originalRequest = error.config;
+    // --------------------------------------------------
+    // Error
+    // --------------------------------------------------
 
-        // Only handle 401
+    async (error: AxiosError) => {
+
+        const originalRequest =
+            error.config as
+                | (InternalAxiosRequestConfig & {
+                      _retry?: boolean;
+                  })
+                | undefined;
+
+
+        // ------------------------------------------------
+        // Not a 401
+        // ------------------------------------------------
+
         if (
             error.response?.status !== 401 ||
-            originalRequest?._retry
+            !originalRequest
         ) {
             return Promise.reject(error);
         }
 
-        // Don't try to refresh the refresh endpoint itself
+
+        // ------------------------------------------------
+        // Never refresh the refresh endpoint
+        // ------------------------------------------------
+
         if (
-            originalRequest?.url?.includes(
+            originalRequest.url?.includes(
                 "/auth/refresh-token"
             )
         ) {
+
             clearAccessToken();
 
             return Promise.reject(error);
         }
 
+
+        // ------------------------------------------------
+        // Prevent infinite retry
+        // ------------------------------------------------
+
+        if (originalRequest._retry) {
+
+            return Promise.reject(error);
+        }
 
         originalRequest._retry = true;
 
 
-        // ==================================================
-        // ANOTHER REQUEST IS ALREADY REFRESHING
-        // ==================================================
-
-        if (isRefreshing) {
-
-            return new Promise((resolve) => {
-
-                subscribeTokenRefresh(
-                    (token) => {
-
-                        originalRequest.headers.Authorization =
-                            `Bearer ${token}`;
-
-                        resolve(
-                            api(originalRequest)
-                        );
-                    }
-                );
-
-            });
-
-        }
-
-
-        // ==================================================
-        // START REFRESH
-        // ==================================================
-
-        isRefreshing = true;
+        // =================================================
+        // REFRESH
+        // =================================================
 
         try {
 
-            const response = await api.get(
-                "/auth/refresh-token"
-            );
+            /*
+             * If another request is already refreshing,
+             * wait for EXACTLY the same promise.
+             *
+             * This is the important part.
+             */
 
-            const newAccessToken =
-                response.data.accessToken;
+            if (!refreshPromise) {
 
-            if (!newAccessToken) {
-                throw new Error(
-                    "No access token returned"
+                console.log(
+                    "[AUTH] Starting token refresh..."
+                );
+
+                refreshPromise =
+                    refreshAccessToken()
+                        .finally(() => {
+
+                            refreshPromise =
+                                null;
+
+                        });
+            } else {
+
+                console.log(
+                    "[AUTH] Waiting for existing refresh..."
                 );
             }
 
 
-            // Store new token
-            setAccessToken(
-                newAccessToken
-            );
+            const newToken =
+                await refreshPromise;
 
 
-            // Resolve queued requests
-            onRefreshed(
-                newAccessToken
-            );
-
-
+            // ------------------------------------------------
             // Retry original request
-            originalRequest.headers.Authorization =
-                `Bearer ${newAccessToken}`;
+            // ------------------------------------------------
 
-            return api(originalRequest);
+            originalRequest.headers =
+                originalRequest.headers || {};
+
+            originalRequest.headers.Authorization =
+                `Bearer ${newToken}`;
+
+
+            console.log(
+                "[AUTH] Retrying:",
+                originalRequest.url
+            );
+
+
+            return api(
+                originalRequest
+            );
 
         } catch (refreshError) {
 
-            clearAccessToken();
+            console.error(
+                "[AUTH] Refresh failed:",
+                refreshError
+            );
 
-            refreshSubscribers = [];
+            clearAccessToken();
 
             return Promise.reject(
                 refreshError
             );
-
-        } finally {
-
-            isRefreshing = false;
-
         }
-
     }
 );
 

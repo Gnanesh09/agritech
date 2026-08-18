@@ -19,7 +19,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-import api, { setAccessToken, clearAccessToken } from "../../lib/axios";
+import api, { clearAccessToken } from "../../lib/axios";
 import { useRouter } from "next/navigation";
 
 type UserData = {
@@ -56,32 +56,35 @@ export default function ProfilePage() {
   // --------------------------------------------------
   // LOAD PROFILE
   // --------------------------------------------------
-
   useEffect(() => {
     async function loadProfile() {
       try {
         setLoading(true);
         setError("");
 
-        // Refresh access token using httpOnly refresh cookie
-        const refreshRes = await api.get("/auth/refresh-token");
+        console.log("[PROFILE] Loading profile...");
 
-        const accessToken = refreshRes.data.accessToken;
+        /*
+         * Do NOT manually call /auth/refresh-token here.
+         *
+         * Axios handles 401 -> refresh -> retry automatically.
+         */
 
-        setAccessToken(accessToken);
-
-        // Get authenticated user
         const response = await api.get("/user/profile");
+
+        console.log("[PROFILE] Profile loaded:", response.data);
 
         const profile = response.data.user;
 
         setUser(profile);
 
         setUsername(profile.username || "");
+
         setCountryCode(profile.countryCode || "");
+
         setPhoneNo(profile.phoneNo || "");
       } catch (err: any) {
-        console.error("Profile error:", err);
+        console.error("[PROFILE] Profile error:", err);
 
         setError(
           err?.response?.data?.message || "Unable to load your profile.",
