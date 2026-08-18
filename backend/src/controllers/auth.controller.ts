@@ -397,6 +397,8 @@ export async function logoutAll(req: Request, res: Response) {
         return res.status(401).json({ message: "Invalid token" });
     }
 }
+
+
 export async function verifyEmail(req: Request, res: Response) {
     const { otp, email } = req.body;
 
