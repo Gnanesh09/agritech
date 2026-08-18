@@ -5,6 +5,7 @@ import adminRouter from './routes/admin.routes';
 import userRouter from './routes/user.route';
 import  cors from "cors";
 import deviceRouter from './routes/device.routes';
+import automationRouter from './routes/automation.routes';
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/user", userRouter);
 app.use("/api/device", deviceRouter);
+app.use("/api/user", automationRouter);
 
 export default app
 

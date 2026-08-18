@@ -7,6 +7,11 @@ datasource db {
   provider = "postgresql"
 }
 
+
+// ============================================================
+// ENUMS
+// ============================================================
+
 enum Role {
   USER
   ADMIN
@@ -26,19 +31,39 @@ enum DeviceModelStatus {
   DISCONTINUED
 }
 
+enum DeviceCommandStatus {
+  PENDING
+  SENT
+  ACKNOWLEDGED
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum AutomationStatus {
+  ACTIVE
+  PAUSED
+}
+
+
+// ============================================================
+// USER
+// ============================================================
+
 model User {
-  id          String  @id @default(uuid())
+  id          String   @id @default(uuid())
   username    String
-  email       String  @unique
+  email       String   @unique
   password    String
   countryCode String
   phoneNo     String
-  role        Role    @default(USER)
-  verified    Boolean @default(false)
+  role        Role     @default(USER)
+  verified    Boolean  @default(false)
 
-  otps        Otp[]
-  sessions    Session[]
-  userDevices UserDevice[]
+  otps         Otp[]
+  sessions     Session[]
+  userDevices  UserDevice[]
+  automations  DeviceAutomation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -46,13 +71,18 @@ model User {
   @@map("users")
 }
 
-model Otp {
-  id      String @id @default(uuid())
-  email   String
-  otpHash String
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+// ============================================================
+// OTP
+// ============================================================
+
+model Otp {
+  id        String   @id @default(uuid())
+  email     String
+  otpHash   String
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -60,12 +90,17 @@ model Otp {
   @@map("otps")
 }
 
+
+// ============================================================
+// SESSION
+// ============================================================
+
 model Session {
-  id               String  @id @default(uuid())
+  id               String   @id @default(uuid())
   refreshTokenHash String
   ip               String
   userAgent        String
-  revoked          Boolean @default(false)
+  revoked          Boolean  @default(false)
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -76,6 +111,18 @@ model Session {
   @@map("sessions")
 }
 
+
+// ============================================================
+// DEVICE MODEL
+//
+// Defines what a PRODUCT can do.
+// Example:
+// HUMDIE
+// GREENHOUSE_PRO
+// SMART_FAN
+// SMART_RELAY
+// ============================================================
+
 model DeviceModel {
   id          String            @id @default(uuid())
   name        String
@@ -83,7 +130,31 @@ model DeviceModel {
   description String?
   version     String?
   imageUrl    String?
-  status      DeviceModelStatus @default(ACTIVE)
+
+  /*
+   * Example:
+   *
+   * {
+   *   "sensors": [
+   *     {
+   *       "key": "temperature",
+   *       "label": "Temperature",
+   *       "type": "number",
+   *       "unit": "°C"
+   *     }
+   *   ],
+   *   "actuators": [
+   *     {
+   *       "key": "fan",
+   *       "label": "Fan",
+   *       "type": "switch"
+   *     }
+   *   ]
+   * }
+   */
+  capabilities Json @default("{}")
+
+  status DeviceModelStatus @default(ACTIVE)
 
   devices Device[]
 
@@ -93,13 +164,19 @@ model DeviceModel {
   @@map("device_models")
 }
 
+
+// ============================================================
+// PHYSICAL DEVICE
+// ============================================================
+
 model Device {
   id String @id @default(uuid())
 
   deviceCode   String  @unique
   serialNumber String  @unique
-  macAddress   String? @unique
-  chipId       String? @unique
+
+  macAddress String? @unique
+  chipId     String? @unique
 
   deviceModelId String
   deviceModel   DeviceModel @relation(fields: [deviceModelId], references: [id])
@@ -111,8 +188,21 @@ model Device {
 
   linkedAt DateTime?
 
+  // Last communication from physical device
+  lastSeenAt DateTime?
+
+  // Firmware currently reported
+  firmwareVersion String?
+
   credential DeviceCredential?
-  telemetry  DeviceTelemetry[]
+
+  telemetry DeviceTelemetry[]
+
+  state DeviceState?
+
+  commands DeviceCommand[]
+
+  automations DeviceAutomation[]
 
   userDevices UserDevice[]
 
@@ -122,14 +212,24 @@ model Device {
   @@index([deviceModelId])
   @@index([status])
   @@index([batchNumber])
+  @@index([lastSeenAt])
+
   @@map("devices")
 }
 
+
+// ============================================================
+// DEVICE CREDENTIAL
+// ============================================================
+
 model DeviceCredential {
-  id         String    @id @default(uuid())
-  deviceId   String    @unique
-  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  tokenHash  String    @unique
+  id String @id @default(uuid())
+
+  deviceId String @unique
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  tokenHash String @unique
+
   lastUsedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -138,24 +238,204 @@ model DeviceCredential {
   @@map("device_credentials")
 }
 
+
+// ============================================================
+// GENERIC TELEMETRY
+// ============================================================
+
 model DeviceTelemetry {
-  id          String   @id @default(uuid())
-  deviceId    String
-  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  id String @id @default(uuid())
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  /*
+   * Generic sensor payload.
+   *
+   * HUMDIE:
+   * {
+   *   "temperature": 28.1,
+   *   "humidity": 67.4
+   * }
+   *
+   * GREENHOUSE:
+   * {
+   *   "temperature": 28.1,
+   *   "humidity": 67.4,
+   *   "light": 780,
+   *   "soilMoisture": 42
+   * }
+   */
+  data Json @default("{}")
+
+  /*
+   * Kept temporarily so existing Home/Monitor code
+   * continues to work while we migrate the frontend.
+   */
   temperature Float?
   humidity    Float?
-  recordedAt  DateTime @default(now())
+
+  recordedAt DateTime @default(now())
 
   @@index([deviceId])
   @@index([recordedAt])
+
   @@map("device_telemetry")
 }
+
+
+// ============================================================
+// CURRENT DEVICE STATE
+// ============================================================
+
+model DeviceState {
+  id String @id @default(uuid())
+
+  deviceId String @unique
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  /*
+   * What the hardware actually reports.
+   *
+   * {
+   *   "fan": true,
+   *   "light": false
+   * }
+   */
+  actual Json @default("{}")
+
+  /*
+   * What the platform wants the device to do.
+   *
+   * {
+   *   "fan": true,
+   *   "light": false
+   * }
+   */
+  desired Json @default("{}")
+
+  /*
+   * Control mode per actuator.
+   *
+   * {
+   *   "fan": "AUTO",
+   *   "light": "MANUAL"
+   * }
+   */
+  modes Json @default("{}")
+
+  lastReportedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("device_states")
+}
+
+
+// ============================================================
+// COMMAND
+// ============================================================
+
+model DeviceCommand {
+  id String @id @default(uuid())
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  /*
+   * {
+   *   "target": "fan",
+   *   "action": "set",
+   *   "value": true,
+   *   "mode": "MANUAL"
+   * }
+   */
+  command Json
+
+  source String @default("USER")
+
+  status DeviceCommandStatus @default(PENDING)
+
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  sentAt DateTime?
+  acknowledgedAt DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@index([deviceId])
+  @@index([status])
+  @@index([createdAt])
+
+  @@map("device_commands")
+}
+
+
+// ============================================================
+// AUTOMATION
+// ============================================================
+
+model DeviceAutomation {
+  id String @id @default(uuid())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  name String
+
+  status AutomationStatus @default(ACTIVE)
+
+  /*
+   * Example:
+   *
+   * {
+   *   "field": "humidity",
+   *   "operator": ">",
+   *   "value": 75
+   * }
+   */
+  trigger Json
+
+  /*
+   * Example:
+   *
+   * [
+   *   {
+   *     "target": "fan",
+   *     "action": "set",
+   *     "value": true
+   *   }
+   * ]
+   */
+  actions Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([status])
+
+  @@map("device_automations")
+}
+
+
+// ============================================================
+// USER DEVICE
+//
+// User-specific relationship + private name.
+// Admin/product never controls this name.
+// ============================================================
 
 model UserDevice {
   id String @id @default(uuid())
 
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   deviceId String
   device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
@@ -168,5 +448,6 @@ model UserDevice {
   @@unique([userId, deviceId])
   @@index([userId])
   @@index([deviceId])
+
   @@map("user_devices")
 }
