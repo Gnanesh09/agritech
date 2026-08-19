@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
-  const refreshToken =
-    request.cookies.get("refreshToken")?.value;
+  const refreshToken = request.cookies.get("refreshToken")?.value;
 
   const { pathname } = request.nextUrl;
 
@@ -12,10 +11,11 @@ export function proxy(request: NextRequest) {
   // =========================================================
 
   const isUserLoginPage = pathname === "/login";
+
   const isAdminLoginPage = pathname === "/admin";
 
   // =========================================================
-  // PRIVATE ROUTES
+  // USER PRIVATE ROUTES
   // =========================================================
 
   const isUserPrivateRoute =
@@ -24,9 +24,16 @@ export function proxy(request: NextRequest) {
     pathname === "/profile" ||
     pathname.startsWith("/profile/");
 
+  // =========================================================
+  // ADMIN PRIVATE ROUTES
+  // =========================================================
+
   const isAdminPrivateRoute =
-    pathname === "/admin/dashboard" ||
-    pathname.startsWith("/admin/dashboard/");
+    pathname === "/admin/dashboard" || pathname.startsWith("/admin/dashboard/");
+
+  // =========================================================
+  // SUPER ADMIN PRIVATE ROUTES
+  // =========================================================
 
   const isSuperAdminPrivateRoute =
     pathname === "/superadmin/dashboard" ||
@@ -36,17 +43,22 @@ export function proxy(request: NextRequest) {
   // USER LOGIN
   // =========================================================
 
-  /*
-   * If already authenticated and they visit /login,
-   * send them to /home.
-   *
-   * NOTE:
-   * This assumes /login is for normal users.
-   */
   if (refreshToken && isUserLoginPage) {
-    return NextResponse.redirect(
-      new URL("/home", request.url)
-    );
+    return NextResponse.redirect(new URL("/home", request.url));
+  }
+
+  // =========================================================
+  // ADMIN LOGIN
+  //
+  // For now, just prevent an already-authenticated user
+  // from unnecessarily staying on /admin.
+  //
+  // Actual ADMIN / SUPER_ADMIN authorization is handled
+  // by your backend/auth layer.
+  // =========================================================
+
+  if (refreshToken && isAdminLoginPage) {
+    return NextResponse.redirect(new URL("/admin/dashboard", request.url));
   }
 
   // =========================================================
@@ -54,29 +66,23 @@ export function proxy(request: NextRequest) {
   // =========================================================
 
   if (!refreshToken && isUserPrivateRoute) {
-    return NextResponse.redirect(
-      new URL("/login", request.url)
-    );
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   // =========================================================
-  // ADMIN DASHBOARD
+  // ADMIN PRIVATE ROUTES
   // =========================================================
 
   if (!refreshToken && isAdminPrivateRoute) {
-    return NextResponse.redirect(
-      new URL("/admin", request.url)
-    );
+    return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   // =========================================================
-  // SUPER ADMIN DASHBOARD
+  // SUPER ADMIN PRIVATE ROUTES
   // =========================================================
 
   if (!refreshToken && isSuperAdminPrivateRoute) {
-    return NextResponse.redirect(
-      new URL("/admin", request.url)
-    );
+    return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   // =========================================================
@@ -91,8 +97,12 @@ export const config = {
     "/login",
     "/home/:path*",
     "/profile/:path*",
+
+    // Admin auth + dashboard
     "/admin",
     "/admin/dashboard/:path*",
+
+    // Super admin
     "/superadmin/dashboard/:path*",
   ],
 };

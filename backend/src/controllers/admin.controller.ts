@@ -175,7 +175,7 @@ export async function getDeviceModelById(req: AuthRequest, res: Response) {
         imageUrl: deviceModel.imageUrl,
 
         deviceCount: deviceModel._count.devices,
-
+        capabilities: deviceModel.capabilities,
         createdAt: deviceModel.createdAt,
         updatedAt: deviceModel.updatedAt,
       },
@@ -534,7 +534,6 @@ export async function registerDevice(req: Request, res: Response) {
     });
   }
 }
-
 export async function getAllDevices(req: Request, res: Response) {
   try {
     const {
@@ -545,19 +544,20 @@ export async function getAllDevices(req: Request, res: Response) {
       limit = "20",
     } = req.query;
 
-    const pageNumber = Math.max(Number(page), 1);
-    const limitNumber = Math.min(Math.max(Number(limit), 1), 100);
+    const pageNumber = Math.max(Number(page) || 1, 1);
+
+    const limitNumber = Math.min(Math.max(Number(limit) || 20, 1), 100);
 
     const skip = (pageNumber - 1) * limitNumber;
 
-    // -----------------------------
-    // Build filters
-    // -----------------------------
+    // =========================================================
+    // BUILD FILTER
+    // =========================================================
 
     const where: any = {};
 
     if (status) {
-      where.status = status;
+      where.status = String(status);
     }
 
     if (deviceModelId) {
@@ -574,14 +574,23 @@ export async function getAllDevices(req: Request, res: Response) {
             mode: "insensitive",
           },
         },
+
         {
           serialNumber: {
             contains: searchValue,
             mode: "insensitive",
           },
         },
+
         {
           macAddress: {
+            contains: searchValue,
+            mode: "insensitive",
+          },
+        },
+
+        {
+          chipId: {
             contains: searchValue,
             mode: "insensitive",
           },
@@ -589,21 +598,37 @@ export async function getAllDevices(req: Request, res: Response) {
       ];
     }
 
-    // -----------------------------
-    // Fetch devices + count
-    // -----------------------------
+    // =========================================================
+    // GET DEVICES + COUNT
+    // =========================================================
 
     const [devices, total] = await prisma.$transaction([
       prisma.device.findMany({
         where,
 
         include: {
+          // -----------------------------------------------
+          // DEVICE MODEL
+          // -----------------------------------------------
+
           deviceModel: true,
-          owner: {
-            select: {
-              id: true,
-              username: true,
-              email: true,
+
+          // -----------------------------------------------
+          // USER OWNERSHIP
+          //
+          // There is no Device.owner anymore.
+          // Ownership is through UserDevice.
+          // -----------------------------------------------
+
+          userDevices: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  email: true,
+                },
+              },
             },
           },
         },
@@ -613,6 +638,7 @@ export async function getAllDevices(req: Request, res: Response) {
         },
 
         skip,
+
         take: limitNumber,
       }),
 
@@ -621,13 +647,81 @@ export async function getAllDevices(req: Request, res: Response) {
       }),
     ]);
 
+    // =========================================================
+    // TRANSFORM FOR ADMIN FRONTEND
+    // =========================================================
+
+    const formattedDevices = devices.map((device) => {
+      /*
+       * A physical device can currently have
+       * one UserDevice ownership record.
+       *
+       * We expose the first one as `owner`
+       * so your admin frontend doesn't need
+       * to know about the database relation.
+       */
+
+      const linkedUser = device.userDevices[0]?.user ?? null;
+
+      return {
+        id: device.id,
+
+        deviceCode: device.deviceCode,
+
+        serialNumber: device.serialNumber,
+
+        macAddress: device.macAddress,
+
+        chipId: device.chipId,
+
+        status: device.status,
+
+        batchNumber: device.batchNumber,
+
+        manufacturedAt: device.manufacturedAt,
+
+        linkedAt: device.linkedAt,
+
+        createdAt: device.createdAt,
+
+        updatedAt: device.updatedAt,
+
+        // -------------------------------------------
+        // MODEL
+        // -------------------------------------------
+
+        deviceModel: device.deviceModel,
+
+        // -------------------------------------------
+        // OWNER
+        // -------------------------------------------
+
+        owner: linkedUser
+          ? {
+              id: linkedUser.id,
+
+              username: linkedUser.username,
+
+              email: linkedUser.email,
+            }
+          : null,
+      };
+    });
+
+    // =========================================================
+    // RESPONSE
+    // =========================================================
+
     return res.status(200).json({
-      devices,
+      devices: formattedDevices,
 
       pagination: {
         page: pageNumber,
+
         limit: limitNumber,
+
         total,
+
         totalPages: Math.ceil(total / limitNumber),
       },
     });
@@ -639,33 +733,55 @@ export async function getAllDevices(req: Request, res: Response) {
     });
   }
 }
-
 export async function getDevice(req: Request, res: Response) {
   try {
     const { id } = req.params;
+
+    // --------------------------------------------------
+    // VALIDATE ID
+    // --------------------------------------------------
+
     if (!id || Array.isArray(id)) {
       return res.status(400).json({
         message: "Invalid device ID",
       });
     }
+
+    // --------------------------------------------------
+    // FETCH DEVICE
+    // --------------------------------------------------
+
     const device = await prisma.device.findUnique({
       where: {
         id,
       },
 
       include: {
+        // Device model
         deviceModel: true,
 
-        owner: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            phoneNo: true,
+        // Ownership is through UserDevice
+        userDevices: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                email: true,
+                phoneNo: true,
+              },
+            },
           },
         },
+
+        // Current dynamic state
+        state: true,
       },
     });
+
+    // --------------------------------------------------
+    // NOT FOUND
+    // --------------------------------------------------
 
     if (!device) {
       return res.status(404).json({
@@ -673,8 +789,99 @@ export async function getDevice(req: Request, res: Response) {
       });
     }
 
+    // --------------------------------------------------
+    // FIND CURRENT USER
+    //
+    // A physical device is considered linked when
+    // its UserDevice relation exists.
+    // --------------------------------------------------
+
+    const linkedUser = device.userDevices[0]?.user ?? null;
+
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
+
     return res.status(200).json({
-      device,
+      message: "Device fetched successfully",
+
+      device: {
+        id: device.id,
+
+        deviceCode: device.deviceCode,
+
+        serialNumber: device.serialNumber,
+
+        macAddress: device.macAddress,
+
+        chipId: device.chipId,
+
+        status: device.status,
+
+        batchNumber: device.batchNumber,
+
+        manufacturedAt: device.manufacturedAt,
+
+        linkedAt: device.linkedAt,
+
+        createdAt: device.createdAt,
+
+        updatedAt: device.updatedAt,
+
+        // ------------------------------------------
+        // MODEL
+        // ------------------------------------------
+
+        deviceModel: {
+          id: device.deviceModel.id,
+
+          name: device.deviceModel.name,
+
+          code: device.deviceModel.code,
+
+          description: device.deviceModel.description,
+
+          version: device.deviceModel.version,
+
+          status: device.deviceModel.status,
+
+          imageUrl: device.deviceModel.imageUrl,
+
+          capabilities: device.deviceModel.capabilities,
+        },
+
+        // ------------------------------------------
+        // OWNER
+        // ------------------------------------------
+
+        owner: linkedUser
+          ? {
+              id: linkedUser.id,
+
+              username: linkedUser.username,
+
+              email: linkedUser.email,
+
+              phoneNo: linkedUser.phoneNo,
+            }
+          : null,
+
+        // ------------------------------------------
+        // CURRENT STATE
+        // ------------------------------------------
+
+        state: device.state
+          ? {
+              actual: device.state.actual,
+
+              desired: device.state.desired,
+
+              modes: device.state.modes,
+
+              lastReportedAt: device.state.lastReportedAt,
+            }
+          : null,
+      },
     });
   } catch (error) {
     console.error("getDevice:", error);
@@ -684,7 +891,6 @@ export async function getDevice(req: Request, res: Response) {
     });
   }
 }
-
 // ======================================================
 // UPDATE DEVICE
 // PATCH /api/admin/devices/:id
