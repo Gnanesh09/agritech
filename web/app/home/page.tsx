@@ -1,18 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
   ChevronRight,
   ChevronDown,
-  Thermometer,
-  Droplets,
-  Wifi,
-  SlidersHorizontal,
   Plus,
+  SlidersHorizontal,
+  Wifi,
 } from "lucide-react";
 
 import api from "../lib/axios";
+
+// ============================================================
+// TYPES
+// ============================================================
+
+type CapabilityType = "number" | "boolean" | "string";
+
+type DeviceCapability = {
+  key: string;
+  label?: string;
+  type: CapabilityType;
+  unit?: string;
+  min?: number;
+  max?: number;
+};
+
+type DeviceCapabilities = {
+  sensors: DeviceCapability[];
+  actuators: DeviceCapability[];
+};
+
+type DeviceState = {
+  actual: Record<string, unknown>;
+  desired: Record<string, unknown>;
+  modes: Record<string, unknown>;
+  lastReportedAt: string | null;
+};
 
 type Device = {
   id: string;
@@ -20,6 +45,8 @@ type Device = {
   serialNumber: string;
   status: string;
   linkedAt: string | null;
+  lastSeenAt: string | null;
+  firmwareVersion: string | null;
   name: string | null;
 
   deviceModel: {
@@ -27,14 +54,23 @@ type Device = {
     name: string;
     code: string;
     imageUrl: string | null;
+    capabilities: DeviceCapabilities;
   };
 
-  latest?: {
-    temperature: number | null;
-    humidity: number | null;
-    recordedAt: string;
-  } | null;
+  state: DeviceState | null;
+
+  latest?: Telemetry | null;
 };
+
+type Telemetry = {
+  id: string;
+  data: Record<string, unknown>;
+  recordedAt: string;
+};
+
+// ============================================================
+// DUMMY SHOP CATALOG
+// ============================================================
 
 type Product = {
   id: number;
@@ -88,15 +124,25 @@ const products: Product[] = [
   },
 ];
 
+// ============================================================
+// HOME
+// ============================================================
+
 export default function HomePage() {
   const [devices, setDevices] = useState<Device[]>([]);
+
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
+
   const [showDevices, setShowDevices] = useState(false);
 
   const selectedDevice =
     devices.find((device) => device.id === selectedDeviceId) || devices[0];
+
+  // ==========================================================
+  // LOAD DEVICES
+  // ==========================================================
 
   useEffect(() => {
     loadDevices();
@@ -121,6 +167,7 @@ export default function HomePage() {
 
             return {
               ...device,
+
               latest: telemetry.length > 0 ? telemetry[0] : null,
             };
           } catch {
@@ -134,6 +181,10 @@ export default function HomePage() {
 
       setDevices(devicesWithTelemetry);
 
+      // --------------------------------------------------------
+      // Selected device persistence
+      // --------------------------------------------------------
+
       const savedDevice = localStorage.getItem("selectedDeviceId");
 
       if (
@@ -142,9 +193,11 @@ export default function HomePage() {
       ) {
         setSelectedDeviceId(savedDevice);
       } else if (devicesWithTelemetry.length > 0) {
-        setSelectedDeviceId(devicesWithTelemetry[0].id);
+        const first = devicesWithTelemetry[0];
 
-        localStorage.setItem("selectedDeviceId", devicesWithTelemetry[0].id);
+        setSelectedDeviceId(first.id);
+
+        localStorage.setItem("selectedDeviceId", first.id);
       }
     } catch (error) {
       console.error("Failed to load devices:", error);
@@ -153,6 +206,10 @@ export default function HomePage() {
     }
   }
 
+  // ==========================================================
+  // SELECT DEVICE
+  // ==========================================================
+
   function selectDevice(id: string) {
     setSelectedDeviceId(id);
 
@@ -160,6 +217,22 @@ export default function HomePage() {
 
     setShowDevices(false);
   }
+
+  // ==========================================================
+  // NUMERIC SENSOR VALUES
+  // ==========================================================
+
+  const sensors = selectedDevice?.deviceModel.capabilities?.sensors || [];
+
+  const latestData = selectedDevice?.latest?.data || {};
+
+  const primarySensor =
+    sensors.find((sensor) => sensor.key === "temperature") ||
+    sensors.find((sensor) => sensor.type === "number");
+
+  // ==========================================================
+  // LOADING
+  // ==========================================================
 
   if (loading) {
     return (
@@ -175,17 +248,19 @@ export default function HomePage() {
     );
   }
 
+  // ==========================================================
+  // RENDER
+  // ==========================================================
+
   return (
     <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-5">
       <div className="mx-auto max-w-md">
         {/* =====================================================
-                    HEADER
-                ===================================================== */}
+            HEADER
+        ===================================================== */}
 
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Avatar */}
-
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-brand text-lg font-semibold text-[#202020]">
               G
             </div>
@@ -201,18 +276,21 @@ export default function HomePage() {
             </div>
           </div>
 
-          <button className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-[0_3px_15px_rgba(0,0,0,0.04)]">
+          <button
+            type="button"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-[0_3px_15px_rgba(0,0,0,0.04)]"
+          >
             <Bell size={18} strokeWidth={1.8} />
           </button>
         </header>
 
         {/* =====================================================
-                    PRIMARY DEVICE
-                ===================================================== */}
+            PRIMARY DEVICE
+        ===================================================== */}
 
         {selectedDevice ? (
           <section className="mt-6 overflow-hidden rounded-[30px] bg-white shadow-[0_5px_25px_rgba(0,0,0,0.045)]">
-            {/* Top */}
+            {/* TOP */}
 
             <div className="flex items-center justify-between px-5 pt-5">
               <div>
@@ -223,7 +301,11 @@ export default function HomePage() {
 
                   <span className="flex items-center gap-1 text-[10px] font-medium text-[#63a52d]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#79bd35]" />
-                    Online
+                    {selectedDevice.lastSeenAt
+                      ? isRecentlySeen(selectedDevice.lastSeenAt)
+                        ? "Online"
+                        : "Offline"
+                      : "Unknown"}
                   </span>
                 </div>
 
@@ -233,6 +315,7 @@ export default function HomePage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => setShowDevices(true)}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f2]"
               >
@@ -240,30 +323,29 @@ export default function HomePage() {
               </button>
             </div>
 
-            {/* =================================================
-                            DEVICE HERO
-                        ================================================= */}
+            {/* DEVICE HERO */}
 
             <div className="relative mt-2 h-[245px] overflow-hidden px-5">
-              {/* Main reading */}
+              {/* Primary reading */}
 
               <div className="absolute left-5 top-7 z-10">
                 <p className="text-[54px] font-light leading-none tracking-[-0.07em] text-[#171717]">
-                  {selectedDevice.latest?.temperature != null
-                    ? selectedDevice.latest.temperature.toFixed(1)
+                  {primarySensor
+                    ? formatSensorValue(
+                        latestData[primarySensor.key],
+                        primarySensor,
+                      )
                     : "--"}
+                </p>
 
-                  <span className="ml-1 text-[25px] align-top font-normal">
-                    °C
+                {primarySensor?.unit && (
+                  <span className="mt-2 block text-[11px] font-medium text-[#989790]">
+                    {primarySensor.label || primarySensor.key}
                   </span>
-                </p>
-
-                <p className="mt-2 text-[11px] font-medium text-[#989790]">
-                  Temperature
-                </p>
+                )}
               </div>
 
-              {/* DEVICE IMAGE FROM DB */}
+              {/* IMAGE */}
 
               {selectedDevice.deviceModel.imageUrl ? (
                 <img
@@ -278,9 +360,7 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* =================================================
-                            DEVICE NAME
-                        ================================================= */}
+            {/* DEVICE NAME */}
 
             <div className="px-5 pb-5">
               <div className="flex items-center justify-between">
@@ -295,15 +375,15 @@ export default function HomePage() {
                 </div>
 
                 <span className="rounded-full bg-[#eef8dc] px-3 py-1.5 text-[9px] font-semibold text-[#65a632]">
-                  CONNECTED
+                  {selectedDevice.status}
                 </span>
               </div>
             </div>
           </section>
         ) : (
-          /* =================================================
-                       EMPTY STATE
-                    ================================================= */
+          /* ===================================================
+             EMPTY STATE
+          =================================================== */
 
           <section className="mt-6 rounded-[30px] bg-white px-6 py-14 text-center shadow-[0_5px_25px_rgba(0,0,0,0.045)]">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand/20">
@@ -319,6 +399,7 @@ export default function HomePage() {
             </p>
 
             <button
+              type="button"
               onClick={() => setShowDevices(true)}
               className="mt-5 rounded-full bg-[#1c1c1c] px-6 py-3 text-xs font-semibold text-white"
             >
@@ -331,16 +412,14 @@ export default function HomePage() {
         )}
 
         {/* =====================================================
-                    ENVIRONMENT
-                ===================================================== */}
+            CAPABILITY SNAPSHOT
+        ===================================================== */}
 
-        {selectedDevice && (
+        {selectedDevice && sensors.length > 0 && (
           <section className="mt-4 rounded-[28px] bg-white p-4 shadow-[0_5px_25px_rgba(0,0,0,0.035)]">
-            {/* Header */}
-
             <div className="flex items-center justify-between">
               <h3 className="text-[13px] font-semibold text-[#30302e]">
-                Environment
+                Live data
               </h3>
 
               <span className="text-[9px] text-[#a4a39d]">
@@ -350,90 +429,50 @@ export default function HomePage() {
               </span>
             </div>
 
-            {/* Status */}
+            <div
+              className={`mt-4 grid gap-2 ${
+                sensors.length === 1
+                  ? "grid-cols-1"
+                  : sensors.length === 2
+                  ? "grid-cols-2"
+                  : "grid-cols-3"
+              }`}
+            >
+              {sensors.slice(0, 6).map((sensor, index) => (
+                <div
+                  key={sensor.key}
+                  className={`rounded-[18px] p-3 ${
+                    index % 3 === 1 ? "bg-[#252525]" : "bg-brand/30"
+                  }`}
+                >
+                  <p
+                    className={`text-[9px] font-medium ${
+                      index % 3 === 1 ? "text-white/45" : "text-[#89917b]"
+                    }`}
+                  >
+                    {(sensor.label || sensor.key).toUpperCase()}
+                  </p>
 
-            <div className="mt-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[#83c83c]" />
-
-                <span className="text-[20px] font-semibold tracking-[-0.04em] text-[#669c39]">
-                  Good
-                </span>
-              </div>
-
-              <span className="text-[10px] text-[#999]">Live monitoring</span>
-            </div>
-
-            {/* DATA */}
-
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {/* Temperature */}
-
-              <div className="rounded-[18px] bg-brand/30 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-medium text-[#89917b]">
-                    TEMP
-                  </span>
-
-                  <Thermometer size={13} className="text-[#7e9862]" />
+                  <p
+                    className={`mt-5 text-[21px] font-semibold tracking-[-0.04em] ${
+                      index % 3 === 1 ? "text-white" : "text-[#48553d]"
+                    }`}
+                  >
+                    {formatSensorValue(latestData[sensor.key], sensor)}
+                  </p>
                 </div>
-
-                <p className="mt-5 text-[21px] font-semibold tracking-[-0.04em] text-[#48553d]">
-                  {selectedDevice.latest?.temperature != null
-                    ? selectedDevice.latest.temperature.toFixed(1)
-                    : "--"}
-                </p>
-
-                <p className="text-[9px] text-[#8b927e]">°C</p>
-              </div>
-
-              {/* Humidity */}
-
-              <div className="rounded-[18px] bg-[#252525] p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-medium text-white/45">
-                    HUMIDITY
-                  </span>
-
-                  <Droplets size={13} className="text-white/60" />
-                </div>
-
-                <p className="mt-5 text-[21px] font-semibold tracking-[-0.04em] text-white">
-                  {selectedDevice.latest?.humidity != null
-                    ? selectedDevice.latest.humidity.toFixed(1)
-                    : "--"}
-                </p>
-
-                <p className="text-[9px] text-white/35">%</p>
-              </div>
-
-              {/* Connection */}
-
-              <div className="rounded-[18px] bg-brand p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-medium text-[#61702f]">
-                    STATUS
-                  </span>
-
-                  <Wifi size={13} className="text-[#61702f]" />
-                </div>
-
-                <p className="mt-5 text-[16px] font-semibold tracking-[-0.04em] text-black">
-                  LIVE
-                </p>
-
-                <p className="text-[9px] text-[#71813b]">Connected</p>
-              </div>
+              ))}
             </div>
           </section>
         )}
 
         {/* =====================================================
-                    CHANGE DEVICE
-                ===================================================== */}
+            CHANGE DEVICE
+        ===================================================== */}
 
         {selectedDevice && (
           <button
+            type="button"
             onClick={() => setShowDevices(true)}
             className="mt-3 flex w-full items-center justify-between rounded-[22px] bg-white px-4 py-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]"
           >
@@ -456,8 +495,8 @@ export default function HomePage() {
         )}
 
         {/* =====================================================
-                    SHOP
-                ===================================================== */}
+            SHOP
+        ===================================================== */}
 
         <section className="mt-8">
           <div className="flex items-center justify-between">
@@ -471,7 +510,10 @@ export default function HomePage() {
               </h2>
             </div>
 
-            <button className="flex items-center gap-1 text-[10px] font-semibold text-[#777]">
+            <button
+              type="button"
+              className="flex items-center gap-1 text-[10px] font-semibold text-[#777]"
+            >
               View all
               <ChevronRight size={13} />
             </button>
@@ -487,7 +529,7 @@ export default function HomePage() {
                   <img
                     src={product.image}
                     alt={product.name}
-                    className="h-full w-full object-cover "
+                    className="h-full w-full object-cover"
                   />
                 </div>
 
@@ -501,7 +543,10 @@ export default function HomePage() {
                       ₹{product.price.toLocaleString("en-IN")}
                     </span>
 
-                    <button className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1c1c1c] text-white">
+                    <button
+                      type="button"
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1c1c1c] text-white"
+                    >
                       <ChevronRight size={11} />
                     </button>
                   </div>
@@ -512,20 +557,20 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* =========================================================
-                DEVICE SELECTOR
-            ========================================================= */}
+      {/* =======================================================
+          DEVICE SELECTOR
+      ======================================================= */}
 
       {showDevices && (
         <div
           onClick={() => setShowDevices(false)}
-          className="fixed inset-0 z-100  flex items-end justify-center bg-black/25 px-3 pb-3 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/25 px-3 pb-3 backdrop-blur-sm"
         >
           <div
             onClick={(event) => event.stopPropagation()}
             className="w-full max-w-md overflow-hidden rounded-[30px] bg-white"
           >
-            <div className="flex items-center  justify-between border-b border-gray-100 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div>
                 <h3 className="text-[15px] font-semibold">My devices</h3>
 
@@ -535,6 +580,7 @@ export default function HomePage() {
               </div>
 
               <button
+                type="button"
                 onClick={() => setShowDevices(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100"
               >
@@ -554,6 +600,7 @@ export default function HomePage() {
               ) : (
                 devices.map((device) => (
                   <button
+                    type="button"
                     key={device.id}
                     onClick={() => selectDevice(device.id)}
                     className={`mb-2 flex w-full items-center gap-3 rounded-2xl p-3 text-left ${
@@ -598,11 +645,46 @@ export default function HomePage() {
   );
 }
 
-/* ================================================================
-   TIME FORMAT
-================================================================ */
+// ============================================================
+// HELPERS
+// ============================================================
 
-function formatTime(date: string) {
+function formatSensorValue(
+  value: unknown,
+  capability: DeviceCapability,
+): string {
+  if (value === null || value === undefined) {
+    return "--";
+  }
+
+  if (capability.type === "number") {
+    const number = Number(value);
+
+    if (Number.isNaN(number)) {
+      return "--";
+    }
+
+    return Number.isInteger(number) ? String(number) : number.toFixed(1);
+  }
+
+  if (capability.type === "boolean") {
+    return value ? "ON" : "OFF";
+  }
+
+  return String(value);
+}
+
+function isRecentlySeen(value: string): boolean {
+  const time = new Date(value).getTime();
+
+  if (Number.isNaN(time)) {
+    return false;
+  }
+
+  return Date.now() - time < 2 * 60 * 1000;
+}
+
+function formatTime(date: string): string {
   const diff = Date.now() - new Date(date).getTime();
 
   const seconds = Math.floor(diff / 1000);
