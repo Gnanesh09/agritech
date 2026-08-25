@@ -28,6 +28,7 @@ export default function FeatureCard({
         hover:-translate-y-2
         hover:shadow-xl
         hover:shadow-green-100
+        hover:border-green-200
       "
     >
       <div
@@ -41,9 +42,10 @@ export default function FeatureCard({
           rounded-2xl
           bg-green-50
           text-green-600
-          transition-transform
+          transition-all
           duration-300
           group-hover:scale-110
+          group-hover:bg-green-100
         "
       >
         {icon}
