@@ -259,30 +259,7 @@ export default function HomePage() {
             HEADER
         ===================================================== */}
 
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-brand text-lg font-semibold text-[#202020]">
-              G
-            </div>
-
-            <div>
-              <p className="text-[11px] font-medium text-[#8b8b85]">
-                Good Morning,
-              </p>
-
-              <h1 className="mt-0.5 text-[19px] font-semibold tracking-[-0.04em] text-[#202020]">
-                Gnanesh 👋
-              </h1>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-[0_3px_15px_rgba(0,0,0,0.04)]"
-          >
-            <Bell size={18} strokeWidth={1.8} />
-          </button>
-        </header>
+        <header className="flex items-center justify-between"></header>
 
         {/* =====================================================
             PRIMARY DEVICE

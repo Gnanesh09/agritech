@@ -174,13 +174,16 @@ export default function ProfilePage() {
       setLoggingOut(true);
 
       await api.get("/auth/logout");
-
+    } catch (err) {
+      console.error("[LOGOUT] Backend logout failed:", err);
+    } finally {
+      // Always log out locally, even if backend logout fails
       clearAccessToken();
 
-      router.push("/login");
-    } catch (err) {
-      console.error("Logout failed:", err);
-    } finally {
+      // Always leave the protected page
+      router.replace("/login");
+      router.refresh();
+
       setLoggingOut(false);
     }
   }
