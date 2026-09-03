@@ -66,17 +66,6 @@ let refreshPromise: Promise<string> | null = null;
 // REFRESH ACCESS TOKEN
 // ======================================================
 async function refreshAccessToken(): Promise<string> {
-  /*
-   * IMPORTANT:
-   *
-   * Refresh through Next.js, not directly through
-   * the backend.
-   *
-   * Next.js owns the refreshToken cookie and forwards
-   * it to the backend. It also receives the rotated
-   * refresh token and updates the browser cookie.
-   */
-
   const response = await axios.get("/api/auth/refresh-token", {
     withCredentials: true,
   });
