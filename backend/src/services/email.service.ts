@@ -1,12 +1,30 @@
 import nodemailer from "nodemailer";
+import SMTPTransport from "nodemailer/lib/smtp-transport";
 import config from "../config/config";
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+
   auth: {
     user: config.GOOGLE_USER,
     pass: config.GMAIL_APP_PASSWORD,
   },
+
+  family: 4,
+
+  tls: {
+    minVersion: "TLSv1.2",
+  },
+} as SMTPTransport.Options);
+
+transporter.verify((error) => {
+  if (error) {
+    console.error("Error connecting to email server:", error);
+  } else {
+    console.log("Email server is ready to send messages");
+  }
 });
 
 // Verify SMTP connection
