@@ -19,8 +19,13 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-import api, { clearAccessToken } from "../../lib/axios";
+import api, {
+  clearAccessToken,
+  finishLogout,
+  startLogout,
+} from "../../lib/axios";
 import { useRouter } from "next/navigation";
+import { logoutServerAction } from "@/app/actions/auth";
 
 type UserData = {
   id: string;
@@ -168,23 +173,30 @@ export default function ProfilePage() {
   // --------------------------------------------------
   // LOGOUT
   // --------------------------------------------------
-
   async function handleLogout() {
     try {
       setLoggingOut(true);
 
-      await api.get("/auth/logout");
-    } catch (err) {
-      console.error("[LOGOUT] Backend logout failed:", err);
+      startLogout();
+
+      console.log("[LOGOUT] Starting logout...");
+
+      const result = await logoutServerAction();
+
+      console.log("[LOGOUT] Server action result:", result);
+    } catch (error) {
+      console.error("[LOGOUT] Logout error:", error);
     } finally {
-      // Always log out locally, even if backend logout fails
       clearAccessToken();
 
-      // Always leave the protected page
       router.replace("/login");
       router.refresh();
 
       setLoggingOut(false);
+
+      setTimeout(() => {
+        finishLogout();
+      }, 1000);
     }
   }
 

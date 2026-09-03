@@ -24,7 +24,17 @@ const api = axios.create({
 
 let accessToken: string | null = null;
 
+// Prevent refresh requests while logout is happening.
+let isLoggingOut = false;
+
 export function setAccessToken(token: string) {
+  // Never allow a refresh request to restore authentication
+  // while the user is logging out.
+  if (isLoggingOut) {
+    console.log("[AUTH] Ignoring access token because logout is in progress");
+    return;
+  }
+
   accessToken = token;
 
   console.log("[AUTH] Access token stored");
@@ -36,13 +46,26 @@ export function clearAccessToken() {
   console.log("[AUTH] Access token cleared");
 }
 
+export function startLogout() {
+  isLoggingOut = true;
+  accessToken = null;
+
+  console.log("[AUTH] Logout started");
+}
+
+export function finishLogout() {
+  isLoggingOut = false;
+
+  console.log("[AUTH] Logout finished");
+}
+
 // ======================================================
 // REQUEST INTERCEPTOR
 // ======================================================
 
 api.interceptors.request.use(
   (config) => {
-    if (accessToken) {
+    if (accessToken && !isLoggingOut) {
       config.headers = config.headers || {};
 
       config.headers.Authorization = `Bearer ${accessToken}`;
@@ -65,7 +88,24 @@ let refreshPromise: Promise<string> | null = null;
 // ======================================================
 // REFRESH ACCESS TOKEN
 // ======================================================
+
 async function refreshAccessToken(): Promise<string> {
+  /*
+   * IMPORTANT:
+   *
+   * Refresh through the Next.js route.
+   *
+   * Do NOT call the backend refresh endpoint directly
+   * from the browser.
+   *
+   * Next.js owns the refreshToken cookie and forwards it
+   * to the backend. It also stores the rotated refresh token.
+   */
+
+  if (isLoggingOut) {
+    throw new Error("Logout is already in progress");
+  }
+
   const response = await axios.get("/api/auth/refresh-token", {
     withCredentials: true,
   });
@@ -82,6 +122,7 @@ async function refreshAccessToken(): Promise<string> {
 
   return newAccessToken;
 }
+
 // ======================================================
 // RESPONSE INTERCEPTOR
 // ======================================================
@@ -105,6 +146,30 @@ api.interceptors.response.use(
           _retry?: boolean;
         })
       | undefined;
+
+    // ------------------------------------------------
+    // LOGOUT IN PROGRESS
+    // ------------------------------------------------
+
+    /*
+     * Do NOT refresh if the user has clicked logout.
+     *
+     * This prevents:
+     *
+     * logout
+     *   ↓
+     * background API request → 401
+     *   ↓
+     * refresh
+     *   ↓
+     * user becomes authenticated again
+     */
+
+    if (isLoggingOut) {
+      console.log("[AUTH] Ignoring 401 because logout is in progress");
+
+      return Promise.reject(error);
+    }
 
     // ------------------------------------------------
     // Not a 401
@@ -141,9 +206,7 @@ api.interceptors.response.use(
     try {
       /*
        * If another request is already refreshing,
-       * wait for EXACTLY the same promise.
-       *
-       * This is the important part.
+       * wait for the SAME refresh promise.
        */
 
       if (!refreshPromise) {
@@ -157,6 +220,20 @@ api.interceptors.response.use(
       }
 
       const newToken = await refreshPromise;
+
+      // ------------------------------------------------
+      // Logout may have started while refresh was running
+      // ------------------------------------------------
+
+      if (isLoggingOut) {
+        console.log("[AUTH] Logout started during refresh");
+
+        clearAccessToken();
+
+        return Promise.reject(
+          new Error("Request cancelled because logout is in progress"),
+        );
+      }
 
       // ------------------------------------------------
       // Retry original request
@@ -178,5 +255,9 @@ api.interceptors.response.use(
     }
   },
 );
+
+// ======================================================
+// EXPORT
+// ======================================================
 
 export default api;
