@@ -15,7 +15,8 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.1.2",
     "@types/nodemailer": "^8.0.1",
-    "@types/pg": "^8.20.4"
+    "@types/pg": "^8.20.4",
+    "prisma": "7.9.1"
   },
   "peerDependencies": {
     "typescript": "^5"

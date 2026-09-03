@@ -1,0 +1,339 @@
+You are developing ESP32-based IoT devices for our AgriTech platform. Build every device using the following generic device communication standard so that the backend and frontend never need device-specific firmware assumptions.
+
+IMPORTANT: Do NOT create a separate communication format for each device. Every device must follow the same JSON protocol. The backend identifies what a device supports through its DeviceModel capabilities, so firmware only needs to send the correct capability keys.
+
+1. DEVICE AUTHENTICATION
+- Each physical device receives a unique deviceCode and deviceToken during manufacturing/registration.
+- Store the deviceToken securely on the ESP32.
+- Every request to the backend must authenticate using the device credential required by our deviceAuth middleware.
+- Never send the raw token inside telemetry JSON.
+- Never hardcode user information into firmware.
+
+2. TELEMETRY MESSAGE FORMAT
+Every telemetry report must use exactly this envelope:
+
+{
+  "version": 1,
+  "type": "telemetry",
+  "timestamp": "2026-08-23T05:50:00Z",
+  "data": {},
+  "state": {}
+}
+
+Rules:
+- version = protocol version, currently 1
+- type = "telemetry"
+- timestamp = UTC ISO-8601 timestamp
+- data = sensor measurements
+- state = current reported actuator/device state
+- All sensor values must be inside data.
+- Do not put temperature, humidity, light, soil moisture, etc. at the root level.
+
+Example humidity/temperature device:
+
+{
+  "version": 1,
+  "type": "telemetry",
+  "timestamp": "2026-08-23T05:50:00Z",
+  "data": {
+    "temperature": 28.3,
+    "humidity": 68.0
+  },
+  "state": {}
+}
+
+3. MULTI-COMPONENT DEVICE
+A device can have any combination of sensors and actuators.
+
+Example:
+
+{
+  "version": 1,
+  "type": "telemetry",
+  "timestamp": "2026-08-23T05:50:00Z",
+  "data": {
+    "temperature": 28.3,
+    "humidity": 68.0,
+    "soilMoisture": 42.5,
+    "light": 780
+  },
+  "state": {
+    "fan": true,
+    "pump": false,
+    "light": true
+  }
+}
+
+Another device may contain only:
+
+{
+  "version": 1,
+  "type": "telemetry",
+  "timestamp": "2026-08-23T05:50:00Z",
+  "data": {
+    "temperature": 28.3
+  },
+  "state": {}
+}
+
+Another may contain only:
+
+{
+  "version": 1,
+  "type": "telemetry",
+  "timestamp": "2026-08-23T05:50:00Z",
+  "data": {
+    "light": 830
+  },
+  "state": {}
+}
+
+Do NOT send unused fields as fake values. Only send capabilities that actually exist on that hardware.
+
+4. CAPABILITY KEYS
+The key names used by firmware MUST exactly match the capability keys configured for that DeviceModel in the backend.
+
+Examples:
+
+temperature
+humidity
+soilMoisture
+light
+pressure
+co2
+fan
+pump
+relay1
+relay2
+
+Do not invent different names such as:
+temp
+hum
+soil
+fanStatus
+
+when the backend capability key is temperature, humidity, soilMoisture, fan.
+
+5. SENSOR VALUES
+Send values in their actual type:
+
+number:
+"temperature": 28.3
+
+boolean:
+"motion": true
+
+string:
+"mode": "auto"
+
+Do not send numbers as strings:
+BAD:
+"temperature": "28.3"
+
+GOOD:
+"temperature": 28.3
+
+6. DEVICE STATE
+The state object represents the actual reported state of actuators/components.
+
+Example:
+
+"state": {
+  "fan": true,
+  "pump": false,
+  "relay1": true
+}
+
+If the device is operating automatically because of a sensor condition, still report the actual state.
+
+Example:
+
+"state": {
+  "fan": true
+}
+
+If a human manually turns the fan on, still report:
+
+"state": {
+  "fan": true
+}
+
+The backend/frontend will distinguish desired/manual/automatic behavior separately. Firmware must accurately report what the hardware is actually doing.
+
+7. AUTOMATIC DEVICES
+Devices may operate without human intervention.
+
+Example:
+- humidity > 70 → automatically turn fan ON
+- soil moisture < 30 → automatically turn pump ON
+- temperature > 30 → automatically turn cooling ON
+
+The firmware must still report the resulting actual state through the standard "state" object.
+
+Example:
+
+{
+  "version": 1,
+  "type": "telemetry",
+  "timestamp": "2026-08-23T05:50:00Z",
+  "data": {
+    "humidity": 74.2,
+    "temperature": 30.4
+  },
+  "state": {
+    "fan": true
+  }
+}
+
+8. HUMAN + AUTOMATIC CONTROL
+A device may support both automatic control and human intervention.
+
+The firmware must always:
+- accept commands from the backend when supported
+- execute the command
+- report the resulting actual state
+- continue reporting telemetry normally
+
+Do not create a separate telemetry protocol for manual mode and automatic mode.
+
+9. COMMAND COMPATIBILITY
+The backend may send generic commands such as:
+
+{
+  "target": "fan",
+  "action": "set",
+  "value": true,
+  "mode": "MANUAL"
+}
+
+or:
+
+{
+  "target": "pump",
+  "action": "set",
+  "value": false,
+  "mode": "MANUAL"
+}
+
+Firmware must route the target to the correct GPIO/device component.
+
+The firmware must NOT assume that every device has fan, pump, light, humidity, or temperature. Only implement the components physically present on that specific device.
+
+10. GENERIC FIRMWARE ARCHITECTURE
+Write firmware so components are modular.
+
+For example:
+
+- SensorManager
+- ActuatorManager
+- TelemetryManager
+- CommandManager
+- NetworkManager
+- DeviceIdentity
+- DeviceState
+
+Do not put all hardware logic inside one huge loop.
+
+A device should be able to add/remove components without rewriting the communication protocol.
+
+11. TIMESTAMP
+Use UTC ISO-8601 timestamps.
+
+Example:
+2026-08-23T05:50:00Z
+
+Do not send local formatted timestamps.
+
+12. TELEMETRY INTERVAL
+Use a configurable reporting interval.
+
+Example:
+const TELEMETRY_INTERVAL_MS = 20000;
+
+Do not hardcode the interval throughout the firmware.
+
+13. NETWORK FAILURE HANDLING
+The device must be resilient to WiFi/backend failures.
+
+Implement:
+- WiFi reconnect
+- HTTP timeout
+- retry with delay
+- avoid continuously hammering the server
+- continue local device operation if backend is temporarily unavailable
+
+Sensor/automatic control must not stop just because the internet is unavailable.
+
+14. COMMAND FAILURE
+If a backend command cannot be executed:
+- do not silently pretend it succeeded
+- keep the actual physical state accurate
+- report the actual state in the next telemetry/state message
+
+15. JSON RULE
+JSON is the communication contract.
+
+The firmware may internally use structs/classes, but before sending to the backend, it must produce the standard JSON envelope.
+
+16. EXAMPLE: HUMIDITY DEVICE
+For the current HUMDIE device:
+
+{
+  "version": 1,
+  "type": "telemetry",
+  "timestamp": "2026-08-23T05:50:00Z",
+  "data": {
+    "temperature": 28.3,
+    "humidity": 68.0
+  },
+  "state": {}
+}
+
+17. EXAMPLE: FAN + LIGHT + HUMIDITY DEVICE
+
+{
+  "version": 1,
+  "type": "telemetry",
+  "timestamp": "2026-08-23T05:50:00Z",
+  "data": {
+    "temperature": 28.3,
+    "humidity": 68.0
+  },
+  "state": {
+    "fan": true,
+    "light": false
+  }
+}
+
+18. EXAMPLE: AGRICULTURE CONTROLLER
+
+{
+  "version": 1,
+  "type": "telemetry",
+  "timestamp": "2026-08-23T05:50:00Z",
+  "data": {
+    "soilMoisture": 31.5,
+    "temperature": 27.8,
+    "humidity": 71.2,
+    "light": 640
+  },
+  "state": {
+    "pump": true,
+    "fan": false,
+    "relay1": true
+  }
+}
+
+19. MOST IMPORTANT RULE
+The backend defines what the device supports through the DeviceModel capabilities.
+
+Firmware must:
+- use the exact capability keys
+- send only supported data
+- report actual state
+- use the same JSON envelope for every device
+- remain independent of the frontend UI
+
+Do NOT create device-specific API formats.
+
+The goal is that we can build a completely new ESP32 device with different sensors, relays, fans, pumps, lights, motors, or other components and only create its DeviceModel/capabilities in the backend. The same backend API and frontend should continue working without requiring a new communication protocol.
