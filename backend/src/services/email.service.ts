@@ -1,34 +1,19 @@
 import nodemailer from "nodemailer";
-import SMTPTransport from "nodemailer/lib/smtp-transport";
 import config from "../config/config";
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-
+  service: "gmail",
   auth: {
+    type: "OAuth2",
     user: config.GOOGLE_USER,
-    pass: config.GMAIL_APP_PASSWORD,
+    clientId: config.GOOGLE_CLIENT_ID,
+    clientSecret: config.GOOGLE_CLIENT_SECRET,
+    refreshToken: config.GOOGLE_REFRESH_TOKEN,
   },
-
-  family: 4,
-
-  tls: {
-    minVersion: "TLSv1.2",
-  },
-} as SMTPTransport.Options);
-
-transporter.verify((error) => {
-  if (error) {
-    console.error("Error connecting to email server:", error);
-  } else {
-    console.log("Email server is ready to send messages");
-  }
 });
 
-// Verify SMTP connection
-transporter.verify((error) => {
+// Verify the connection configuration
+transporter.verify((error: Error | null, success: boolean) => {
   if (error) {
     console.error("Error connecting to email server:", error);
   } else {
@@ -44,17 +29,21 @@ export const sendEmail = async (
 ): Promise<void> => {
   try {
     const info = await transporter.sendMail({
-      from: `"AgriTech" <${config.GOOGLE_USER}>`,
-      to,
-      subject,
-      text,
-      html,
+      from: `"Your Name" <${config.GOOGLE_USER}>`, // sender address
+      to, // list of receivers
+      subject, // Subject line
+      text, // plain text body
+      html, // html body
     });
 
-    console.log("Message sent:", info.messageId);
+    console.log("Message sent: %s", info.messageId);
+
+    // Note: getTestMessageUrl usually only returns a URL if you are using ethereal.email
+    const testUrl = nodemailer.getTestMessageUrl(info);
+    if (testUrl) {
+      console.log("Preview URL: %s", testUrl);
+    }
   } catch (error) {
     console.error("Error sending email:", error);
-
-    throw error;
   }
 };
