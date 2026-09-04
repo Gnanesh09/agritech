@@ -375,7 +375,7 @@ export default function HomePage() {
               Connect your first device and start monitoring your farm.
             </p>
 
-            <button
+            {/* <button
               type="button"
               onClick={() => setShowDevices(true)}
               className="mt-5 rounded-full bg-[#1c1c1c] px-6 py-3 text-xs font-semibold text-white"
@@ -384,7 +384,7 @@ export default function HomePage() {
                 <Plus size={14} />
                 Add device
               </span>
-            </button>
+            </button> */}
           </section>
         )}
 

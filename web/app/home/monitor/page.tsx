@@ -173,14 +173,14 @@ export default function MonitorPage() {
                 Add your first device and start monitoring its data.
               </p>
 
-              <button
+              {/* <button
                 type="button"
                 onClick={() => router.push("/home/devices/add")}
                 className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#1c1c1c] px-5 py-3 text-[11px] font-semibold text-white"
               >
                 <Plus size={14} />
                 Add device
-              </button>
+              </button> */}
             </div>
           ) : (
             devices.map((device) => (

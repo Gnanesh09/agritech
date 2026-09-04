@@ -179,11 +179,11 @@ export default function AddDevicePage() {
 
   if (step === "code" || step === "checking") {
     return (
-      <main className="min-h-screen overflow-hidden bg-brand">
+      <main className="min-h-screen overflow-hidden bg-amber-50">
         <div className="relative mx-auto flex min-h-screen max-w-md flex-col px-5">
           {/* Background decoration */}
 
-          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand opacity-50 blur-3xl" />
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white opacity-50 blur-3xl" />
 
           <div className="pointer-events-none absolute -bottom-32 -left-24 h-72 w-72 rounded-full bg-[#e8f3a7] opacity-50 blur-3xl" />
 
@@ -211,7 +211,7 @@ export default function AddDevicePage() {
                 <br />
                 something
                 <br />
-                <span className="text-[#719438]">smart.</span>
+                <span className="text-[#000000]">smart.</span>
               </h1>
 
               <p className="mt-5 max-w-[290px] text-[12px] leading-5 text-[#85857e]">
@@ -223,7 +223,7 @@ export default function AddDevicePage() {
             {/* CODE INPUT */}
 
             <div>
-              <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.13em] text-[#999991]">
+              <label className="mb-2 block text-[10px] font-semibold  tracking-[0.13em] text-[#999991]">
                 Device code
               </label>
 
@@ -274,14 +274,6 @@ export default function AddDevicePage() {
                   {step === "checking"
                     ? "Checking device..."
                     : "Find my device"}
-                </span>
-
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-black">
-                  {step === "checking" ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <ArrowRight size={16} />
-                  )}
                 </span>
               </button>
             </div>
