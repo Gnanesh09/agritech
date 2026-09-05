@@ -1,4 +1,4 @@
-import BottomNav from "../../components/BoottomNav";
+import BottomNav from "../../components/ui/BoottomNav";
 
 export default function HomeLayout({
   children,
