@@ -7,7 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-
 // ============================================================
 // ENUMS
 // ============================================================
@@ -45,25 +44,24 @@ enum AutomationStatus {
   PAUSED
 }
 
-
 // ============================================================
 // USER
 // ============================================================
 
 model User {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   username    String
-  email       String   @unique
+  email       String  @unique
   password    String
   countryCode String
   phoneNo     String
-  role        Role     @default(USER)
-  verified    Boolean  @default(false)
+  role        Role    @default(USER)
+  verified    Boolean @default(false)
 
-  otps         Otp[]
-  sessions     Session[]
-  userDevices  UserDevice[]
-  automations  DeviceAutomation[]
+  otps        Otp[]
+  sessions    Session[]
+  userDevices UserDevice[]
+  automations DeviceAutomation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -71,18 +69,17 @@ model User {
   @@map("users")
 }
 
-
 // ============================================================
 // OTP
 // ============================================================
 
 model Otp {
-  id        String   @id @default(uuid())
-  email     String
-  otpHash   String
+  id      String @id @default(uuid())
+  email   String
+  otpHash String
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -90,17 +87,16 @@ model Otp {
   @@map("otps")
 }
 
-
 // ============================================================
 // SESSION
 // ============================================================
 
 model Session {
-  id               String   @id @default(uuid())
+  id               String  @id @default(uuid())
   refreshTokenHash String
   ip               String
   userAgent        String
-  revoked          Boolean  @default(false)
+  revoked          Boolean @default(false)
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -110,7 +106,6 @@ model Session {
 
   @@map("sessions")
 }
-
 
 // ============================================================
 // DEVICE MODEL
@@ -124,32 +119,31 @@ model Session {
 // ============================================================
 
 model DeviceModel {
-  id          String            @id @default(uuid())
+  id          String  @id @default(uuid())
   name        String
-  code        String            @unique
+  code        String  @unique
   description String?
   version     String?
   imageUrl    String?
 
-  /*
+  /**
    * Example:
-   *
    * {
-   *   "sensors": [
-   *     {
-   *       "key": "temperature",
-   *       "label": "Temperature",
-   *       "type": "number",
-   *       "unit": "°C"
-   *     }
-   *   ],
-   *   "actuators": [
-   *     {
-   *       "key": "fan",
-   *       "label": "Fan",
-   *       "type": "switch"
-   *     }
-   *   ]
+   * "sensors": [
+   * {
+   * "key": "temperature",
+   * "label": "Temperature",
+   * "type": "number",
+   * "unit": "°C"
+   * }
+   * ],
+   * "actuators": [
+   * {
+   * "key": "fan",
+   * "label": "Fan",
+   * "type": "switch"
+   * }
+   * ]
    * }
    */
   capabilities Json @default("{}")
@@ -164,7 +158,6 @@ model DeviceModel {
   @@map("device_models")
 }
 
-
 // ============================================================
 // PHYSICAL DEVICE
 // ============================================================
@@ -172,8 +165,8 @@ model DeviceModel {
 model Device {
   id String @id @default(uuid())
 
-  deviceCode   String  @unique
-  serialNumber String  @unique
+  deviceCode   String @unique
+  serialNumber String @unique
 
   macAddress String? @unique
   chipId     String? @unique
@@ -213,10 +206,8 @@ model Device {
   @@index([status])
   @@index([batchNumber])
   @@index([lastSeenAt])
-
   @@map("devices")
 }
-
 
 // ============================================================
 // DEVICE CREDENTIAL
@@ -238,7 +229,6 @@ model DeviceCredential {
   @@map("device_credentials")
 }
 
-
 // ============================================================
 // GENERIC TELEMETRY
 // ============================================================
@@ -249,26 +239,24 @@ model DeviceTelemetry {
   deviceId String
   device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  /*
+  /**
    * Generic sensor payload.
-   *
    * HUMDIE:
    * {
-   *   "temperature": 28.1,
-   *   "humidity": 67.4
+   * "temperature": 28.1,
+   * "humidity": 67.4
    * }
-   *
    * GREENHOUSE:
    * {
-   *   "temperature": 28.1,
-   *   "humidity": 67.4,
-   *   "light": 780,
-   *   "soilMoisture": 42
+   * "temperature": 28.1,
+   * "humidity": 67.4,
+   * "light": 780,
+   * "soilMoisture": 42
    * }
    */
   data Json @default("{}")
 
-  /*
+  /**
    * Kept temporarily so existing Home/Monitor code
    * continues to work while we migrate the frontend.
    */
@@ -279,10 +267,8 @@ model DeviceTelemetry {
 
   @@index([deviceId])
   @@index([recordedAt])
-
   @@map("device_telemetry")
 }
-
 
 // ============================================================
 // CURRENT DEVICE STATE
@@ -294,32 +280,29 @@ model DeviceState {
   deviceId String @unique
   device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  /*
+  /**
    * What the hardware actually reports.
-   *
    * {
-   *   "fan": true,
-   *   "light": false
+   * "fan": true,
+   * "light": false
    * }
    */
   actual Json @default("{}")
 
-  /*
+  /**
    * What the platform wants the device to do.
-   *
    * {
-   *   "fan": true,
-   *   "light": false
+   * "fan": true,
+   * "light": false
    * }
    */
   desired Json @default("{}")
 
-  /*
+  /**
    * Control mode per actuator.
-   *
    * {
-   *   "fan": "AUTO",
-   *   "light": "MANUAL"
+   * "fan": "AUTO",
+   * "light": "MANUAL"
    * }
    */
   modes Json @default("{}")
@@ -332,7 +315,6 @@ model DeviceState {
   @@map("device_states")
 }
 
-
 // ============================================================
 // COMMAND
 // ============================================================
@@ -343,12 +325,12 @@ model DeviceCommand {
   deviceId String
   device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  /*
+  /**
    * {
-   *   "target": "fan",
-   *   "action": "set",
-   *   "value": true,
-   *   "mode": "MANUAL"
+   * "target": "fan",
+   * "action": "set",
+   * "value": true,
+   * "mode": "MANUAL"
    * }
    */
   command Json
@@ -359,18 +341,16 @@ model DeviceCommand {
 
   errorMessage String?
 
-  createdAt DateTime @default(now())
-  sentAt DateTime?
+  createdAt      DateTime  @default(now())
+  sentAt         DateTime?
   acknowledgedAt DateTime?
-  updatedAt DateTime @updatedAt
+  updatedAt      DateTime  @updatedAt
 
   @@index([deviceId])
   @@index([status])
   @@index([createdAt])
-
   @@map("device_commands")
 }
-
 
 // ============================================================
 // AUTOMATION
@@ -380,7 +360,7 @@ model DeviceAutomation {
   id String @id @default(uuid())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   deviceId String
   device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
@@ -389,26 +369,24 @@ model DeviceAutomation {
 
   status AutomationStatus @default(ACTIVE)
 
-  /*
+  /**
    * Example:
-   *
    * {
-   *   "field": "humidity",
-   *   "operator": ">",
-   *   "value": 75
+   * "field": "humidity",
+   * "operator": ">",
+   * "value": 75
    * }
    */
   trigger Json
 
-  /*
+  /**
    * Example:
-   *
    * [
-   *   {
-   *     "target": "fan",
-   *     "action": "set",
-   *     "value": true
-   *   }
+   * {
+   * "target": "fan",
+   * "action": "set",
+   * "value": true
+   * }
    * ]
    */
   actions Json
@@ -419,10 +397,8 @@ model DeviceAutomation {
   @@index([userId])
   @@index([deviceId])
   @@index([status])
-
   @@map("device_automations")
 }
-
 
 // ============================================================
 // USER DEVICE
@@ -435,7 +411,7 @@ model UserDevice {
   id String @id @default(uuid())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   deviceId String
   device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
@@ -448,6 +424,18 @@ model UserDevice {
   @@unique([userId, deviceId])
   @@index([userId])
   @@index([deviceId])
-
   @@map("user_devices")
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  publisher String
+  url       String
+  details   String
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([publisher])
+  @@map("reports")
 }

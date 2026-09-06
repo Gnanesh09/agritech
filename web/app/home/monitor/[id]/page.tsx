@@ -301,7 +301,6 @@ export default function DeviceDetailsPage() {
   // ==========================================================
   // SEND COMMAND
   // ==========================================================
-
   async function sendCommand(capability: DeviceCapability) {
     if (!device) {
       return;
@@ -328,16 +327,47 @@ export default function DeviceDetailsPage() {
       nextValue = "";
     }
 
+    /*
+     * IMPORTANT
+     *
+     * ON  → MANUAL
+     * OFF → AUTO
+     *
+     * When the user turns an actuator ON,
+     * they are manually overriding automation.
+     *
+     * When they turn it OFF, we return control
+     * back to the device's automatic logic.
+     */
+
+    let commandMode: "AUTO" | "MANUAL";
+
+    if (capability.type === "boolean") {
+      commandMode = nextValue === true ? "MANUAL" : "AUTO";
+    } else {
+      commandMode = "MANUAL";
+    }
+
     try {
       setCommandLoading(capability.key);
+
+      console.log("[DEVICE COMMAND]", {
+        target: capability.key,
+        value: nextValue,
+        mode: commandMode,
+      });
 
       await api.post(`/user/devices/${device.id}/commands`, {
         target: capability.key,
         action: "set",
         value: nextValue,
-        mode: "MANUAL",
+        mode: commandMode,
       });
 
+      /*
+       * Reload server state so the UI reflects
+       * the mode that the backend stored.
+       */
       await loadState();
     } catch (err) {
       console.error("Failed to send command:", err);
