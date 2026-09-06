@@ -124,6 +124,14 @@ export default function DeviceDetailsPage() {
 
   const [commandLoading, setCommandLoading] = useState<string | null>(null);
 
+  const [localActuatorState, setLocalActuatorState] = useState<
+    Record<string, boolean>
+  >({});
+
+  const [localActuatorMode, setLocalActuatorMode] = useState<
+    Record<string, "AUTO" | "MANUAL">
+  >({});
+
   // ==========================================================
   // CAPABILITIES
   // ==========================================================
@@ -164,6 +172,28 @@ export default function DeviceDetailsPage() {
       }
 
       setDevice(loadedDevice);
+
+      const loadedActuators =
+        loadedDevice.deviceModel?.capabilities?.actuators ?? [];
+      const loadedActual = loadedDevice.state?.actual ?? {};
+      const loadedModes = loadedDevice.state?.modes ?? {};
+
+      const initialActuatorState: Record<string, boolean> = {};
+      const initialActuatorMode: Record<string, "AUTO" | "MANUAL"> = {};
+
+      for (const actuator of loadedActuators) {
+        if (actuator.type === "boolean") {
+          initialActuatorState[actuator.key] = Boolean(
+            loadedActual[actuator.key],
+          );
+
+          initialActuatorMode[actuator.key] =
+            loadedModes[actuator.key] === "MANUAL" ? "MANUAL" : "AUTO";
+        }
+      }
+
+      setLocalActuatorState(initialActuatorState);
+      setLocalActuatorMode(initialActuatorMode);
 
       await Promise.all([loadTelemetry(), loadState()]);
     } catch (err: any) {
@@ -219,6 +249,44 @@ export default function DeviceDetailsPage() {
             }
           : current,
       );
+
+      if (!state || !device) {
+        return;
+      }
+
+      const booleanActuators =
+        device.deviceModel?.capabilities?.actuators?.filter(
+          (actuator) => actuator.type === "boolean",
+        ) ?? [];
+
+      if (state.actual) {
+        const nextState: Record<string, boolean> = {};
+
+        for (const actuator of booleanActuators) {
+          if (actuator.key in state.actual) {
+            nextState[actuator.key] = Boolean(state.actual[actuator.key]);
+          }
+        }
+
+        setLocalActuatorState((current) => ({
+          ...current,
+          ...nextState,
+        }));
+      }
+
+      if (state.modes) {
+        const nextModes: Record<string, "AUTO" | "MANUAL"> = {};
+
+        for (const actuator of booleanActuators) {
+          nextModes[actuator.key] =
+            state.modes[actuator.key] === "MANUAL" ? "MANUAL" : "AUTO";
+        }
+
+        setLocalActuatorMode((current) => ({
+          ...current,
+          ...nextModes,
+        }));
+      }
     } catch (err) {
       console.error("Failed to load device state:", err);
     }
@@ -301,6 +369,7 @@ export default function DeviceDetailsPage() {
   // ==========================================================
   // SEND COMMAND
   // ==========================================================
+
   async function sendCommand(capability: DeviceCapability) {
     if (!device) {
       return;
@@ -308,45 +377,50 @@ export default function DeviceDetailsPage() {
 
     const actual = device.state?.actual ?? {};
 
-    const currentValue = actual[capability.key];
+    const currentValue =
+      capability.type === "boolean"
+        ? capability.key in localActuatorState
+          ? localActuatorState[capability.key]
+          : Boolean(actual[capability.key])
+        : actual[capability.key];
 
     let nextValue: unknown;
 
     if (capability.type === "boolean") {
       nextValue = !Boolean(currentValue);
     } else if (capability.type === "number") {
-      if (typeof currentValue === "number") {
-        nextValue = Math.min(
-          currentValue + 10,
-          capability.max ?? currentValue + 10,
-        );
-      } else {
-        nextValue = capability.min ?? 0;
-      }
+      const currentNumber = Number(actual[capability.key]);
+
+      nextValue = Number.isFinite(currentNumber)
+        ? Math.min(currentNumber + 10, capability.max ?? currentNumber + 10)
+        : capability.min ?? 0;
     } else {
       nextValue = "";
     }
 
-    /*
-     * IMPORTANT
-     *
-     * ON  → MANUAL
-     * OFF → AUTO
-     *
-     * When the user turns an actuator ON,
-     * they are manually overriding automation.
-     *
-     * When they turn it OFF, we return control
-     * back to the device's automatic logic.
-     */
+    const previousMode = localActuatorMode[capability.key] ?? "AUTO";
 
-    let commandMode: "AUTO" | "MANUAL";
+    const mode =
+      capability.type === "boolean"
+        ? nextValue === true
+          ? "MANUAL"
+          : "AUTO"
+        : "MANUAL";
 
+    // Update the UI immediately.
     if (capability.type === "boolean") {
-      commandMode = nextValue === true ? "MANUAL" : "AUTO";
-    } else {
-      commandMode = "MANUAL";
+      setLocalActuatorState((current) => ({
+        ...current,
+        [capability.key]: Boolean(nextValue),
+      }));
+
+      setLocalActuatorMode((current) => ({
+        ...current,
+        [capability.key]: mode,
+      }));
     }
+
+    setError("");
 
     try {
       setCommandLoading(capability.key);
@@ -354,23 +428,35 @@ export default function DeviceDetailsPage() {
       console.log("[DEVICE COMMAND]", {
         target: capability.key,
         value: nextValue,
-        mode: commandMode,
+        mode,
       });
 
       await api.post(`/user/devices/${device.id}/commands`, {
         target: capability.key,
         action: "set",
         value: nextValue,
-        mode: commandMode,
+        mode,
       });
 
-      /*
-       * Reload server state so the UI reflects
-       * the mode that the backend stored.
-       */
-      await loadState();
+      // ESP32 polls every 2 seconds. Sync after it has time to process
+      // the command instead of immediately reading stale state.
+      window.setTimeout(() => {
+        void loadState();
+      }, 2500);
     } catch (err) {
       console.error("Failed to send command:", err);
+
+      if (capability.type === "boolean") {
+        setLocalActuatorState((current) => ({
+          ...current,
+          [capability.key]: Boolean(currentValue),
+        }));
+
+        setLocalActuatorMode((current) => ({
+          ...current,
+          [capability.key]: previousMode,
+        }));
+      }
 
       setError(`Failed to control ${capability.label || capability.key}.`);
     } finally {
@@ -593,9 +679,18 @@ export default function DeviceDetailsPage() {
 
             <div className="mt-4 space-y-2">
               {actuators.map((actuator) => {
-                const actual = device.state?.actual?.[actuator.key];
+                const backendActual = device.state?.actual?.[actuator.key];
 
-                const mode = device.state?.modes?.[actuator.key] || "AUTO";
+                const actual =
+                  actuator.type === "boolean" &&
+                  actuator.key in localActuatorState
+                    ? localActuatorState[actuator.key]
+                    : backendActual;
+
+                const mode =
+                  actuator.key in localActuatorMode
+                    ? localActuatorMode[actuator.key]
+                    : device.state?.modes?.[actuator.key] || "AUTO";
 
                 const busy = commandLoading === actuator.key;
 
