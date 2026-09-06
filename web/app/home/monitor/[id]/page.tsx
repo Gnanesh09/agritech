@@ -1577,7 +1577,6 @@ function SensorCard({
 // ============================================================
 // TELEMETRY ROW
 // ============================================================
-
 function TelemetryCompactRow({
   item,
   sensors,
@@ -1585,51 +1584,99 @@ function TelemetryCompactRow({
   item: Telemetry;
   sensors: DeviceCapability[];
 }) {
+  const visibleSensors = sensors.filter((sensor) => {
+    const value = item.data?.[sensor.key];
+    return value !== undefined && value !== null;
+  });
+
   return (
-    <div className="px-4 py-2 sm:px-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="shrink-0">
-          <p className="text-[11px] font-semibold text-[#30302e]">
-            {formatDate(item.recordedAt)}
+    <div
+      className="px-3.5 py-2.5"
+      style={{
+        borderBottom: `1px solid ${THEME.borderSoft}`,
+      }}
+    >
+      <div className="flex items-center gap-3">
+        {/* time */}
+        <div className="w-[70px] shrink-0">
+          <p
+            className="text-[9px] font-medium"
+            style={{
+              color: THEME.textStrong,
+            }}
+          >
+            {formatShortDate(item.recordedAt)}
           </p>
 
-          <p className="mt-0.5 text-[9px] text-[#aaa9a2]">
-            {formatTime(item.recordedAt)}
+          <p
+            className="mt-0.5 text-[8px]"
+            style={{
+              color: THEME.textMuted,
+            }}
+          >
+            {formatShortTime(item.recordedAt)}
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-5 gap-y-2 sm:flex sm:flex-wrap sm:justify-end">
-          {sensors.map((sensor) => {
-            const value = item.data?.[sensor.key];
+        {/* values */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-end gap-4">
+            {visibleSensors.map((sensor) => {
+              const value = item.data?.[sensor.key];
 
-            if (value === undefined || value === null) {
-              return null;
-            }
+              return (
+                <div key={sensor.key} className="min-w-0 text-right">
+                  <p
+                    className="truncate text-[10px] font-semibold"
+                    style={{
+                      color: THEME.textStrong,
+                    }}
+                  >
+                    {formatSensorValue(value, sensor)}
 
-            return (
-              <div key={sensor.key} className="min-w-[72px] sm:text-right">
-                <p className="text-[11px] font-semibold text-[#30302e]">
-                  {formatSensorValue(value, sensor)}
+                    {sensor.unit && (
+                      <span
+                        className="ml-0.5 text-[7px] font-normal"
+                        style={{
+                          color: THEME.textMuted,
+                        }}
+                      >
+                        {sensor.unit}
+                      </span>
+                    )}
+                  </p>
 
-                  {sensor.unit && (
-                    <span className="ml-0.5 text-[8px] text-[#999991]">
-                      {sensor.unit}
-                    </span>
-                  )}
-                </p>
-
-                <p className="mt-0.5 truncate text-[8px] text-[#aaa9a2]">
-                  {sensor.label || sensor.key}
-                </p>
-              </div>
-            );
-          })}
+                  <p
+                    className="mt-0.5 max-w-[70px] truncate text-[7px]"
+                    style={{
+                      color: THEME.textMuted,
+                    }}
+                  >
+                    {sensor.label || sensor.key}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+function formatShortDate(date: string) {
+  return new Date(date).toLocaleDateString([], {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+function formatShortTime(date: string) {
+  return new Date(date).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 // ============================================================
 // INFO CARD
 // ============================================================
