@@ -14,6 +14,7 @@ import {
   Wifi,
   X,
   Zap,
+  RefreshCw,
 } from "lucide-react";
 import {
   CartesianGrid,
@@ -27,6 +28,42 @@ import {
 import { useParams, useRouter } from "next/navigation";
 
 import api from "../../../lib/axios";
+
+// ============================================================
+// theme
+// change colors here to retheme the whole page
+// ============================================================
+
+const THEME = {
+  page: "#f6f6f2",
+  card: "#ffffff",
+  cardMuted: "#f8f8f5",
+  cardSoft: "#fbfbf9",
+
+  text: "#202020",
+  textStrong: "#30302e",
+  textSoft: "#777970",
+  textMuted: "#aaa9a2",
+
+  primary: "#789d50",
+  primaryDark: "#202720",
+  primaryLight: "#eef3df",
+  accent: "#dff37a",
+
+  border: "#ecece7",
+  borderSoft: "#efefeb",
+
+  danger: "#e84b4b",
+  dangerLight: "#fff0f0",
+
+  switchOff: "#d9dad4",
+  switchOn: "#202720",
+
+  chart: "#7dbd05",
+  chartGrid: "#eeeeea",
+
+  white: "#ffffff",
+} as const;
 
 type CapabilityType = "number" | "boolean" | "string";
 type Mode = "AUTO" | "MANUAL";
@@ -98,6 +135,7 @@ export default function DeviceDetailsPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [range, setRange] = useState<"1D" | "1W" | "1M" | "MAX">("1D");
   const [newName, setNewName] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -257,22 +295,6 @@ export default function DeviceDetailsPage() {
     // deviceId is the only route dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId]);
-
-  // Refresh telemetry and real device state continuously.
-  // This keeps the UI current after ESP32 polling/ACKs.
-  useEffect(() => {
-    if (!deviceId || !device) return;
-
-    const timer = window.setInterval(() => {
-      void loadTelemetry();
-      void loadState();
-    }, 2500);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deviceId, device?.id]);
 
   // ==========================================================
   // RENAME
@@ -495,28 +517,82 @@ export default function DeviceDetailsPage() {
   // ==========================================================
 
   const graphData = useMemo(() => {
-    return [...telemetry].reverse().map((item) => {
-      const row: Record<string, unknown> = {
-        time: formatChartTime(item.recordedAt),
-      };
+    const now = Date.now();
 
-      for (const sensor of sensors) {
-        const value = item.data?.[sensor.key];
+    const rangeMs: Record<"1D" | "1W" | "1M" | "MAX", number> = {
+      "1D": 24 * 60 * 60 * 1000,
+      "1W": 7 * 24 * 60 * 60 * 1000,
+      "1M": 30 * 24 * 60 * 60 * 1000,
+      MAX: Number.POSITIVE_INFINITY,
+    };
 
-        if (sensor.type === "number") {
-          const numeric = Number(value);
+    const cutoff = now - rangeMs[range];
 
-          row[sensor.key] = Number.isFinite(numeric) ? numeric : null;
-        } else if (sensor.type === "boolean") {
-          row[sensor.key] = typeof value === "boolean" ? (value ? 1 : 0) : null;
+    return [...telemetry]
+      .filter((item) => {
+        const time = new Date(item.recordedAt).getTime();
+        return Number.isFinite(time) && time >= cutoff;
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime(),
+      )
+      .map((item) => {
+        const row: Record<string, unknown> = {
+          time: formatChartTime(item.recordedAt, range),
+          rawTime: item.recordedAt,
+        };
+
+        for (const sensor of sensors) {
+          const value = item.data?.[sensor.key];
+
+          if (sensor.type === "number") {
+            const numeric = Number(value);
+
+            row[sensor.key] = Number.isFinite(numeric) ? numeric : null;
+          } else if (sensor.type === "boolean") {
+            row[sensor.key] =
+              typeof value === "boolean" ? (value ? 1 : 0) : null;
+          }
         }
-      }
 
-      return row;
-    });
-  }, [telemetry, sensors]);
+        return row;
+      });
+  }, [telemetry, sensors, range]);
 
   const numericSensors = sensors.filter((sensor) => sensor.type === "number");
+
+  const chartStats = useMemo(() => {
+    const stats: Record<
+      string,
+      { min: number | null; max: number | null; avg: number | null }
+    > = {};
+
+    for (const sensor of numericSensors) {
+      const values = graphData
+        .map((row) => Number(row[sensor.key]))
+        .filter((value) => Number.isFinite(value));
+
+      if (values.length === 0) {
+        stats[sensor.key] = {
+          min: null,
+          max: null,
+          avg: null,
+        };
+        continue;
+      }
+
+      const sum = values.reduce((total, value) => total + value, 0);
+
+      stats[sensor.key] = {
+        min: Math.min(...values),
+        max: Math.max(...values),
+        avg: sum / values.length,
+      };
+    }
+
+    return stats;
+  }, [graphData, numericSensors]);
 
   const booleanSensors = sensors.filter((sensor) => sensor.type === "boolean");
 
@@ -527,10 +603,10 @@ export default function DeviceDetailsPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-5xl">
           <div className="h-10 w-10 animate-pulse rounded-full bg-white" />
           <div className="mt-5 h-[280px] animate-pulse rounded-[30px] bg-white" />
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({
               length: 3,
             }).map((_, index) => (
@@ -583,7 +659,7 @@ export default function DeviceDetailsPage() {
 
   return (
     <main className="min-h-screen bg-[#f6f6f2] px-3 pb-28 pt-4 sm:px-5">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-5xl">
         {/* ====================================================
             HEADER
         ==================================================== */}
@@ -611,14 +687,28 @@ export default function DeviceDetailsPage() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm"
-              aria-label="Device actions"
-            >
-              <MoreHorizontal size={19} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void loadTelemetry();
+                  void loadState();
+                }}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm transition active:scale-95"
+                aria-label="Refresh"
+              >
+                <RefreshCw size={16} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm transition active:scale-95"
+                aria-label="Device actions"
+              >
+                <MoreHorizontal size={19} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -627,17 +717,20 @@ export default function DeviceDetailsPage() {
         ==================================================== */}
 
         <section className="grid gap-4 lg:grid-cols-[1.35fr_.65fr]">
-          <div className="overflow-hidden rounded-[30px] bg-white shadow-sm">
-            <div className="relative h-[245px] bg-[#eef1e7] sm:h-[300px]">
+          <div
+            className="overflow-hidden rounded-[26px] shadow-sm"
+            style={{ backgroundColor: THEME.card }}
+          >
+            <div className="relative h-[185px] bg-[#98ff0842] sm:h-[250px]">
               {device.deviceModel.imageUrl ? (
                 <img
                   src={device.deviceModel.imageUrl}
                   alt={device.deviceModel.name}
-                  className="h-full w-full object-contain p-7"
+                  className="h-full w-full object-contain p-4 sm:p-6"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center">
-                  <CircleGauge size={50} className="text-[#b8bbb0]" />
+                  <CircleGauge size={50} style={{ color: THEME.textMuted }} />
                 </div>
               )}
 
@@ -656,7 +749,7 @@ export default function DeviceDetailsPage() {
               </div>
             </div>
 
-            <div className="p-5 sm:p-6">
+            <div className="p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
                   <h2 className="truncate text-[24px] font-semibold tracking-[-0.055em] text-[#202020] sm:text-[30px]">
@@ -719,7 +812,7 @@ export default function DeviceDetailsPage() {
         ==================================================== */}
 
         {sensors.length > 0 && (
-          <section className="mt-4">
+          <section className="mt-3">
             <div className="mb-3">
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#aaa9a2]">
                 Current readings
@@ -747,7 +840,7 @@ export default function DeviceDetailsPage() {
         ==================================================== */}
 
         {actuators.length > 0 && (
-          <section className="mt-4 rounded-[28px] bg-white p-4 sm:p-5">
+          <section className="mt-3 rounded-[24px] bg-white p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#aaa9a2]">
@@ -902,210 +995,193 @@ export default function DeviceDetailsPage() {
         )}
 
         {/* ====================================================
-            NUMERIC GRAPHS
+            SENSOR HISTORY
         ==================================================== */}
 
         {numericSensors.length > 0 && (
-          <section className="mt-4">
-            <div className="mb-3">
-              <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#aaa9a2]">
-                Telemetry history
-              </p>
+          <section
+            className="mt-3 rounded-[22px] p-3.5 sm:p-4"
+            style={{ backgroundColor: THEME.card }}
+          >
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p
+                  className="text-[9px] font-semibold"
+                  style={{ color: THEME.textMuted }}
+                >
+                  history
+                </p>
+                <h3
+                  className="mt-0.5 text-[17px] font-semibold tracking-[-0.03em]"
+                  style={{ color: THEME.text }}
+                >
+                  sensor trends
+                </h3>
+              </div>
 
-              <h3 className="mt-1 text-[18px] font-semibold tracking-[-0.03em]">
-                Sensor trends
-              </h3>
-
-              <p className="mt-1 text-[10px] text-[#aaa9a2]">
-                Every numeric sensor is shown in its own responsive graph.
-              </p>
+              <span
+                className="rounded-full px-2.5 py-1 text-[8px] font-semibold"
+                style={{
+                  backgroundColor: THEME.cardMuted,
+                  color: THEME.textSoft,
+                }}
+              >
+                {graphData.length} points
+              </span>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              {numericSensors.map((sensor) => (
-                <section
-                  key={sensor.key}
-                  className="min-w-0 overflow-hidden rounded-[28px] bg-white p-4 sm:p-5"
+            <div
+              className="mt-3 flex w-full gap-1 overflow-x-auto rounded-2xl p-1"
+              style={{ backgroundColor: THEME.cardMuted }}
+            >
+              {(
+                [
+                  ["1D", "1 day"],
+                  ["1W", "1 week"],
+                  ["1M", "1 month"],
+                  ["MAX", "All time"],
+                ] as const
+              ).map(([option, label]) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setRange(option)}
+                  className="shrink-0 rounded-xl px-3 py-2 text-[9px] font-semibold transition active:scale-[0.98]"
+                  style={
+                    range === option
+                      ? {
+                          backgroundColor: THEME.white,
+                          color: THEME.text,
+                          boxShadow: "0 2px 8px rgba(0,0,0,.06)",
+                        }
+                      : {
+                          backgroundColor: "transparent",
+                          color: THEME.textSoft,
+                        }
+                  }
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <h4 className="truncate text-[14px] font-semibold">
-                        {sensor.label || sensor.key}
-                      </h4>
+                  {label}
+                </button>
+              ))}
+            </div>
 
-                      <p className="mt-0.5 text-[9px] text-[#aaa9a2]">
-                        {sensor.unit
-                          ? `Unit: ${sensor.unit}`
-                          : "Numeric telemetry"}
-                      </p>
+            <div className="mt-3 grid gap-3">
+              {numericSensors.map((sensor) => {
+                const stat = chartStats[sensor.key];
+
+                return (
+                  <div
+                    key={sensor.key}
+                    className="overflow-hidden rounded-[19px] border p-3"
+                    style={{
+                      backgroundColor: THEME.cardSoft,
+                      borderColor: THEME.borderSoft,
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p
+                          className="truncate text-[11px] font-semibold"
+                          style={{ color: THEME.textStrong }}
+                        >
+                          {sensor.label || sensor.key}
+                        </p>
+                        <p
+                          className="mt-0.5 text-[8px]"
+                          style={{ color: THEME.textMuted }}
+                        >
+                          {sensor.unit || "value"}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-3">
+                        <Stat
+                          label="min"
+                          value={stat?.min}
+                          unit={sensor.unit}
+                        />
+                        <Stat
+                          label="avg"
+                          value={stat?.avg}
+                          unit={sensor.unit}
+                        />
+                        <Stat
+                          label="max"
+                          value={stat?.max}
+                          unit={sensor.unit}
+                        />
+                      </div>
                     </div>
 
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#eef3df]">
-                      {sensor.key.toLowerCase().includes("humidity") ? (
-                        <Droplets size={15} className="text-[#73914f]" />
+                    <div className="mt-2 h-[190px] w-full min-w-0 sm:h-[220px]">
+                      {telemetryLoading ? (
+                        <ChartLoading />
+                      ) : graphData.length === 0 ? (
+                        <NoData />
                       ) : (
-                        <Thermometer size={15} className="text-[#73914f]" />
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={graphData}
+                            margin={{
+                              top: 8,
+                              right: 8,
+                              left: -18,
+                              bottom: 0,
+                            }}
+                          >
+                            <CartesianGrid
+                              vertical={false}
+                              stroke={THEME.chartGrid}
+                              strokeDasharray="3 3"
+                            />
+
+                            <XAxis
+                              dataKey="time"
+                              tick={{
+                                fontSize: 7,
+                                fill: THEME.textMuted,
+                              }}
+                              minTickGap={28}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+
+                            <YAxis
+                              domain={["auto", "auto"]}
+                              tick={{
+                                fontSize: 7,
+                                fill: THEME.textMuted,
+                              }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+
+                            <Tooltip
+                              contentStyle={{
+                                borderRadius: "12px",
+                                border: "none",
+                                boxShadow: "0 8px 30px rgba(0,0,0,.08)",
+                                fontSize: "10px",
+                              }}
+                            />
+
+                            <Line
+                              type="monotone"
+                              dataKey={sensor.key}
+                              name={sensor.label || sensor.key}
+                              stroke={THEME.chart}
+                              strokeWidth={2.2}
+                              dot={false}
+                              activeDot={{ r: 3 }}
+                              connectNulls
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
                       )}
                     </div>
                   </div>
-
-                  <div className="mt-4 h-[270px] w-full min-w-0 sm:h-[300px]">
-                    {telemetryLoading ? (
-                      <ChartLoading />
-                    ) : graphData.length === 0 ? (
-                      <NoData />
-                    ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart
-                          data={graphData}
-                          margin={{
-                            top: 8,
-                            right: 14,
-                            left: -12,
-                            bottom: 4,
-                          }}
-                        >
-                          <CartesianGrid
-                            vertical={false}
-                            stroke="#eeeeea"
-                            strokeDasharray="3 3"
-                          />
-
-                          <XAxis
-                            dataKey="time"
-                            tick={{
-                              fontSize: 8,
-                              fill: "#aaa9a2",
-                            }}
-                            minTickGap={24}
-                            axisLine={false}
-                            tickLine={false}
-                          />
-
-                          <YAxis
-                            domain={["auto", "auto"]}
-                            tick={{
-                              fontSize: 8,
-                              fill: "#aaa9a2",
-                            }}
-                            axisLine={false}
-                            tickLine={false}
-                          />
-
-                          <Tooltip
-                            contentStyle={{
-                              borderRadius: "14px",
-                              border: "none",
-                              boxShadow: "0 8px 30px rgba(0,0,0,.08)",
-                              fontSize: "11px",
-                            }}
-                          />
-
-                          <Line
-                            type="monotone"
-                            dataKey={sensor.key}
-                            name={sensor.label || sensor.key}
-                            stroke="#789d50"
-                            strokeWidth={2.5}
-                            dot={false}
-                            activeDot={{
-                              r: 4,
-                            }}
-                            connectNulls
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ====================================================
-            BOOLEAN GRAPH
-        ==================================================== */}
-
-        {booleanSensors.length > 0 && graphData.length > 0 && (
-          <section className="mt-4 rounded-[28px] bg-white p-4 sm:p-5">
-            <div className="mb-3">
-              <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#aaa9a2]">
-                Digital telemetry
-              </p>
-
-              <h3 className="mt-1 text-[18px] font-semibold tracking-[-0.03em]">
-                Binary sensor history
-              </h3>
-
-              <p className="mt-1 text-[10px] text-[#aaa9a2]">
-                ON = 1 · OFF = 0
-              </p>
-            </div>
-
-            <div className="h-[270px] w-full min-w-0 sm:h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={graphData}
-                  margin={{
-                    top: 8,
-                    right: 14,
-                    left: -12,
-                    bottom: 4,
-                  }}
-                >
-                  <CartesianGrid
-                    vertical={false}
-                    stroke="#eeeeea"
-                    strokeDasharray="3 3"
-                  />
-
-                  <XAxis
-                    dataKey="time"
-                    tick={{
-                      fontSize: 8,
-                      fill: "#aaa9a2",
-                    }}
-                    minTickGap={24}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-
-                  <YAxis
-                    domain={[0, 1]}
-                    ticks={[0, 1]}
-                    tickFormatter={(value) => (value === 1 ? "ON" : "OFF")}
-                    tick={{
-                      fontSize: 8,
-                      fill: "#aaa9a2",
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "14px",
-                      border: "none",
-                      boxShadow: "0 8px 30px rgba(0,0,0,.08)",
-                      fontSize: "11px",
-                    }}
-                  />
-
-                  {booleanSensors.map((sensor) => (
-                    <Line
-                      key={sensor.key}
-                      type="stepAfter"
-                      dataKey={sensor.key}
-                      name={sensor.label || sensor.key}
-                      stroke="#789d50"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
+                );
+              })}
             </div>
           </section>
         )}
@@ -1138,7 +1214,7 @@ export default function DeviceDetailsPage() {
               </p>
             </div>
           ) : (
-            <div className="max-h-[380px] overflow-y-auto border-t border-[#f0f0ec]">
+            <div className="max-h-[320px] overflow-y-auto border-t border-[#f0f0ec]">
               <div className="divide-y divide-[#f0f0ec]">
                 {telemetry.map((item) => (
                   <TelemetryCompactRow
@@ -1156,7 +1232,7 @@ export default function DeviceDetailsPage() {
             DEVICE INFORMATION
         ==================================================== */}
 
-        <section className="mt-4 rounded-[28px] bg-white p-4 sm:p-5">
+        <section className="mt-3 rounded-[24px] bg-white p-4 sm:p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#aaa9a2]">
@@ -1167,7 +1243,7 @@ export default function DeviceDetailsPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             <InfoCard label="Model" value={device.deviceModel.name} />
 
             <InfoCard label="Model code" value={device.deviceModel.code} />
@@ -1391,7 +1467,7 @@ function QuickValueCard({
   value: unknown;
 }) {
   return (
-    <div className="rounded-[26px] bg-white p-4 shadow-[0_5px_25px_rgba(0,0,0,0.035)] sm:p-5">
+    <div className="rounded-[20px] bg-white p-3 shadow-[0_3px_14px_rgba(0,0,0,0.025)] sm:p-3.5">
       <div className="flex items-center justify-between">
         <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-[#aaa9a2]">
           {sensor.label || sensor.key}
@@ -1406,7 +1482,7 @@ function QuickValueCard({
         )}
       </div>
 
-      <p className="mt-5 text-[27px] font-semibold tracking-[-0.06em] text-[#35412e]">
+      <p className="mt-4 text-[24px] font-semibold tracking-[-0.06em] text-[#35412e]">
         {formatSensorValue(value, sensor)}
 
         {sensor.unit && (
@@ -1463,7 +1539,7 @@ function SensorCard({
 
       <div className="mt-5 flex items-end justify-between gap-3">
         <p
-          className={`text-[29px] font-semibold tracking-[-0.06em] ${
+          className={`text-[26px] font-semibold tracking-[-0.06em] ${
             isHumidity ? "text-white" : "text-[#4e5d42]"
           }`}
         >
@@ -1510,7 +1586,7 @@ function TelemetryCompactRow({
   sensors: DeviceCapability[];
 }) {
   return (
-    <div className="px-4 py-3 sm:px-5">
+    <div className="px-4 py-2 sm:px-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="shrink-0">
           <p className="text-[11px] font-semibold text-[#30302e]">
@@ -1572,6 +1648,40 @@ function InfoCard({ label, value }: { label: string; value: string }) {
 
 // ============================================================
 // CHART HELPERS
+// ============================================================
+// STAT
+// ============================================================
+
+function Stat({
+  label,
+  value,
+  unit,
+}: {
+  label: string;
+  value: number | null | undefined;
+  unit?: string;
+}) {
+  return (
+    <div className="min-w-[32px] text-center">
+      <p className="text-[7px] uppercase tracking-wide text-[#b0b1aa]">
+        {label}
+      </p>
+      <p className="mt-0.5 text-[9px] font-semibold text-[#55564f]">
+        {value == null
+          ? "--"
+          : Number.isInteger(value)
+          ? String(value)
+          : value.toFixed(1)}
+        {unit && (
+          <span className="ml-0.5 text-[7px] font-normal text-[#aaa9a2]">
+            {unit}
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
+
 // ============================================================
 
 function ChartLoading() {
@@ -1675,9 +1785,25 @@ function formatTime(date: string) {
   });
 }
 
-function formatChartTime(date: string) {
-  return new Date(date).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
+function formatChartTime(date: string, range: "1D" | "1W" | "1M" | "MAX") {
+  const d = new Date(date);
+
+  if (range === "1D") {
+    return d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  if (range === "1W") {
+    return d.toLocaleDateString([], {
+      weekday: "short",
+      day: "numeric",
+    });
+  }
+
+  return d.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
   });
 }
