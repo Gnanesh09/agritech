@@ -31,9 +31,6 @@ export default function ComparisonRow({
         duration: 0.7,
         delay: index * 0.1,
       }}
-      whileHover={{
-        y: -6,
-      }}
       className="group"
     >
       <div className="overflow-hidden rounded-2xl border border-[#174b36]/10 bg-white shadow-[0_10px_28px_rgba(20,61,43,0.06)] transition-shadow duration-300 hover:shadow-[0_18px_34px_rgba(20,61,43,0.12)]">
@@ -48,20 +45,7 @@ export default function ComparisonRow({
 
           {/* Old */}
 
-          <motion.div
-            initial={{
-              opacity: 0,
-              x: -40,
-            }}
-            whileInView={{
-              opacity: 1,
-              x: 0,
-            }}
-            viewport={{ once: true }}
-            transition={{
-              delay: index * 0.12,
-            }}
-          >
+          <div>
             <div className="flex items-center gap-2">
 
               <XCircle
@@ -74,39 +58,17 @@ export default function ComparisonRow({
               </span>
 
             </div>
-          </motion.div>
+          </div>
 
           {/* Arrow */}
 
-          <motion.div
-            animate={{
-              x: [0, 5, 0],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-            }}
-            className="text-[#5d8e3e]"
-          >
+          <div className="text-[#5d8e3e]">
             <ArrowRight size={24} />
-          </motion.div>
+          </div>
 
           {/* New */}
 
-          <motion.div
-            initial={{
-              opacity: 0,
-              x: 40,
-            }}
-            whileInView={{
-              opacity: 1,
-              x: 0,
-            }}
-            viewport={{ once: true }}
-            transition={{
-              delay: index * 0.18,
-            }}
-          >
+          <div>
             <div className="flex items-center gap-2">
 
               <CheckCircle2
@@ -119,7 +81,7 @@ export default function ComparisonRow({
               </span>
 
             </div>
-          </motion.div>
+          </div>
 
         </div>
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { faqData } from "./faqData";
 import FAQItem from "./FAQItem";
-import { motion } from "framer-motion";
+import { FadeUp } from "@/components/animations";
 
 export default function FAQ() {
   const [open, setOpen] = useState<number | null>(0);
@@ -21,16 +21,7 @@ export default function FAQ() {
 
         {/* Heading */}
 
-        <motion.div
-  initial={{ opacity: 0, y: 50 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  transition={{
-    duration: 0.8,
-    ease: [0.22, 1, 0.36, 1],
-  }}
-          viewport={{ once: true }}
-          className="mb-12 text-center sm:mb-16"
-        >
+        <FadeUp className="mb-12 text-center sm:mb-16">
           <span className="inline-flex rounded-full bg-[#e5efd8] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#236044]">
 
             Frequently Asked Questions
@@ -50,11 +41,11 @@ export default function FAQ() {
             farm management.
 
           </p>
-        </motion.div>
+        </FadeUp>
 
         {/* FAQ */}
 
-        <div className="space-y-6">
+        <div className="space-y-3 sm:space-y-4">
           {faqData.map((item, index) => (
             <FAQItem
               key={index}

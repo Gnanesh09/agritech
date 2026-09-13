@@ -1,6 +1,5 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X } from "lucide-react";
 
 interface Props {
@@ -10,67 +9,16 @@ interface Props {
   onClick: () => void;
 }
 
-export default function FAQItem({
-  question,
-  answer,
-  isOpen,
-  onClick,
-}: Props) {
+export default function FAQItem({ question, answer, isOpen, onClick }: Props) {
   return (
-    <motion.div
-      layout
-      className={`rounded-2xl border transition-all duration-300 overflow-hidden
-      ${
-        isOpen
-          ? "border-green-500 shadow-xl shadow-green-200/40 bg-white"
-          : "border-gray-200 bg-white hover:border-green-300"
-      }`}
-    >
-      <button
-        onClick={onClick}
-        className="w-full flex items-center justify-between p-6 text-left"
-      >
-        <h3 className="text-lg font-semibold text-gray-900">
-          {question}
-        </h3>
-
-        <motion.div
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          {isOpen ? (
-            <X className="text-green-600" />
-          ) : (
-            <Plus className="text-gray-500" />
-          )}
-        </motion.div>
+    <div className={`overflow-hidden rounded-[1.25rem] border transition-colors duration-200 ${isOpen ? "border-[#174b36]/25 bg-white shadow-[0_12px_30px_rgba(20,61,43,0.08)]" : "border-[#174b36]/10 bg-white/70 hover:border-[#174b36]/20"}`}>
+      <button onClick={onClick} className="flex w-full items-center justify-between gap-4 p-5 text-left sm:p-6" aria-expanded={isOpen}>
+        <h3 className="text-base font-semibold tracking-[-0.015em] text-[#173c2c] sm:text-lg">{question}</h3>
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#e5efd8] text-[#236044]">
+          {isOpen ? <X className="size-4" /> : <Plus className="size-4" />}
+        </span>
       </button>
-
-      <AnimatePresence initial={false}>
-        {isOpen && (
-          <motion.div
-            initial={{
-              opacity: 0,
-              height: 0,
-            }}
-            animate={{
-              opacity: 1,
-              height: "auto",
-            }}
-            exit={{
-              opacity: 0,
-              height: 0,
-            }}
-            transition={{
-              duration: 0.35,
-            }}
-          >
-            <div className="px-6 pb-6 text-gray-600 leading-7">
-              {answer}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+      {isOpen && <div className="px-5 pb-5 text-sm leading-7 text-[#617369] sm:px-6 sm:pb-6 sm:text-base">{answer}</div>}
+    </div>
   );
 }

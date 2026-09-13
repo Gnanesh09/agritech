@@ -27,31 +27,28 @@ export default function EcosystemNode({
         duration: 0.7,
         delay,
       }}
-      whileHover={{
-        y: -10,
-        scale: 1.05,
-      }}
-      className="group relative w-64 overflow-hidden rounded-3xl border border-white/60 bg-white/80 p-6 shadow-xl backdrop-blur-xl"
+      whileHover={{ y: -3 }}
+      className="group relative w-full overflow-hidden rounded-[1.5rem] border border-[#174b36]/10 bg-white p-6 shadow-[0_12px_30px_rgba(20,61,43,0.08)] transition-shadow duration-300 hover:shadow-[0_18px_36px_rgba(20,61,43,0.12)] lg:w-64"
     >
       {/* Glow */}
       <div
-        className={`absolute -right-12 -top-12 h-36 w-36 rounded-full ${color} opacity-20 blur-3xl transition-all duration-500 group-hover:scale-150`}
+        className={`absolute -right-12 -top-12 h-36 w-36 rounded-full ${color} opacity-10 blur-3xl`}
       />
 
       {/* Shine */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent opacity-80" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent" />
 
       <div
-        className={`relative z-10 mb-5 flex h-16 w-16 items-center justify-center rounded-2xl ${color} text-white shadow-xl transition-all duration-500 group-hover:rotate-6 group-hover:scale-110`}
+        className={`relative z-10 mb-5 flex h-12 w-12 items-center justify-center rounded-2xl ${color} text-white shadow-md`}
       >
         {icon}
       </div>
 
-      <h3 className="relative z-10 text-xl font-bold text-slate-900">
+      <h3 className="relative z-10 text-lg font-semibold tracking-[-0.025em] text-[#173c2c]">
         {title}
       </h3>
 
-      <p className="relative z-10 mt-3 leading-7 text-slate-600">
+      <p className="relative z-10 mt-2 text-sm leading-6 text-[#617369]">
         {description}
       </p>
     </motion.div>

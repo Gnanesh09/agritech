@@ -1,6 +1,6 @@
 "use client";
 
-import { FadeUp, Stagger, StaggerItem } from "@/components/animations";
+import { FadeLeft, FadeRight, FadeUp } from "@/components/animations";
 import {
   Warehouse,
   Sprout,
@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 
 import UseCaseCard from "./UseCaseCard";
-import BackgroundGlow from "./BackgroundGlow";
 
 const useCases = [
   {
@@ -66,8 +65,12 @@ const useCases = [
 
 export default function UseCases() {
   return (
-    <section className="relative overflow-hidden bg-white py-20 sm:py-28">
-      <BackgroundGlow />
+    <section className="relative overflow-hidden bg-[#173c2c] py-24 sm:py-32">
+      <div className="absolute inset-0 -z-10" aria-hidden="true">
+        <div className="absolute left-10 top-20 h-72 w-72 rounded-full bg-lime-300/10 blur-3xl" />
+        <div className="absolute bottom-16 right-10 h-80 w-80 rounded-full bg-emerald-300/10 blur-3xl" />
+        <div className="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-300/10 blur-[120px]" />
+      </div>
 
       <div className="relative z-10 mx-auto max-w-7xl px-6">
         {/* Heading */}
@@ -75,42 +78,41 @@ export default function UseCases() {
         className="mx-auto mb-12 max-w-3xl text-center sm:mb-16"
           duration={0.8}
         >
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5d8e3e]">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#b9d48d]">
             Use Cases
           </span>
 
-          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.045em] text-[#12382a] sm:text-5xl">
+          <h2 className="mt-4 text-balance text-4xl font-semibold tracking-[-0.045em] text-white sm:text-5xl">
             Built For Every
-            <span className="text-[#5d8e3e]">
+            <span className="text-[#b9d48d]">
               {" "}Growing Environment
             </span>
           </h2>
 
-          <p className="mt-5 text-base leading-7 text-[#617369] sm:text-lg sm:leading-8">
+          <p className="mt-5 text-base leading-7 text-green-50/75 sm:text-lg sm:leading-8">
             Smart Agri adapts to different farming environments—from rooftop
             gardens to commercial greenhouses and research facilities—helping
             growers make better decisions with AI and automation.
           </p>
         </FadeUp>
 
-        {/* Cards */}
-        <Stagger
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5"
-          staggerChildren={0.1}
-        >
-          {useCases.map((item, index) => (
-            <StaggerItem key={item.title}>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {useCases.map((item, index) => {
+            const CardAnimation = index % 2 === 0 ? FadeLeft : FadeRight;
+
+            return (
+            <CardAnimation key={item.title} delay={index * 0.08} className="h-full">
               <UseCaseCard
-                index={index}
                 icon={item.icon}
                 title={item.title}
                 description={item.description}
                 gradient={item.gradient}
                 tags={item.tags}
               />
-            </StaggerItem>
-          ))}
-        </Stagger>
+            </CardAnimation>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
