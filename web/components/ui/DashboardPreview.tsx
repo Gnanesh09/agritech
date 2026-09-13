@@ -40,7 +40,7 @@ export default function DashboardPreview() {
   return (
     <section
       id="dashboard"
-      className="relative overflow-hidden bg-[#F8FBF8] py-32"
+      className="relative overflow-hidden bg-white py-20 sm:py-28"
     >
       {/* Background Glow */}
       <div className="absolute inset-0 -z-10">
@@ -53,35 +53,35 @@ export default function DashboardPreview() {
 
       <div className="mx-auto max-w-7xl px-6">
 
-        <FadeUp className="text-center">
+        <FadeUp className="mx-auto max-w-3xl text-center">
 
-          <span className="uppercase tracking-[4px] text-green-700 font-semibold">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5d8e3e]">
             Live Dashboard
           </span>
 
-          <h2 className="mt-4 text-5xl font-extrabold text-slate-900">
+          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.045em] text-[#12382a] sm:text-5xl">
             Monitor Everything in Real Time
           </h2>
 
-          <p className="mx-auto mt-6 max-w-3xl text-lg text-slate-600 leading-8">
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-[#617369] sm:text-lg sm:leading-8">
             Stay connected to your farm with live sensor readings,
             automation controls, and AI insights from anywhere.
           </p>
 
         </FadeUp>
 
-        <FadeLeft className="mt-20">
-        <div className="rounded-[36px] border border-white/60 bg-white/70 p-8 shadow-2xl backdrop-blur-xl">
+        <FadeLeft className="mt-12 sm:mt-16">
+        <div className="rounded-[2rem] border border-[#174b36]/10 bg-[#173c2c] p-4 shadow-[0_28px_70px_rgba(20,61,43,0.2)] sm:rounded-[2.5rem] sm:p-7">
 
           {/* Dashboard Header */}
 
           <div className="mb-10 flex items-center justify-between">
 
-            <h3 className="text-2xl font-bold text-slate-900">
+            <h3 className="text-lg font-semibold text-white sm:text-2xl">
               Smart Agriculture Dashboard
             </h3>
 
-            <div className="flex items-center gap-2 text-green-600 font-semibold">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#b9d48d]">
 
               <span className="h-3 w-3 rounded-full bg-green-500 animate-pulse"></span>
 
@@ -93,25 +93,25 @@ export default function DashboardPreview() {
 
           {/* Sensor Cards */}
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
             {sensors.map((sensor, index) => (
 
               <ScaleIn
                 key={sensor.title}
                 delay={index * 0.15}
-                className="rounded-3xl border border-green-100 bg-white p-6 shadow-lg transition-transform duration-300 hover:scale-[1.04]"
+                className="rounded-2xl border border-white/10 bg-white/[0.08] p-5 shadow-none transition-transform duration-300 hover:scale-[1.02]"
               >
 
                 <div className={`${sensor.color} mb-4`}>
                   {sensor.icon}
                 </div>
 
-                <p className="text-gray-500">
+                <p className="text-sm text-green-50/65">
                   {sensor.title}
                 </p>
 
-                <h4 className="mt-2 text-3xl font-bold text-slate-900">
+                <h4 className="mt-2 text-2xl font-semibold text-white">
                   {sensor.value}
                 </h4>
 
@@ -123,18 +123,18 @@ export default function DashboardPreview() {
 
           {/* Bottom Controls */}
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-2">
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
 
             <ScaleIn
-              className="rounded-3xl border border-green-100 bg-white p-8 shadow-lg transition-transform duration-300 hover:scale-[1.02]"
+              className="rounded-2xl border border-white/10 bg-white/[0.08] p-6 shadow-none transition-transform duration-300 hover:scale-[1.01]"
               delay={0.15}
             >
 
-              <h4 className="text-xl font-bold">
+              <h4 className="text-lg font-semibold text-white">
                 AI Recommendation
               </h4>
 
-              <p className="mt-4 text-slate-600 leading-7">
+              <p className="mt-3 text-sm leading-7 text-green-50/70">
                 Soil moisture is decreasing. Irrigation is recommended
                 within the next 20 minutes.
               </p>
@@ -142,17 +142,17 @@ export default function DashboardPreview() {
             </ScaleIn>
 
             <ScaleIn
-              className="rounded-3xl border border-green-100 bg-white p-8 shadow-lg transition-transform duration-300 hover:scale-[1.02]"
+              className="rounded-2xl border border-white/10 bg-white/[0.08] p-6 text-green-50 shadow-none transition-transform duration-300 hover:scale-[1.01]"
               delay={0.3}
             >
 
               <div className="flex items-center justify-between">
 
-                <h4 className="text-xl font-bold">
+                <h4 className="text-lg font-semibold text-white">
                   Automation
                 </h4>
 
-                <Power className="text-green-600" />
+                <Power className="text-[#b9d48d]" />
 
               </div>
 
@@ -162,7 +162,7 @@ export default function DashboardPreview() {
 
                   <span>Pump</span>
 
-                  <span className="font-semibold text-green-600">
+                  <span className="font-semibold text-[#b9d48d]">
                     ON
                   </span>
 
@@ -172,7 +172,7 @@ export default function DashboardPreview() {
 
                   <span>Fan</span>
 
-                  <span className="font-semibold text-gray-500">
+                  <span className="font-semibold text-green-50/55">
                     OFF
                   </span>
 
@@ -182,7 +182,7 @@ export default function DashboardPreview() {
 
                   <span>Grow Light</span>
 
-                  <span className="font-semibold text-green-600">
+                  <span className="font-semibold text-[#b9d48d]">
                     ON
                   </span>
 

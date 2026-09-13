@@ -14,7 +14,7 @@ import Footer from "@/components/ui/footer/Footer";
 
 export default function Home() {
   return (
-    <main className="min-h-screen overflow-x-hidden bg-gradient-to-b from-white via-green-50 to-white pt-24">
+    <main className="min-h-screen overflow-x-hidden bg-[#f7f8f2] pt-24">
       <Navbar />
 
       <section id="home" className="scroll-mt-24">

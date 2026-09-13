@@ -66,27 +66,27 @@ const useCases = [
 
 export default function UseCases() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-white via-green-50/40 to-white py-32">
+    <section className="relative overflow-hidden bg-white py-20 sm:py-28">
       <BackgroundGlow />
 
       <div className="relative z-10 mx-auto max-w-7xl px-6">
         {/* Heading */}
         <FadeUp
-          className="mx-auto mb-20 max-w-3xl text-center"
+        className="mx-auto mb-12 max-w-3xl text-center sm:mb-16"
           duration={0.8}
         >
-          <span className="font-semibold uppercase tracking-[4px] text-green-700">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5d8e3e]">
             Use Cases
           </span>
 
-          <h2 className="mt-5 text-5xl font-extrabold text-slate-900">
+          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.045em] text-[#12382a] sm:text-5xl">
             Built For Every
-            <span className="bg-gradient-to-r from-green-600 to-emerald-500 bg-clip-text text-transparent">
+            <span className="text-[#5d8e3e]">
               {" "}Growing Environment
             </span>
           </h2>
 
-          <p className="mt-6 text-lg leading-8 text-slate-600">
+          <p className="mt-5 text-base leading-7 text-[#617369] sm:text-lg sm:leading-8">
             Smart Agri adapts to different farming environments—from rooftop
             gardens to commercial greenhouses and research facilities—helping
             growers make better decisions with AI and automation.
@@ -95,7 +95,7 @@ export default function UseCases() {
 
         {/* Cards */}
         <Stagger
-          className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3"
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5"
           staggerChildren={0.1}
         >
           {useCases.map((item, index) => (

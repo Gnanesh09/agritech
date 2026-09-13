@@ -40,7 +40,7 @@ const comparisons = [
 
 export default function WhySmartAgri() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-white via-green-50/40 to-white py-32">
+    <section className="relative overflow-hidden bg-[#f7f8f2] py-20 sm:py-28">
 
       <BackgroundGlow />
 
@@ -53,21 +53,21 @@ export default function WhySmartAgri() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: .8 }}
-          className="mb-20 text-center"
+          className="mx-auto mb-12 max-w-3xl text-center sm:mb-16"
         >
 
-          <span className="font-semibold uppercase tracking-[4px] text-green-700">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5d8e3e]">
             Why Smart Agri
           </span>
 
-          <h2 className="mt-5 text-5xl font-extrabold text-slate-900">
+          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.045em] text-[#12382a] sm:text-5xl">
             Farming,
-            <span className="bg-gradient-to-r from-green-600 to-emerald-500 bg-clip-text text-transparent">
+            <span className="text-[#5d8e3e]">
               {" "}Reimagined
             </span>
           </h2>
 
-          <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-600">
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-[#617369] sm:text-lg sm:leading-8">
             Traditional farming relies on manual effort and guesswork.
             Smart Agri uses AI, automation and real-time monitoring
             to make farming smarter, easier and more productive.
@@ -77,7 +77,7 @@ export default function WhySmartAgri() {
 
         {/* Layout */}
 
-        <div className="grid items-start gap-16 lg:grid-cols-2">
+        <div className="grid items-start gap-8 lg:grid-cols-2 lg:gap-16">
 
           {/* Left */}
 

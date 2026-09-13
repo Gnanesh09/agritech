@@ -22,7 +22,7 @@ export default function UseCaseCard({
 }: UseCaseCardProps) {
   return (
     <MouseGlow
-      className="group relative rounded-[30px] border border-green-100 bg-white/80 p-8 shadow-xl backdrop-blur-xl transition-[transform,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-2 hover:scale-[1.02] hover:shadow-[0_30px_60px_rgba(34,197,94,0.18)]"
+      className="group relative h-full rounded-[1.5rem] border border-[#174b36]/10 bg-[#fbfcf8] p-7 shadow-[0_12px_32px_rgba(20,61,43,0.06)] transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(20,61,43,0.12)]"
     >
       {/* Background Glow */}
       <div
@@ -40,11 +40,11 @@ export default function UseCaseCard({
 
       {/* Content */}
       <div className="relative z-10 mt-8">
-        <h3 className="text-2xl font-bold text-slate-900">
+        <h3 className="text-xl font-semibold tracking-[-0.025em] text-[#173c2c]">
           {title}
         </h3>
 
-        <p className="mt-4 leading-7 text-slate-600">
+        <p className="mt-3 text-sm leading-7 text-[#617369]">
           {description}
         </p>
       </div>
@@ -54,7 +54,7 @@ export default function UseCaseCard({
         {tags.map((tag) => (
           <span
             key={tag}
-            className="rounded-full border border-green-100 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 transition-all duration-300 group-hover:border-green-200 group-hover:bg-green-100"
+            className="rounded-full border border-[#174b36]/10 bg-white px-3 py-1 text-xs font-semibold text-[#236044] transition-colors duration-300 group-hover:border-[#174b36]/20"
           >
             {tag}
           </span>

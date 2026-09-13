@@ -55,22 +55,22 @@ export default function Features() {
   return (
     <section
       id="features"
-      className="py-28 px-6"
+      className="relative overflow-hidden bg-white px-6 py-20 sm:py-28"
     >
-      <div className="max-w-7xl mx-auto">
-        <FadeUp className="text-center mb-20">
-          <p className="text-green-400 font-semibold tracking-widest uppercase">
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-[#f7f8f2] to-transparent" />
+      <div className="relative mx-auto max-w-7xl">
+        <FadeUp className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5d8e3e]">
             Powerful Features
           </p>
 
-          <h2 className="text-4xl md:text-5xl font-bold mt-4">
+          <h2 className="mt-4 text-balance text-4xl font-semibold tracking-[-0.045em] text-[#12382a] sm:text-5xl">
             Everything needed to build
-            <br />
-            an autonomous farm.
+            <span className="block text-[#5d8e3e]">an autonomous farm.</span>
           </h2>
         </FadeUp>
 
-        <Stagger className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5">
           {features.map((feature) => (
             <StaggerItem key={feature.title}>
               <FeatureCard

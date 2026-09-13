@@ -40,7 +40,7 @@ export default function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="relative overflow-hidden bg-white py-32"
+      className="relative overflow-hidden bg-[#f7f8f2] py-20 sm:py-28"
     >
       {/* Background Glow */}
       <div className="absolute inset-0 -z-10">
@@ -48,19 +48,19 @@ export default function HowItWorks() {
         <div className="absolute right-0 bottom-10 h-96 w-96 rounded-full bg-emerald-100 blur-3xl opacity-40" />
       </div>
 
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-6xl px-6">
 
         {/* Heading */}
-        <FadeUp className="mb-24 text-center">
-          <span className="font-semibold uppercase tracking-[4px] text-green-700">
+        <FadeUp className="mx-auto mb-14 max-w-3xl text-center sm:mb-20">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5d8e3e]">
             Process
           </span>
 
-          <h2 className="mt-4 text-5xl font-extrabold text-slate-900">
+          <h2 className="mt-4 text-4xl font-semibold tracking-[-0.045em] text-[#12382a] sm:text-5xl">
             How It Works
           </h2>
 
-          <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-600">
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-[#617369] sm:text-lg sm:leading-8">
             From collecting sensor data to making intelligent decisions,
             our autonomous ecosystem keeps your farm healthy with minimal effort.
           </p>
@@ -70,10 +70,10 @@ export default function HowItWorks() {
         <div className="relative mx-auto max-w-5xl">
 
           {/* Desktop Line */}
-          <div className="absolute left-1/2 top-0 hidden h-full w-1 -translate-x-1/2 rounded-full bg-green-100 md:block" />
+          <div className="absolute left-1/2 top-0 hidden h-full w-px -translate-x-1/2 bg-[#174b36]/15 md:block" />
 
           {/* Mobile Line */}
-          <div className="absolute left-6 top-0 h-full w-1 rounded-full bg-green-100 md:hidden" />
+          <div className="absolute left-6 top-0 h-full w-px bg-[#174b36]/15 md:hidden" />
 
           {steps.map((step, index) => (
             <motion.div
@@ -91,7 +91,7 @@ export default function HowItWorks() {
                 duration: 0.8,
                 delay: index * 0.15,
               }}
-              className={`relative mb-20 flex ${
+              className={`relative mb-10 flex sm:mb-14 ${
                 index % 2 === 0
                   ? "md:flex-row"
                   : "md:flex-row-reverse"
@@ -99,8 +99,8 @@ export default function HowItWorks() {
             >
 
               {/* Mobile Circle */}
-              <div className="absolute left-0 top-8 flex h-12 w-12 items-center justify-center rounded-full border-4 border-green-200 bg-white shadow-lg md:hidden">
-                <span className="font-bold text-green-700">
+              <div className="absolute left-0 top-7 flex h-12 w-12 items-center justify-center rounded-full border border-[#174b36]/15 bg-[#e5efd8] shadow-sm md:hidden">
+                <span className="font-semibold text-[#174b36]">
                   {index + 1}
                 </span>
               </div>
@@ -117,20 +117,20 @@ export default function HowItWorks() {
                     type: "spring",
                     stiffness: 300,
                   }}
-                  className="group rounded-3xl border border-green-100 bg-white/80 p-8 shadow-xl backdrop-blur-xl"
+                  className="group rounded-[1.5rem] border border-[#174b36]/10 bg-white p-6 shadow-[0_16px_36px_rgba(20,61,43,0.08)] sm:p-8"
                 >
 
-                  <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-green-100 to-emerald-50 text-green-700 transition-all duration-500 group-hover:rotate-6 group-hover:scale-110">
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e5efd8] text-[#236044] transition-transform duration-300 group-hover:scale-110">
 
                     {step.icon}
 
                   </div>
 
-                  <h3 className="mb-4 text-2xl font-bold text-slate-900">
+                  <h3 className="mb-3 text-xl font-semibold tracking-[-0.025em] text-[#173c2c]">
                     {step.title}
                   </h3>
 
-                  <p className="leading-7 text-slate-600">
+                  <p className="text-sm leading-7 text-[#617369] sm:text-base">
                     {step.description}
                   </p>
 
@@ -142,10 +142,10 @@ export default function HowItWorks() {
               <div className="hidden md:flex md:w-2/12 justify-center">
 
                 <motion.div
-                  whileHover={{ scale: 1.15 }}
-                  className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-green-200 bg-white shadow-lg"
+                  whileHover={{ scale: 1.08 }}
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-[#174b36]/15 bg-[#e5efd8] shadow-sm"
                 >
-                  <span className="font-bold text-green-700">
+                  <span className="font-semibold text-[#174b36]">
                     {index + 1}
                   </span>
                 </motion.div>
