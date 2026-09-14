@@ -17,7 +17,7 @@ export default function FeatureCard({
     <MouseGlow
       className="
         group
-        rounded-3xl
+        rounded-3xl.5
         border
         border-green-100
         bg-white/80
