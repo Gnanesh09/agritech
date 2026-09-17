@@ -104,7 +104,7 @@ export default function Navbar() {
 
         {/* CTA */}
         <motion.a
-          href="#contact"
+          href="/login"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="rounded-full bg-green-700 px-6 py-3 text-white shadow-lg transition hover:bg-green-800"
