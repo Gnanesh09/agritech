@@ -9,7 +9,7 @@ export default function MobileAppPreview() {
   return (
     <section
       id="mobile-app"
-      className="relative overflow-hidden bg-white py-36"
+      className="relative overflow-hidden bg-white py-20 sm:py-28"
     >
       {/* Background */}
       <div className="absolute inset-0 -z-10">
@@ -31,7 +31,7 @@ export default function MobileAppPreview() {
         </Floating>
       </div>
 
-      <div className="mx-auto grid max-w-7xl items-center gap-20 px-6 lg:grid-cols-2">
+      <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 lg:grid-cols-2 lg:gap-20">
 
         {/* Left Content */}
         <FadeLeft
@@ -39,24 +39,24 @@ export default function MobileAppPreview() {
           duration={0.8}
         >
           <FadeUp>
-            <span className="font-semibold uppercase tracking-[4px] text-green-700">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5d8e3e]">
               Mobile App
             </span>
 
-            <h2 className="mt-5 text-5xl font-extrabold leading-tight text-slate-900">
+            <h2 className="mt-4 text-4xl font-semibold leading-[1.02] tracking-[-0.045em] text-[#12382a] sm:text-5xl">
               Smart Agriculture.
               <br />
               Anywhere.
             </h2>
           </FadeUp>
 
-          <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
+          <p className="mt-5 max-w-xl text-base leading-7 text-[#617369] sm:text-lg sm:leading-8">
             Stay connected to your farm with a beautifully designed mobile
             experience. Monitor sensors, receive AI insights, and control your
             automation system from anywhere in the world.
           </p>
 
-          <div className="mt-10 space-y-5">
+          <div className="mt-8 space-y-4">
 
             <Feature text="Real-time sensor monitoring" />
 
@@ -87,7 +87,7 @@ function Feature({ text }: { text: string }) {
 
       <div className="h-3 w-3 rounded-full bg-green-600" />
 
-      <p className="text-lg text-slate-700">{text}</p>
+      <p className="text-base text-[#496156]">{text}</p>
 
     </div>
   );

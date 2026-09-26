@@ -24,13 +24,13 @@ const productLinks = [
 
 export default function Footer() {
   return (
-    <footer className="relative overflow-hidden border-t border-green-100 bg-gradient-to-b from-white to-green-50">
+    <footer className="relative overflow-hidden border-t border-white/10 bg-[#102d21] text-green-50">
 
       {/* Background Glow */}
 
-      <div className="absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 rounded-full bg-green-200/20 blur-3xl" />
+      <div className="absolute left-1/2 top-0 h-80 w-80 -translate-x-1/2 rounded-full bg-[#5d8e3e]/20 blur-3xl" />
 
-      <div className="relative mx-auto max-w-7xl px-6 py-20">
+      <div className="relative mx-auto max-w-7xl px-6 py-14 sm:py-20">
 
         <div className="grid gap-16 lg:grid-cols-3">
 
@@ -46,11 +46,11 @@ export default function Footer() {
 
               <div>
 
-                <h2 className="text-2xl font-bold text-gray-900">
+                <h2 className="text-2xl font-semibold text-white">
                   Smart Agri
                 </h2>
 
-                <p className="text-sm font-medium text-green-600">
+                <p className="text-sm font-medium text-[#b9d48d]">
                   Grow Smarter. Farm Better.
                 </p>
 
@@ -58,7 +58,7 @@ export default function Footer() {
 
             </div>
 
-            <p className="mt-6 max-w-md leading-8 text-gray-600">
+            <p className="mt-6 max-w-md leading-7 text-green-50/70">
               An AI-powered smart agriculture platform combining
               IoT, automation, and intelligent insights to help
               growers monitor crops, automate decisions, and
@@ -71,7 +71,7 @@ export default function Footer() {
 
           <div>
 
-            <h3 className="mb-6 text-lg font-semibold text-gray-900">
+            <h3 className="mb-6 text-lg font-semibold text-white">
               Product
             </h3>
 
@@ -81,7 +81,7 @@ export default function Footer() {
                 <li key={item.name}>
                   <Link
                     href={item.href}
-                    className="text-gray-600 transition duration-300 hover:text-green-600"
+                    className="text-green-50/70 transition duration-300 hover:text-[#b9d48d]"
                   >
                     {item.name}
                   </Link>
@@ -96,24 +96,24 @@ export default function Footer() {
 
           <div>
 
-            <h3 className="mb-6 text-lg font-semibold text-gray-900">
+            <h3 className="mb-6 text-lg font-semibold text-white">
               Current Status
             </h3>
 
-            <div className="rounded-2xl border border-green-200 bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-6 backdrop-blur-sm">
 
               <div className="flex items-center gap-3">
 
                 <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
 
-                <span className="font-semibold text-green-700">
+                <span className="font-semibold text-[#b9d48d]">
                   MVP Under Development
                 </span>
 
               </div>
 
-              <p className="mt-4 leading-7 text-gray-600">
-                We're actively building Smart Agri.
+              <p className="mt-4 leading-7 text-green-50/70">
+                We&apos;re actively building Smart Agri.
                 More features, documentation, and community
                 resources will be available soon.
               </p>
@@ -126,7 +126,7 @@ export default function Footer() {
 
         {/* Bottom */}
 
-        <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-green-100 pt-8 text-sm text-gray-500 md:flex-row">
+        <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 text-sm text-green-50/50 md:flex-row">
 
           <p>
             © {new Date().getFullYear()} Smart Agri. All rights reserved.

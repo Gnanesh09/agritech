@@ -34,32 +34,32 @@ const cards = [
 
 export default function AIDecisionLayer() {
   return (
-    <section className="relative overflow-hidden py-32 bg-[#FAFBF7]">
+    <section className="relative overflow-hidden bg-[#173c2c] py-20 sm:py-28">
 
       {/* Background Effects */}
       <div className="absolute inset-0 -z-10">
 
-        <div className="absolute top-20 left-10 h-72 w-72 rounded-full bg-green-200/30 blur-3xl" />
+        <div className="absolute top-20 left-10 h-72 w-72 rounded-full bg-lime-300/10 blur-3xl" />
 
-        <div className="absolute bottom-20 right-10 h-80 w-80 rounded-full bg-emerald-100/40 blur-3xl" />
+        <div className="absolute bottom-20 right-10 h-80 w-80 rounded-full bg-emerald-300/10 blur-3xl" />
 
-        <div className="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-100/20 blur-[120px]" />
+        <div className="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-300/10 blur-[120px]" />
 
       </div>
 
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="mx-auto max-w-7xl px-6">
 
-        <FadeUp className="text-center mb-20">
+        <FadeUp className="mx-auto mb-12 max-w-3xl text-center sm:mb-16">
 
-          <span className="uppercase tracking-[4px] text-green-700 font-semibold">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#b9d48d]">
             Artificial Intelligence
           </span>
 
-          <h2 className="mt-4 text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900">
+          <h2 className="mt-4 text-balance text-4xl font-semibold tracking-[-0.045em] text-white sm:text-5xl">
             The Intelligence Behind Every Decision
           </h2>
 
-          <p className="mt-6 max-w-3xl mx-auto text-lg text-slate-600 leading-8">
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-green-50/75 sm:text-lg sm:leading-8">
             Our autonomous decision engine analyzes environmental conditions,
             predicts plant requirements and automatically recommends or executes
             actions before problems become visible.
@@ -67,7 +67,7 @@ export default function AIDecisionLayer() {
 
         </FadeUp>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
           {cards.map((card, index) => {
             const CardAnimation = index < 2 ? FadeLeft : FadeRight;
@@ -81,17 +81,9 @@ export default function AIDecisionLayer() {
               group
               relative
               overflow-hidden
-              rounded-3xl
-              border
-              border-white/60
-              bg-white/70
-              backdrop-blur-xl
-              p-8
-              shadow-lg
-              transition-all
-              duration-500
-              hover:-translate-y-4
-              hover:shadow-2xl
+              rounded-[1.5rem] border border-white/10 bg-white/[0.07] p-6
+              shadow-[0_14px_32px_rgba(0,0,0,0.12)] backdrop-blur-sm
+              transition-[transform,background-color] duration-300 hover:-translate-y-1 hover:bg-white/[0.11]
               "
             >
 
@@ -103,17 +95,11 @@ export default function AIDecisionLayer() {
 
               <div
                 className="
-                w-16
-                h-16
-                rounded-2xl
-                bg-gradient-to-br
-                from-green-100
-                to-emerald-50
-                text-green-700
+                h-12 w-12 rounded-2xl bg-[#dceacb] text-[#236044]
                 flex
                 items-center
                 justify-center
-                mb-6
+                mb-5
                 transition-all
                 duration-500
                 group-hover:rotate-6
@@ -123,11 +109,11 @@ export default function AIDecisionLayer() {
                 {card.icon}
               </div>
 
-              <h3 className="text-xl font-bold text-slate-900 mb-4">
+              <h3 className="mb-3 text-lg font-semibold text-white">
                 {card.title}
               </h3>
 
-              <p className="text-slate-600 leading-7">
+              <p className="text-sm leading-7 text-green-50/70">
                 {card.desc}
               </p>
 
@@ -138,13 +124,13 @@ export default function AIDecisionLayer() {
 
         </div>
 
-        <ScaleIn className="mt-24" delay={0.5}>
+        <ScaleIn className="mt-12 sm:mt-16" delay={0.5}>
 
           <div className="flex flex-wrap justify-center items-center gap-5">
 
             <FlowItem title="Sensors" />
 
-            <ArrowRight className="hidden md:block text-green-500 animate-pulse" />
+            <ArrowRight className="hidden md:block text-[#b9d48d]" />
 
             <FlowItem title="AI Models" />
 
@@ -172,18 +158,8 @@ function FlowItem({ title }: { title: string }) {
       className="
       rounded-full
       border
-      border-green-100
-      bg-white/80
-      backdrop-blur-xl
-      px-8
-      py-5
-      shadow-lg
-      font-semibold
-      text-slate-800
-      transition-all
-      duration-300
-      hover:scale-105
-      hover:shadow-xl
+      border-white/15 bg-white/10 px-5 py-3 text-sm font-semibold text-white
+      backdrop-blur-sm transition-colors duration-300 hover:bg-white/15
       "
     >
       {title}

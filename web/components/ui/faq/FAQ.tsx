@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { faqData } from "./faqData";
 import FAQItem from "./FAQItem";
-import { motion } from "framer-motion";
+import { FadeUp } from "@/components/animations";
 
 export default function FAQ() {
   const [open, setOpen] = useState<number | null>(0);
@@ -11,50 +11,41 @@ export default function FAQ() {
   return (
     <section
       id="faq"
-      className="relative py-32 overflow-hidden"
+      className="relative overflow-hidden py-20 sm:py-28"
     >
       {/* Background */}
 
       <div className="absolute inset-0 bg-gradient-to-b from-white via-green-50/40 to-white" />
 
-      <div className="relative max-w-4xl mx-auto px-6">
+      <div className="relative mx-auto max-w-4xl px-6">
 
         {/* Heading */}
 
-        <motion.div
-  initial={{ opacity: 0, y: 50 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  transition={{
-    duration: 0.8,
-    ease: [0.22, 1, 0.36, 1],
-  }}
-          viewport={{ once: true }}
-          className="text-center mb-20"
-        >
-          <span className="inline-flex rounded-full bg-green-100 px-5 py-2 text-green-700 font-semibold">
+        <FadeUp className="mb-12 text-center sm:mb-16">
+          <span className="inline-flex rounded-full bg-[#e5efd8] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#236044]">
 
             Frequently Asked Questions
 
           </span>
 
-          <h2 className="mt-6 text-5xl font-bold text-gray-900">
+          <h2 className="mt-5 text-4xl font-semibold tracking-[-0.045em] text-[#12382a] sm:text-5xl">
 
             Still Have Questions?
 
           </h2>
 
-          <p className="mt-5 text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-[#617369] sm:text-lg">
 
-            We've answered the most common questions about
+            We&apos;ve answered the most common questions about
             Smart Agri, IoT devices, automation, and remote
             farm management.
 
           </p>
-        </motion.div>
+        </FadeUp>
 
         {/* FAQ */}
 
-        <div className="space-y-6">
+        <div className="space-y-3 sm:space-y-4">
           {faqData.map((item, index) => (
             <FAQItem
               key={index}

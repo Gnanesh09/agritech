@@ -17,7 +17,7 @@ export default function FeatureCard({
     <MouseGlow
       className="
         group
-        rounded-3xl.5
+        rounded-3xl
         border
         border-green-100
         bg-white/80
@@ -35,13 +35,10 @@ export default function FeatureCard({
         className="
           mb-6
           flex
-          h-14
-          w-14
+          h-12 w-12
           items-center
           justify-center
-          rounded-2xl
-          bg-green-50
-          text-green-600
+          rounded-2xl bg-[#e5efd8] text-[#236044]
           transition-all
           duration-300
           group-hover:scale-110
@@ -51,11 +48,11 @@ export default function FeatureCard({
         {icon}
       </div>
 
-      <h3 className="mb-4 text-2xl font-bold text-zinc-900">
+      <h3 className="mb-3 text-xl font-semibold tracking-[-0.025em] text-[#173c2c]">
         {title}
       </h3>
 
-      <p className="text-base leading-8 text-zinc-600">
+      <p className="text-sm leading-7 text-[#617369] sm:text-base">
         {description}
       </p>
     </MouseGlow>

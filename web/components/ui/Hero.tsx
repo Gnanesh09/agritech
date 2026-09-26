@@ -1,136 +1,160 @@
 "use client";
 
 import Image from "next/image";
-import {
-  FadeUp,
-  Floating,
-  ScaleIn,
-} from "@/components/animations";
-import {
-  MagneticButton,
-  RevealText,
-} from "@/components/ui/motion";
+import { ArrowRight, CloudSun, Droplets, Sprout } from "lucide-react";
+import { FadeUp, Floating, ScaleIn } from "@/components/animations";
+
+const highlights = [
+  { value: "24/7", label: "Crop monitoring" },
+  { value: "AI", label: "Field insights" },
+  { value: "One", label: "Smart platform" },
+];
 
 export default function Hero() {
   return (
-    <section className="relative isolate overflow-hidden bg-gradient-to-b from-green-50/70 via-white to-white">
-      {/* Static gradient layers preserve the light theme without adding render cost. */}
+    <section className="relative isolate overflow-hidden bg-[#f7f8f2]">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[30rem] bg-[radial-gradient(ellipse_at_top,rgba(187,247,208,0.55),transparent_68%)]"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(ellipse_at_18%_0%,rgba(210,231,171,0.7),transparent_52%),radial-gradient(ellipse_at_88%_18%,rgba(177,212,185,0.48),transparent_45%)]"
       />
-      <Floating
-        className="pointer-events-none absolute -left-24 top-8 -z-10 h-72 w-72 rounded-full bg-green-200/40 blur-3xl"
-        x={18}
-        y={14}
-        duration={8}
-      >
-        <span aria-hidden="true" />
-      </Floating>
-      <Floating
-        className="pointer-events-none absolute -right-20 bottom-0 -z-10 h-96 w-96 rounded-full bg-lime-200/35 blur-3xl"
-        x={-16}
-        y={-12}
-        duration={9}
-      >
-        <span aria-hidden="true" />
-      </Floating>
 
-      <div className="mx-auto flex max-w-[1500px] flex-col-reverse items-center gap-12 px-6 py-20 sm:py-24 lg:flex-row lg:gap-16 lg:py-28">
-        <div className="relative z-10 flex-1 text-center lg:text-left">
-          <div className="flex flex-col items-center lg:items-start">
-            <FadeUp>
-              <span className="inline-flex rounded-full border border-green-200/80 bg-white/80 px-4 py-2 text-sm font-semibold tracking-tight text-green-700 shadow-sm backdrop-blur-sm">
-                🌱 AI Powered Smart Agriculture
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-28 top-20 -z-10 h-72 w-72 rounded-full border border-green-900/10"
+      />
+
+      <div className="mx-auto grid min-h-[calc(100svh-6rem)] max-w-[1440px] items-center gap-12 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16 lg:px-12 lg:py-20 xl:px-16">
+        <div className="relative z-10 max-w-2xl pt-4 text-center lg:text-left">
+          <FadeUp>
+            <p className="inline-flex items-center gap-2 rounded-full border border-[#174b36]/15 bg-white/70 px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#236044] shadow-sm backdrop-blur-sm">
+              <Sprout className="size-3.5" aria-hidden="true" />
+              Smart agriculture, simplified
+            </p>
+          </FadeUp>
+
+          <FadeUp className="mt-7" delay={0.08}>
+            <h1 className="text-balance text-[2.7rem] font-semibold leading-[0.98] tracking-[-0.055em] text-[#12382a] sm:text-6xl lg:text-[clamp(3.7rem,5.4vw,5.5rem)]">
+              Grow with clarity.
+              <span className="block text-[#5d8e3e]">
+                Farm with confidence.
               </span>
-            </FadeUp>
+            </h1>
+          </FadeUp>
 
-            <FadeUp className="mt-7 sm:mt-8" delay={0.1}>
-              <h1 className="max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-[-0.04em] text-gray-950 sm:text-5xl lg:text-6xl xl:text-[68px]">
-                <RevealText className="block">Autonomous</RevealText>
-                <RevealText className="block">Intelligence</RevealText>
-                <RevealText className="block">for Agriculture</RevealText>
-              </h1>
-            </FadeUp>
+          <FadeUp className="mt-6" delay={0.16}>
+            <p className="mx-auto max-w-xl text-pretty text-base leading-7 text-[#496156] sm:text-lg sm:leading-8 lg:mx-0">
+              Smart Agri brings crop monitoring, irrigation control,
+              environmental analysis, and practical AI recommendations into
+              one intelligent farming workspace.
+            </p>
+          </FadeUp>
 
-            <FadeUp className="mt-6 sm:mt-7" delay={0.2}>
-              <p className="max-w-xl text-base leading-7 text-gray-600 sm:text-lg sm:leading-8">
-                Monitor crops, automate irrigation, analyze environmental conditions and receive AI
-                recommendations from one intelligent cloud platform.
-              </p>
-            </FadeUp>
-
-            <FadeUp
-              className="mt-8 flex flex-wrap justify-center gap-3 sm:mt-10 sm:gap-4 lg:justify-start"
-              delay={0.3}
+          <FadeUp
+            className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start"
+            delay={0.24}
+          >
+            <a
+              href="#contact"
+              className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#174b36] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(23,75,54,0.22)] transition-colors hover:bg-[#0e3928] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#174b36]"
             >
-              <MagneticButton
-                className="rounded-full bg-green-700 px-7 py-3.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(21,128,61,0.24)] outline-none ring-offset-2 hover:bg-green-800 hover:shadow-[0_16px_34px_rgba(21,128,61,0.32)] focus-visible:ring-2 focus-visible:ring-green-700 sm:px-8 sm:py-4"
-                type="button"
-              >
-                Get Started
-              </MagneticButton>
-              <MagneticButton
-                className="rounded-full border border-green-200 bg-white/75 px-7 py-3.5 text-sm font-semibold text-green-800 shadow-sm outline-none ring-offset-2 hover:border-green-300 hover:bg-green-50 hover:shadow-[0_12px_24px_rgba(21,128,61,0.10)] focus-visible:ring-2 focus-visible:ring-green-700 sm:px-8 sm:py-4"
-                type="button"
-              >
-                Learn More
-              </MagneticButton>
-            </FadeUp>
+              Start growing smarter
+              <ArrowRight
+                className="size-4 transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
+            </a>
 
-            <FadeUp
-              className="mt-10 grid w-full max-w-md grid-cols-3 gap-3 border-t border-green-100 pt-7 sm:mt-12 sm:gap-6 lg:max-w-lg"
-              delay={0.4}
+            <a
+              href="#how-it-works"
+              className="inline-flex items-center justify-center rounded-full border border-[#174b36]/20 bg-white/65 px-6 py-3.5 text-sm font-semibold text-[#174b36] shadow-sm transition-colors hover:border-[#174b36]/35 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#174b36]"
             >
-              <HeroStat label="Monitoring" value="24/7" />
-              <HeroStat label="Recommendations" value="AI" />
-              <HeroStat label="Dashboard" value="Cloud" />
-            </FadeUp>
-          </div>
+              See how it works
+            </a>
+          </FadeUp>
+
+          <FadeUp
+            className="mt-10 grid grid-cols-3 border-t border-[#174b36]/15 pt-6 sm:mt-12"
+            delay={0.32}
+          >
+            {highlights.map((highlight) => (
+              <div
+                className="border-r border-[#174b36]/15 px-2 first:pl-0 last:border-r-0 last:pr-0"
+                key={highlight.label}
+              >
+                <p className="text-xl font-semibold tracking-[-0.04em] text-[#174b36] sm:text-2xl">
+                  {highlight.value}
+                </p>
+                <p className="mt-1 text-xs font-medium text-[#617369] sm:text-sm">
+                  {highlight.label}
+                </p>
+              </div>
+            ))}
+          </FadeUp>
         </div>
 
-        <ScaleIn className="relative flex-[1.15]" delay={0.15}>
-          <Floating y={8} duration={6}>
-            <div
-            className="relative overflow-hidden rounded-[2rem] border border-green-100/80 bg-white p-1.5 shadow-[0_24px_70px_rgba(20,83,45,0.16)] sm:rounded-[2.25rem]"
-          >
-            <div className="absolute inset-x-0 top-0 z-10 h-1/3 bg-gradient-to-b from-white/30 to-transparent" />
+        <ScaleIn
+          className="relative mx-auto w-full max-w-3xl lg:max-w-none"
+          delay={0.12}
+        >
+          <div className="relative overflow-hidden rounded-[2rem] bg-[#174b36] p-1 shadow-[0_28px_80px_rgba(20,61,43,0.22)] sm:rounded-[2.5rem] sm:p-1.5">
             <Image
-              src="/hero.png"
-              alt="Smart Agriculture"
-              width={1500}
-              height={1500}
+              src="/hero-new.png"
+              alt="A flourishing crop field supported by Smart Agri technology"
+              width={1536}
+              height={1024}
               priority
-              className="relative aspect-[20/14] w-full rounded-[1.6rem] object-cover sm:rounded-[1.9rem]"
+              sizes="(min-width: 1024px) 56vw, (min-width: 640px) 80vw, 100vw"
+              className="aspect-[3/2] w-full rounded-[1.55rem] object-cover sm:rounded-[2rem]"
+            />
+
+            <div
+              aria-hidden="true"
+              className="absolute inset-3 rounded-[1.55rem] bg-gradient-to-t from-[#12382a]/45 via-transparent to-transparent sm:rounded-[2rem]"
             />
 
             <Floating
-  className="absolute bottom-5 left-5 rounded-xl border border-white/80 bg-white/90 px-3 py-2 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-md sm:bottom-7 sm:left-7 sm:px-4"
-  y={-5}
-  duration={5.5}
->
-  🌡️ 24°C
-</Floating>
-            <Floating
-              className="absolute bottom-5 right-5 rounded-xl border border-white/80 bg-white/90 px-3 py-2 text-sm font-semibold text-gray-700 shadow-lg backdrop-blur-md sm:bottom-7 sm:right-7 sm:px-4"
-              y={-5}
-              duration={5.5}
+              className="absolute bottom-7 left-7 sm:bottom-10 sm:left-10"
+              y={5}
+              duration={6}
             >
-              💧 Humidity 63%
+              <div className="rounded-2xl border border-white/30 bg-white/90 px-3.5 py-3 shadow-xl backdrop-blur-md sm:px-4">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[#174b36]">
+                  <CloudSun className="size-4" aria-hidden="true" />
+                  Field conditions
+                </div>
+
+                <p className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[#173c2c]">
+                  24°C{" "}
+                  <span className="text-sm font-medium text-[#5a7266]">
+                    Clear
+                  </span>
+                </p>
+              </div>
             </Floating>
-            </div>
-          </Floating>
+
+            <Floating
+              className="absolute right-7 top-7 hidden sm:block sm:right-10 sm:top-10"
+              y={-5}
+              duration={6.5}
+              delay={0.4}
+            >
+              <div className="rounded-2xl border border-white/30 bg-[#174b36]/90 px-4 py-3 text-white shadow-xl backdrop-blur-md">
+                <div className="flex items-center gap-2 text-xs font-semibold text-green-100">
+                  <Droplets className="size-4" aria-hidden="true" />
+                  Soil moisture
+                </div>
+
+                <p className="mt-1 text-lg font-semibold tracking-[-0.03em]">
+                  63%{" "}
+                  <span className="text-sm font-medium text-green-100">
+                    Optimal
+                  </span>
+                </p>
+              </div>
+            </Floating>
+          </div>
         </ScaleIn>
       </div>
     </section>
-  );
-}
-
-function HeroStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">{value}</p>
-      <p className="mt-1 text-xs font-medium text-gray-500 sm:text-sm">{label}</p>
-    </div>
   );
 }
