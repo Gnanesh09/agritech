@@ -9,12 +9,113 @@ import { normalizeCapabilities } from "../services/deviceCapabilities.service";
 
 import * as crypto from "node:crypto";
 
+// ============================================================
+// RACK MODEL HELPERS
+// ============================================================
+
+function validateRackLayout(
+  kind: unknown,
+  rackRowCount: unknown,
+  traysPerRow: unknown,
+) {
+  const resolvedKind = kind ?? "GENERIC";
+
+  if (resolvedKind !== "GENERIC" && resolvedKind !== "RACK") {
+    return "kind must be GENERIC or RACK";
+  }
+
+  if (resolvedKind === "RACK") {
+    if (![3, 4].includes(Number(rackRowCount))) {
+      return "RACK rackRowCount must be 3 or 4";
+    }
+
+    if (traysPerRow !== undefined && Number(traysPerRow) !== 4) {
+      return "RACK traysPerRow must be 4";
+    }
+  }
+
+  if (
+    resolvedKind === "GENERIC" &&
+    rackRowCount !== undefined &&
+    rackRowCount !== null
+  ) {
+    return "GENERIC models cannot define rackRowCount";
+  }
+
+  return null;
+}
+
+function buildRackCapabilities(rowCount: number, capabilities: unknown) {
+  const normalized = normalizeCapabilities(capabilities);
+  const sensors = [...(normalized.sensors ?? [])];
+  const actuators = [...(normalized.actuators ?? [])];
+
+  for (let row = 1; row <= rowCount; row += 1) {
+    const requiredSensors = [
+      {
+        key: `row_${row}_temperature`,
+        label: `Row ${row} temperature`,
+        type: "number",
+        unit: "°C",
+      },
+      {
+        key: `row_${row}_humidity`,
+        label: `Row ${row} humidity`,
+        type: "number",
+        unit: "%",
+      },
+      {
+        key: `row_${row}_light_sensor`,
+        label: `Row ${row} light sensor`,
+        type: "number",
+      },
+    ];
+
+    const requiredActuators = [
+      { key: `row_${row}_fan`, label: `Row ${row} fan`, type: "boolean" },
+      { key: `row_${row}_light`, label: `Row ${row} light`, type: "boolean" },
+    ];
+
+    for (const capability of requiredSensors) {
+      if (!sensors.some((item: any) => item.key === capability.key)) {
+        sensors.push(capability as any);
+      }
+    }
+
+    for (const capability of requiredActuators) {
+      if (!actuators.some((item: any) => item.key === capability.key)) {
+        actuators.push(capability as any);
+      }
+    }
+  }
+
+  return { sensors, actuators };
+}
+
 export async function createDeviceModel(req: Request, res: Response) {
   try {
-    const { name, code, description, version, imageUrl, capabilities } =
-      req.body;
+    const {
+      name,
+      code,
+      description,
+      version,
+      imageUrl,
+      capabilities,
+      kind = "GENERIC",
+      rackRowCount,
+      traysPerRow = 4,
+    } = req.body;
 
-    const normalizedCapabilities = normalizeCapabilities(capabilities);
+    const rackLayoutError = validateRackLayout(kind, rackRowCount, traysPerRow);
+
+    if (rackLayoutError) {
+      return res.status(400).json({ message: rackLayoutError });
+    }
+
+    const normalizedCapabilities =
+      kind === "RACK"
+        ? buildRackCapabilities(Number(rackRowCount), capabilities)
+        : normalizeCapabilities(capabilities);
     // --------------------------------------------------
     // VALIDATION
     // --------------------------------------------------
@@ -54,6 +155,9 @@ export async function createDeviceModel(req: Request, res: Response) {
         imageUrl: imageUrl || null,
 
         capabilities: normalizedCapabilities,
+        kind,
+        rackRowCount: kind === "RACK" ? Number(rackRowCount) : null,
+        traysPerRow: kind === "RACK" ? Number(traysPerRow) : 4,
 
         status: "ACTIVE",
       },
@@ -80,6 +184,9 @@ export async function createDeviceModel(req: Request, res: Response) {
         imageUrl: deviceModel.imageUrl,
 
         capabilities: deviceModel.capabilities,
+        kind: deviceModel.kind,
+        rackRowCount: deviceModel.rackRowCount,
+        traysPerRow: deviceModel.traysPerRow,
 
         status: deviceModel.status,
 
@@ -121,6 +228,10 @@ export async function getAllDeviceModel(req: AuthRequest, res: Response) {
         version: model.version,
         status: model.status,
         imageUrl: model.imageUrl,
+        kind: model.kind,
+        rackRowCount: model.rackRowCount,
+        traysPerRow: model.traysPerRow,
+        capabilities: model.capabilities,
 
         // Number of physical devices registered
         deviceCount: model._count.devices,
@@ -129,7 +240,10 @@ export async function getAllDeviceModel(req: AuthRequest, res: Response) {
         updatedAt: model.updatedAt,
       })),
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error("getAllDeviceModel:", error);
+    return res.status(500).json({ message: "Failed to fetch device models" });
+  }
 }
 
 // get models by id
@@ -173,6 +287,9 @@ export async function getDeviceModelById(req: AuthRequest, res: Response) {
         version: deviceModel.version,
         status: deviceModel.status,
         imageUrl: deviceModel.imageUrl,
+        kind: deviceModel.kind,
+        rackRowCount: deviceModel.rackRowCount,
+        traysPerRow: deviceModel.traysPerRow,
 
         deviceCount: deviceModel._count.devices,
         capabilities: deviceModel.capabilities,
@@ -180,7 +297,10 @@ export async function getDeviceModelById(req: AuthRequest, res: Response) {
         updatedAt: deviceModel.updatedAt,
       },
     });
-  } catch (error) {}
+  } catch (error) {
+    console.error("getDeviceModelById:", error);
+    return res.status(500).json({ message: "Failed to fetch device model" });
+  }
 }
 
 // update  device model
@@ -194,20 +314,67 @@ export async function updateDeviceModel(req: AuthRequest, res: Response) {
       });
     }
 
-    const { name, code, description, version, status, imageUrl, capabilities } =
-      req.body;
-
-    const normalizedCapabilities = normalizeCapabilities(capabilities);
+    const {
+      name,
+      code,
+      description,
+      version,
+      status,
+      imageUrl,
+      capabilities,
+      kind,
+      rackRowCount,
+      traysPerRow,
+    } = req.body;
 
     const existingModel = await prisma.deviceModel.findUnique({
       where: {
         id: id,
+      },
+      include: {
+        _count: {
+          select: {
+            devices: true,
+          },
+        },
       },
     });
 
     if (!existingModel) {
       return res.status(404).json({
         message: "Device model not found",
+      });
+    }
+
+    const nextKind = kind ?? existingModel.kind;
+    const nextRackRowCount =
+      rackRowCount !== undefined ? rackRowCount : existingModel.rackRowCount;
+    const nextTraysPerRow =
+      traysPerRow !== undefined ? traysPerRow : existingModel.traysPerRow;
+
+    const rackLayoutError = validateRackLayout(
+      nextKind,
+      nextRackRowCount,
+      nextTraysPerRow,
+    );
+
+    if (rackLayoutError) {
+      return res.status(400).json({ message: rackLayoutError });
+    }
+
+    if (
+      existingModel._count.devices > 0 &&
+      (kind !== undefined ||
+        rackRowCount !== undefined ||
+        traysPerRow !== undefined) &&
+      (nextKind !== existingModel.kind ||
+        Number(nextRackRowCount ?? 0) !==
+          Number(existingModel.rackRowCount ?? 0) ||
+        Number(nextTraysPerRow) !== Number(existingModel.traysPerRow))
+    ) {
+      return res.status(409).json({
+        message:
+          "Rack layout cannot be changed while physical devices are registered under this model",
       });
     }
 
@@ -226,6 +393,25 @@ export async function updateDeviceModel(req: AuthRequest, res: Response) {
       }
     }
 
+    const shouldRefreshCapabilities =
+      capabilities !== undefined ||
+      kind !== undefined ||
+      rackRowCount !== undefined ||
+      traysPerRow !== undefined;
+
+    const nextCapabilities =
+      nextKind === "RACK"
+        ? buildRackCapabilities(
+            Number(nextRackRowCount),
+            capabilities !== undefined
+              ? capabilities
+              : existingModel.capabilities,
+          )
+        : normalizeCapabilities(
+            capabilities !== undefined
+              ? capabilities
+              : existingModel.capabilities,
+          );
     const updatedModel = await prisma.deviceModel.update({
       where: {
         id: id,
@@ -254,8 +440,17 @@ export async function updateDeviceModel(req: AuthRequest, res: Response) {
         ...(imageUrl !== undefined && {
           imageUrl,
         }),
-        ...(capabilities !== undefined && {
-          capabilities,
+        ...(shouldRefreshCapabilities && {
+          capabilities: nextCapabilities,
+        }),
+        ...(kind !== undefined && {
+          kind,
+        }),
+        ...(rackRowCount !== undefined && {
+          rackRowCount: nextKind === "RACK" ? Number(rackRowCount) : null,
+        }),
+        ...(traysPerRow !== undefined && {
+          traysPerRow: Number(traysPerRow),
         }),
       },
     });
@@ -513,6 +708,9 @@ export async function registerDevice(req: Request, res: Response) {
           name: device.deviceModel.name,
 
           code: device.deviceModel.code,
+          kind: device.deviceModel.kind,
+          rackRowCount: device.deviceModel.rackRowCount,
+          traysPerRow: device.deviceModel.traysPerRow,
         },
 
         batchNumber: device.batchNumber,
@@ -891,7 +1089,7 @@ export async function getDevice(req: Request, res: Response) {
     });
   }
 }
-// ======================================================
+/// ======================================================
 // UPDATE DEVICE
 // PATCH /api/admin/devices/:id
 // ======================================================
@@ -899,6 +1097,7 @@ export async function getDevice(req: Request, res: Response) {
 export async function updateDevice(req: Request, res: Response) {
   try {
     const { id } = req.params;
+
     if (!id || Array.isArray(id)) {
       return res.status(400).json({
         message: "Invalid device ID",
@@ -915,9 +1114,9 @@ export async function updateDevice(req: Request, res: Response) {
       manufacturedAt,
     } = req.body;
 
-    // -----------------------------
-    // Check device
-    // -----------------------------
+    // --------------------------------------------------
+    // CHECK DEVICE
+    // --------------------------------------------------
 
     const existingDevice = await prisma.device.findUnique({
       where: {
@@ -931,9 +1130,9 @@ export async function updateDevice(req: Request, res: Response) {
       });
     }
 
-    // -----------------------------
-    // Check Device Model
-    // -----------------------------
+    // --------------------------------------------------
+    // CHECK DEVICE MODEL
+    // --------------------------------------------------
 
     if (deviceModelId) {
       const model = await prisma.deviceModel.findUnique({
@@ -955,9 +1154,9 @@ export async function updateDevice(req: Request, res: Response) {
       }
     }
 
-    // -----------------------------
-    // Duplicate protection
-    // -----------------------------
+    // --------------------------------------------------
+    // DUPLICATE PROTECTION
+    // --------------------------------------------------
 
     const duplicate = await prisma.device.findFirst({
       where: {
@@ -970,13 +1169,37 @@ export async function updateDevice(req: Request, res: Response) {
 
           {
             OR: [
-              ...(deviceCode ? [{ deviceCode }] : []),
+              ...(deviceCode
+                ? [
+                    {
+                      deviceCode,
+                    },
+                  ]
+                : []),
 
-              ...(serialNumber ? [{ serialNumber }] : []),
+              ...(serialNumber
+                ? [
+                    {
+                      serialNumber,
+                    },
+                  ]
+                : []),
 
-              ...(macAddress ? [{ macAddress }] : []),
+              ...(macAddress
+                ? [
+                    {
+                      macAddress,
+                    },
+                  ]
+                : []),
 
-              ...(chipId ? [{ chipId }] : []),
+              ...(chipId
+                ? [
+                    {
+                      chipId,
+                    },
+                  ]
+                : []),
             ],
           },
         ],
@@ -989,9 +1212,9 @@ export async function updateDevice(req: Request, res: Response) {
       });
     }
 
-    // -----------------------------
-    // Update
-    // -----------------------------
+    // --------------------------------------------------
+    // UPDATE
+    // --------------------------------------------------
 
     const updatedDevice = await prisma.device.update({
       where: {
@@ -1000,19 +1223,19 @@ export async function updateDevice(req: Request, res: Response) {
 
       data: {
         ...(deviceCode !== undefined && {
-          deviceCode,
+          deviceCode: deviceCode.trim(),
         }),
 
         ...(serialNumber !== undefined && {
-          serialNumber,
+          serialNumber: serialNumber.trim(),
         }),
 
         ...(macAddress !== undefined && {
-          macAddress: macAddress || null,
+          macAddress: macAddress?.trim() || null,
         }),
 
         ...(chipId !== undefined && {
-          chipId: chipId || null,
+          chipId: chipId?.trim() || null,
         }),
 
         ...(deviceModelId !== undefined && {
@@ -1020,7 +1243,7 @@ export async function updateDevice(req: Request, res: Response) {
         }),
 
         ...(batchNumber !== undefined && {
-          batchNumber: batchNumber || null,
+          batchNumber: batchNumber?.trim() || null,
         }),
 
         ...(manufacturedAt !== undefined && {
@@ -1028,21 +1251,85 @@ export async function updateDevice(req: Request, res: Response) {
         }),
       },
 
+      // IMPORTANT:
+      // Device no longer has an `owner` relation.
+      // Ownership is through UserDevice.
       include: {
         deviceModel: true,
-        owner: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
+
+        userDevices: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                email: true,
+                phoneNo: true,
+              },
+            },
           },
         },
+
+        state: true,
       },
     });
 
+    // --------------------------------------------------
+    // CURRENT LINKED USER
+    // --------------------------------------------------
+
+    const linkedUser = updatedDevice.userDevices[0]?.user ?? null;
+
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
+
     return res.status(200).json({
       message: "Device updated successfully",
-      device: updatedDevice,
+
+      device: {
+        id: updatedDevice.id,
+
+        deviceCode: updatedDevice.deviceCode,
+
+        serialNumber: updatedDevice.serialNumber,
+
+        macAddress: updatedDevice.macAddress,
+
+        chipId: updatedDevice.chipId,
+
+        status: updatedDevice.status,
+
+        batchNumber: updatedDevice.batchNumber,
+
+        manufacturedAt: updatedDevice.manufacturedAt,
+
+        linkedAt: updatedDevice.linkedAt,
+
+        createdAt: updatedDevice.createdAt,
+
+        updatedAt: updatedDevice.updatedAt,
+
+        deviceModel: updatedDevice.deviceModel,
+
+        owner: linkedUser
+          ? {
+              id: linkedUser.id,
+              username: linkedUser.username,
+              email: linkedUser.email,
+              phoneNo: linkedUser.phoneNo,
+            }
+          : null,
+
+        state: updatedDevice.state
+          ? {
+              actual: updatedDevice.state.actual,
+              desired: updatedDevice.state.desired,
+              modes: updatedDevice.state.modes,
+              lastReportedAt: updatedDevice.state.lastReportedAt,
+            }
+          : null,
+      },
     });
   } catch (error) {
     console.error("updateDevice:", error);
@@ -1052,7 +1339,6 @@ export async function updateDevice(req: Request, res: Response) {
     });
   }
 }
-
 // ======================================================
 // UPDATE DEVICE STATUS
 // PATCH /api/admin/devices/:id/status

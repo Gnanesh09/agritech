@@ -77,11 +77,5 @@ adminRouter.patch(
   authorizeRole("ADMIN", "SUPER_ADMIN"),
   adminController.updateDeviceStatus,
 );
-adminRouter.patch(
-  "/devices/:id",
-  protectRouteAdmin,
-  authorizeRole("ADMIN", "SUPER_ADMIN"),
-  adminController.updateDevice,
-);
 
 export default adminRouter;

@@ -44,10 +44,26 @@ enum AutomationStatus {
   PAUSED
 }
 
+enum DeviceKind {
+  GENERIC
+  RACK
+}
+
+enum RackStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TrayCropStatus {
+  GROWING
+  READY
+  HARVESTED
+  CANCELLED
+}
+
 // ============================================================
 // USER
 // ============================================================
-
 model User {
   id          String  @id @default(uuid())
   username    String
@@ -62,6 +78,13 @@ model User {
   sessions    Session[]
   userDevices UserDevice[]
   automations DeviceAutomation[]
+  racks       Rack[]
+
+  communitiesOwned        Community[]        @relation("CommunityOwner")
+  communityMemberships    CommunityMember[]
+  communityListings       CommunityListing[]
+  communityOrdersAsBuyer  CommunityOrder[]   @relation("CommunityOrderBuyer")
+  communityOrdersAsSeller CommunityOrder[]   @relation("CommunityOrderSeller")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -126,6 +149,15 @@ model DeviceModel {
   version     String?
   imageUrl    String?
 
+  // Product type. RACK models represent 3-row or 4-row growing racks.
+  kind DeviceKind @default(GENERIC)
+
+  // Required only for RACK models. Supported values: 3 or 4.
+  rackRowCount Int?
+
+  // AgriTech rack layout: four trays per row.
+  traysPerRow Int @default(4)
+
   /**
    * Example:
    * {
@@ -155,6 +187,7 @@ model DeviceModel {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([kind])
   @@map("device_models")
 }
 
@@ -198,6 +231,7 @@ model Device {
   automations DeviceAutomation[]
 
   userDevices UserDevice[]
+  racks       Rack[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -267,6 +301,7 @@ model DeviceTelemetry {
 
   @@index([deviceId])
   @@index([recordedAt])
+  @@index([deviceId, recordedAt])
   @@map("device_telemetry")
 }
 
@@ -438,4 +473,286 @@ model Report {
   @@index([createdAt])
   @@index([publisher])
   @@map("reports")
+}
+
+// ============================================================
+// AGRIGROW RACK
+// User-owned business object built from a physical RACK device.
+// A 3-row rack has 12 trays; a 4-row rack has 16 trays.
+// ============================================================
+
+model Rack {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  name String
+
+  // Snapshot of the layout when this rack was claimed.
+  rowCount    Int
+  traysPerRow Int @default(4)
+
+  status RackStatus @default(ACTIVE)
+
+  rows RackRow[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([deviceId, status])
+  @@index([status])
+  @@map("racks")
+}
+
+model RackRow {
+  id String @id @default(uuid())
+
+  rackId String
+  rack   Rack   @relation(fields: [rackId], references: [id], onDelete: Cascade)
+
+  rowNumber Int
+  name      String
+
+  // Generic device capability keys for this physical row.
+  fanTarget   String
+  lightTarget String
+
+  temperatureSensorKey String?
+  humiditySensorKey    String?
+  lightSensorKey       String?
+
+  // Per-row future automation configuration for the ESP32.
+  controlConfig Json @default("{}")
+
+  trays RackTray[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([rackId, rowNumber])
+  @@index([rackId])
+  @@map("rack_rows")
+}
+
+model RackTray {
+  id String @id @default(uuid())
+
+  rowId String
+  row   RackRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+
+  slot Int
+  name String
+
+  cycles TrayCropCycle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([rowId, slot])
+  @@index([rowId])
+  @@map("rack_trays")
+}
+
+// ============================================================
+// TRAY CROP CYCLE
+//
+// cropName is intentionally free-form. A user can grow ANY crop
+// and name it however they want. There is no mandatory Crop master.
+// Each planting creates a new historical cycle for the tray.
+// ============================================================
+model TrayCropCycle {
+  id String @id @default(uuid())
+
+  trayId String
+  tray   RackTray @relation(fields: [trayId], references: [id], onDelete: Cascade)
+
+  cropName String
+
+  sowingDate          DateTime
+  estimatedGrowthDays Int
+  expectedHarvestDate DateTime
+
+  status TrayCropStatus @default(GROWING)
+
+  harvestedAt DateTime?
+  notes       String?
+
+  communityListings CommunityListing[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([trayId])
+  @@index([trayId, status])
+  @@index([status])
+  @@index([expectedHarvestDate])
+  @@index([cropName])
+  @@map("tray_crop_cycles")
+}
+
+enum CommunityMemberRole {
+  OWNER
+  MEMBER
+}
+
+enum CommunityListingStatus {
+  ACTIVE
+  PAUSED
+  SOLD_OUT
+  REMOVED
+}
+
+enum HarvestAvailability {
+  TODAY
+  TOMORROW
+}
+
+enum PackUnit {
+  G
+  KG
+  PCS
+  BUNCH
+  BOX
+  PACK
+}
+
+enum CommunityOrderStatus {
+  PLACED
+  ACCEPTED
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================================
+// COMMUNITY MARKETPLACE
+// ============================================================
+
+model Community {
+  id          String  @id @default(uuid())
+  name        String
+  slug        String  @unique
+  description String?
+
+  ownerId String
+  owner   User   @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+
+  members  CommunityMember[]
+  listings CommunityListing[]
+  orders   CommunityOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([name])
+  @@map("communities")
+}
+
+model CommunityMember {
+  id String @id @default(uuid())
+
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role     CommunityMemberRole @default(MEMBER)
+  joinedAt DateTime            @default(now())
+
+  @@unique([communityId, userId])
+  @@index([communityId])
+  @@index([userId])
+  @@map("community_members")
+}
+
+model CommunityListing {
+  id String @id @default(uuid())
+
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Restrict)
+
+  sellerId String
+  seller   User   @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+
+  cropCycleId String
+  cropCycle   TrayCropCycle @relation(fields: [cropCycleId], references: [id], onDelete: Restrict)
+
+  packSizeValue Decimal  @db.Decimal(10, 3)
+  packSizeUnit  PackUnit
+
+  price             Decimal @db.Decimal(10, 2)
+  quantityAvailable Int?
+
+  harvestAvailability HarvestAvailability
+
+  imageUrl       String?
+  imageFileId    String?
+  imageSizeBytes Int?
+
+  status CommunityListingStatus @default(ACTIVE)
+
+  orders CommunityOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([communityId, cropCycleId])
+  @@index([communityId, status, createdAt])
+  @@index([sellerId])
+  @@index([cropCycleId])
+  @@index([harvestAvailability])
+  @@map("community_listings")
+}
+
+model CommunityOrder {
+  id String @id @default(uuid())
+
+  orderNumber String @unique
+
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Restrict)
+
+  listingId String
+  listing   CommunityListing @relation(fields: [listingId], references: [id], onDelete: Restrict)
+
+  buyerId String
+  buyer   User   @relation("CommunityOrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+
+  sellerId String
+  seller   User   @relation("CommunityOrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+
+  // Snapshot fields so the order remains historically accurate
+  // even if the listing changes later.
+  cropName            String
+  expectedHarvestDate DateTime
+  packSizeValue       Decimal  @db.Decimal(10, 3)
+  packSizeUnit        PackUnit
+
+  quantity   Int
+  unitPrice  Decimal @db.Decimal(10, 2)
+  totalPrice Decimal @db.Decimal(12, 2)
+
+  status CommunityOrderStatus @default(PLACED)
+
+  cancelledAt DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([communityId])
+  @@index([listingId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([communityId, createdAt])
+  @@map("community_orders")
 }

@@ -1,20 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
 import {
   ArrowLeft,
   Check,
   CirclePlus,
   Image as ImageIcon,
-  RefreshCw,
+  RefreshCcw,
   Save,
   Trash2,
 } from "lucide-react";
-
-import { useParams, useRouter } from "next/navigation";
-
+import { useRouter } from "next/navigation";
 import api from "../../../lib/axios";
+
+// ============================================================
+// TYPES
+// ============================================================
+
+type ModelKind = "GENERIC" | "RACK";
+
+type ModelStatus = "ACTIVE" | "INACTIVE" | "DISCONTINUED";
 
 type CapabilityType = "number" | "boolean" | "string";
 
@@ -33,8 +38,12 @@ type DeviceModel = {
   code: string;
   description: string | null;
   version: string | null;
-  status: "ACTIVE" | "INACTIVE" | "DISCONTINUED";
+  status: ModelStatus;
   imageUrl: string | null;
+
+  kind: ModelKind;
+  rackRowCount: number | null;
+  traysPerRow: number;
 
   capabilities: {
     sensors: Capability[];
@@ -46,7 +55,12 @@ type DeviceModel = {
 
 type ModelEditorProps = {
   mode: "create" | "edit";
+  modelId?: string;
 };
+
+// ============================================================
+// HELPERS
+// ============================================================
 
 function createCapability(actuator = false): Capability {
   return {
@@ -57,36 +71,63 @@ function createCapability(actuator = false): Capability {
   };
 }
 
-export default function ModelEditor({ mode }: ModelEditorProps) {
+function cleanCapability(item: Capability) {
+  return {
+    key: item.key.trim(),
+    ...(item.label?.trim() ? { label: item.label.trim() } : {}),
+    type: item.type,
+    ...(item.unit?.trim() ? { unit: item.unit.trim() } : {}),
+    ...(item.type === "number" && item.min !== undefined
+      ? { min: item.min }
+      : {}),
+    ...(item.type === "number" && item.max !== undefined
+      ? { max: item.max }
+      : {}),
+  };
+}
+
+// ============================================================
+// PAGE
+// ============================================================
+
+export default function ModelEditor({ mode, modelId }: ModelEditorProps) {
   const router = useRouter();
-  const params = useParams();
 
-  const modelId = typeof params?.id === "string" ? params.id : "";
-
+  // Explicit mode only.
   const isCreate = mode === "create";
+
+  // Never allow edit mode to work without an ID.
+  const hasValidEditId = !isCreate && Boolean(modelId);
 
   // ==========================================================
   // BASIC MODEL DATA
   // ==========================================================
 
   const [name, setName] = useState("");
-
   const [code, setCode] = useState("");
-
   const [description, setDescription] = useState("");
-
   const [version, setVersion] = useState("");
-
   const [imageUrl, setImageUrl] = useState("");
 
-  const [status, setStatus] = useState<DeviceModel["status"]>("ACTIVE");
+  const [status, setStatus] = useState<ModelStatus>("ACTIVE");
+
+  // ==========================================================
+  // DEVICE TYPE
+  // ==========================================================
+
+  const [kind, setKind] = useState<ModelKind>("GENERIC");
+
+  const [rackRowCount, setRackRowCount] = useState<3 | 4>(3);
+
+  // Product architecture:
+  // Every rack row always has 4 trays.
+  const traysPerRow = 4;
 
   // ==========================================================
   // CAPABILITIES
   // ==========================================================
 
   const [sensors, setSensors] = useState<Capability[]>([]);
-
   const [actuators, setActuators] = useState<Capability[]>([]);
 
   // ==========================================================
@@ -94,13 +135,10 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
   // ==========================================================
 
   const [loading, setLoading] = useState(!isCreate);
-
   const [saving, setSaving] = useState(false);
-
   const [deleting, setDeleting] = useState(false);
 
   const [error, setError] = useState("");
-
   const [success, setSuccess] = useState("");
 
   // ==========================================================
@@ -110,6 +148,7 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
   useEffect(() => {
     if (isCreate) {
       setLoading(false);
+      setError("");
       return;
     }
 
@@ -119,15 +158,16 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
       return;
     }
 
-    void loadModel();
+    void loadModel(modelId);
   }, [isCreate, modelId]);
 
-  async function loadModel() {
+  async function loadModel(id: string) {
     try {
       setLoading(true);
       setError("");
+      setSuccess("");
 
-      const response = await api.get(`/admin/devicemodel/${modelId}`);
+      const response = await api.get(`/admin/devicemodel/${id}`);
 
       const model = response.data?.deviceModel as DeviceModel | undefined;
 
@@ -136,19 +176,21 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
       }
 
       setName(model.name ?? "");
-
       setCode(model.code ?? "");
-
       setDescription(model.description ?? "");
-
       setVersion(model.version ?? "");
-
       setImageUrl(model.imageUrl ?? "");
-
       setStatus(model.status ?? "ACTIVE");
 
-      setSensors(model.capabilities?.sensors ?? []);
+      setKind(model.kind ?? "GENERIC");
 
+      if (model.rackRowCount === 3 || model.rackRowCount === 4) {
+        setRackRowCount(model.rackRowCount);
+      } else {
+        setRackRowCount(3);
+      }
+
+      setSensors(model.capabilities?.sensors ?? []);
       setActuators(model.capabilities?.actuators ?? []);
     } catch (err: any) {
       console.error("Load model error:", err);
@@ -160,6 +202,20 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ==========================================================
+  // DEVICE TYPE
+  // ==========================================================
+
+  function handleKindChange(value: ModelKind) {
+    setKind(value);
+
+    if (value === "RACK") {
+      if (rackRowCount !== 3 && rackRowCount !== 4) {
+        setRackRowCount(3);
+      }
     }
   }
 
@@ -232,6 +288,16 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
       return "Model code is required.";
     }
 
+    if (!isCreate && !modelId) {
+      return "Cannot update device model: model ID is missing.";
+    }
+
+    if (kind === "RACK") {
+      if (rackRowCount !== 3 && rackRowCount !== 4) {
+        return "Rack must have 3 or 4 rows.";
+      }
+    }
+
     const allKeys = [...sensors, ...actuators]
       .map((item) => item.key.trim())
       .filter(Boolean);
@@ -257,30 +323,6 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
     return null;
   }
 
-  function cleanCapability(item: Capability) {
-    return {
-      key: item.key.trim(),
-
-      label: item.label?.trim() || undefined,
-
-      type: item.type,
-
-      unit: item.unit?.trim() || undefined,
-
-      ...(item.type === "number" && item.min !== undefined
-        ? {
-            min: item.min,
-          }
-        : {}),
-
-      ...(item.type === "number" && item.max !== undefined
-        ? {
-            max: item.max,
-          }
-        : {}),
-    };
-  }
-
   // ==========================================================
   // SAVE
   // ==========================================================
@@ -290,6 +332,7 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
 
     if (validation) {
       setError(validation);
+      setSuccess("");
       return;
     }
 
@@ -300,16 +343,22 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
 
       const payload = {
         name: name.trim(),
-
         code: code.trim(),
-
         description: description.trim() || null,
-
         version: version.trim() || null,
-
         imageUrl: imageUrl.trim() || null,
 
         status,
+
+        // Device type
+        kind,
+
+        // Generic => null
+        // Rack => 3 or 4
+        rackRowCount: kind === "RACK" ? rackRowCount : null,
+
+        // Always 4 for your rack architecture
+        traysPerRow: 4,
 
         capabilities: {
           sensors: sensors
@@ -322,37 +371,50 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
         },
       };
 
-      // --------------------------------------------------------
+      // ========================================================
       // CREATE
-      // --------------------------------------------------------
+      // ========================================================
 
       if (isCreate) {
         const response = await api.post("/admin/devicemodel", payload);
 
         const created = response.data?.deviceModel;
 
-        setSuccess("Device model created successfully.");
-
-        if (created?.id) {
-          router.replace(`/admin/dashboard/models/${created.id}`);
+        if (!created?.id) {
+          throw new Error("Device model was created but no ID was returned.");
         }
+
+        router.replace(`/admin/dashboard/models/${created.id}`);
 
         return;
       }
 
-      // --------------------------------------------------------
+      // ========================================================
       // UPDATE
-      // --------------------------------------------------------
+      // ========================================================
+
+      if (!modelId) {
+        setError("Cannot update device model: model ID is missing.");
+        return;
+      }
 
       await api.patch(`/admin/devicemodel/${modelId}`, payload);
 
       setSuccess("Device model updated successfully.");
 
-      await loadModel();
+      await loadModel(modelId);
     } catch (err: any) {
       console.error("Save model error:", err);
+      console.error("Status:", err?.response?.status);
+      console.error("Response:", err?.response?.data);
+      console.error("URL:", err?.config?.url);
+      console.error("Base URL:", err?.config?.baseURL);
 
-      setError(err?.response?.data?.message || "Failed to save device model.");
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          `Failed to save device model (${err?.response?.status ?? "unknown"})`,
+      );
     } finally {
       setSaving(false);
     }
@@ -374,6 +436,7 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
     try {
       setDeleting(true);
       setError("");
+      setSuccess("");
 
       await api.delete(`/admin/devicemodel/${modelId}`);
 
@@ -399,12 +462,53 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
         <div className="h-10 w-52 animate-pulse rounded-2xl bg-white" />
 
         <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-          <div className="h-[550px] animate-pulse rounded-[28px] bg-white" />
-          <div className="h-[550px] animate-pulse rounded-[28px] bg-white" />
+          <div className="h-[650px] animate-pulse rounded-[28px] bg-white" />
+
+          <div className="h-[650px] animate-pulse rounded-[28px] bg-white" />
         </div>
       </div>
     );
   }
+
+  // ==========================================================
+  // EDIT MODE WITHOUT ID
+  // ==========================================================
+
+  if (!isCreate && !hasValidEditId) {
+    return (
+      <div className="space-y-5">
+        <header className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/admin/dashboard/models")}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white"
+          >
+            <ArrowLeft size={17} />
+          </button>
+
+          <div>
+            <p className="text-[8px] font-bold uppercase tracking-[0.18em] text-[#9ca59a]">
+              Device catalog
+            </p>
+
+            <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.06em]">
+              Edit model
+            </h1>
+          </div>
+        </header>
+
+        <div className="rounded-2xl bg-red-50 px-4 py-3 text-[10px] font-semibold text-red-600">
+          Invalid device model ID.
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================================
+  // DERIVED
+  // ==========================================================
+
+  const totalTrays = kind === "RACK" ? rackRowCount * traysPerRow : 0;
 
   // ==========================================================
   // PAGE
@@ -436,9 +540,7 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
             </h1>
 
             <p className="mt-1 text-[9px] text-[#949d93]">
-              {isCreate
-                ? "Define a new hardware model and its capabilities."
-                : `Editing ${code}`}
+              {isCreate ? "Define a new hardware model." : `Editing ${code}`}
             </p>
           </div>
         </div>
@@ -463,7 +565,7 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
             className="flex items-center gap-2 rounded-full bg-[#202720] px-5 py-3 text-[9px] font-bold text-white disabled:opacity-50"
           >
             {saving ? (
-              <RefreshCw size={13} className="animate-spin" />
+              <RefreshCcw size={13} className="animate-spin" />
             ) : (
               <Save size={13} />
             )}
@@ -499,7 +601,9 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
         ==================================================== */}
 
         <div className="space-y-5">
-          {/* BASIC */}
+          {/* ==================================================
+              BASIC INFORMATION
+          ================================================== */}
 
           <section className="rounded-[28px] bg-white p-5">
             <SectionTitle
@@ -512,14 +616,14 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
                 label="Model name"
                 value={name}
                 onChange={setName}
-                placeholder="Humdie"
+                placeholder="AgriGrow Rack"
               />
 
               <Field
                 label="Model code"
                 value={code}
                 onChange={setCode}
-                placeholder="HUMDIE"
+                placeholder="AGRIGROW-RACK"
               />
 
               <Field
@@ -529,6 +633,8 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
                 placeholder="1.0.0"
               />
 
+              {/* STATUS */}
+
               <div>
                 <label className="mb-1.5 block text-[8px] font-bold uppercase tracking-[0.14em] text-[#929b91]">
                   Status
@@ -537,7 +643,7 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
                 <select
                   value={status}
                   onChange={(event) =>
-                    setStatus(event.target.value as DeviceModel["status"])
+                    setStatus(event.target.value as ModelStatus)
                   }
                   className="h-11 w-full rounded-xl border border-[#e4e9e2] bg-[#f9faf8] px-3 text-[10px] font-medium outline-none"
                 >
@@ -548,6 +654,8 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
                   <option value="DISCONTINUED">Discontinued</option>
                 </select>
               </div>
+
+              {/* DESCRIPTION */}
 
               <div>
                 <label className="mb-1.5 block text-[8px] font-bold uppercase tracking-[0.14em] text-[#929b91]">
@@ -565,12 +673,125 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
             </div>
           </section>
 
-          {/* IMAGE */}
+          {/* ==================================================
+              DEVICE TYPE
+          ================================================== */}
+
+          <section className="rounded-[28px] bg-white p-5">
+            <SectionTitle
+              title="Device type"
+              description="Choose how this hardware is structured."
+            />
+
+            <div className="mt-5 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {/* GENERIC */}
+
+                <button
+                  type="button"
+                  onClick={() => handleKindChange("GENERIC")}
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    kind === "GENERIC"
+                      ? "border-[#202720] bg-[#202720] text-white"
+                      : "border-[#e4e9e2] bg-[#f9faf8] text-[#202720]"
+                  }`}
+                >
+                  <p className="text-[11px] font-bold">Generic</p>
+
+                  <p
+                    className={`mt-1 text-[8px] leading-4 ${
+                      kind === "GENERIC" ? "text-white/60" : "text-[#929b91]"
+                    }`}
+                  >
+                    Flexible hardware with custom capabilities.
+                  </p>
+                </button>
+
+                {/* RACK */}
+
+                <button
+                  type="button"
+                  onClick={() => handleKindChange("RACK")}
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    kind === "RACK"
+                      ? "border-[#202720] bg-[#202720] text-white"
+                      : "border-[#e4e9e2] bg-[#f9faf8] text-[#202720]"
+                  }`}
+                >
+                  <p className="text-[11px] font-bold">AgriGrow Rack</p>
+
+                  <p
+                    className={`mt-1 text-[8px] leading-4 ${
+                      kind === "RACK" ? "text-white/60" : "text-[#929b91]"
+                    }`}
+                  >
+                    Structured growing rack with trays.
+                  </p>
+                </button>
+              </div>
+
+              {/* RACK CONFIGURATION */}
+
+              {kind === "RACK" && (
+                <div className="rounded-2xl bg-[#f4f8ee] p-4">
+                  <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-[#718261]">
+                    Rack configuration
+                  </p>
+
+                  <div className="mt-3">
+                    <label className="mb-1.5 block text-[8px] font-bold text-[#7c8875]">
+                      Rows
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRackRowCount(3)}
+                        className={`rounded-xl px-3 py-3 text-[10px] font-bold ${
+                          rackRowCount === 3
+                            ? "bg-[#202720] text-white"
+                            : "bg-white text-[#202720]"
+                        }`}
+                      >
+                        3 rows
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setRackRowCount(4)}
+                        className={`rounded-xl px-3 py-3 text-[10px] font-bold ${
+                          rackRowCount === 4
+                            ? "bg-[#202720] text-white"
+                            : "bg-white text-[#202720]"
+                        }`}
+                      >
+                        4 rows
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <InfoBox label="Trays / row" value="4" />
+
+                    <InfoBox label="Total trays" value={String(totalTrays)} />
+                  </div>
+
+                  <p className="mt-3 text-[8px] leading-4 text-[#84907d]">
+                    Each row contains four independent trays.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* ==================================================
+              IMAGE
+          ================================================== */}
 
           <section className="rounded-[28px] bg-white p-5">
             <SectionTitle
               title="Product image"
-              description="Used on the admin inventory and user device screens."
+              description="Used across admin and user device screens."
             />
 
             <div className="mt-5 overflow-hidden rounded-2xl bg-[#edf2e8]">
@@ -599,16 +820,14 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
         </div>
 
         {/* ====================================================
-            RIGHT / CAPABILITIES
+            RIGHT
         ==================================================== */}
 
         <section className="rounded-[28px] bg-white p-5">
-          <div className="flex items-start justify-between">
-            <SectionTitle
-              title="Capabilities"
-              description="These definitions are what make your user frontend device-agnostic."
-            />
-          </div>
+          <SectionTitle
+            title="Capabilities"
+            description="These definitions drive the generic device UI."
+          />
 
           {/* SENSORS */}
 
@@ -636,19 +855,51 @@ export default function ModelEditor({ mode }: ModelEditorProps) {
             />
           </div>
 
-          {/* INFO */}
+          {/* RACK INFO */}
 
-          <div className="mt-7 rounded-2xl bg-[#f2f7e8] p-4">
-            <p className="text-[9px] font-bold text-[#557238]">
-              Generic device architecture
-            </p>
+          {kind === "RACK" && (
+            <div className="mt-7 rounded-2xl bg-[#f4f8ee] p-4">
+              <div className="flex items-center gap-2 text-[#58733d]">
+                <Check size={14} />
 
-            <p className="mt-2 text-[9px] leading-4 text-[#78856e]">
-              The ESP32/device sends its JSON telemetry, the backend validates
-              it against these capabilities, and Home/Monitor render the
-              appropriate sensors and controls dynamically.
-            </p>
-          </div>
+                <p className="text-[9px] font-bold">Rack model</p>
+              </div>
+
+              <p className="mt-2 text-[9px] leading-4 text-[#77836d]">
+                Backend automatically supplies row-specific fan, light,
+                temperature, humidity and light-sensor capabilities for every
+                rack row.
+              </p>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <InfoBox label="Rows" value={String(rackRowCount)} />
+
+                <InfoBox label="Trays / row" value="4" />
+
+                <InfoBox label="Total trays" value={String(totalTrays)} />
+              </div>
+            </div>
+          )}
+
+          {/* GENERIC INFO */}
+
+          {kind === "GENERIC" && (
+            <div className="mt-7 rounded-2xl bg-[#f4f8ee] p-4">
+              <div className="flex items-center gap-2 text-[#58733d]">
+                <Check size={14} />
+
+                <p className="text-[9px] font-bold">
+                  Generic device architecture
+                </p>
+              </div>
+
+              <p className="mt-2 text-[9px] leading-4 text-[#77836d]">
+                The device reports JSON telemetry, the backend validates it
+                against these capabilities, and Home/Monitor render the
+                appropriate controls dynamically.
+              </p>
+            </div>
+          )}
         </section>
       </div>
     </div>
@@ -834,6 +1085,42 @@ function CapabilityCard({
 }
 
 // ============================================================
+// SECTION TITLE
+// ============================================================
+
+function SectionTitle({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div>
+      <h2 className="text-[15px] font-semibold">{title}</h2>
+
+      <p className="mt-1 text-[9px] text-[#99a198]">{description}</p>
+    </div>
+  );
+}
+
+// ============================================================
+// INFO BOX
+// ============================================================
+
+function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-white p-3">
+      <p className="text-[7px] font-bold uppercase tracking-[0.12em] text-[#9aa198]">
+        {label}
+      </p>
+
+      <p className="mt-1 text-[12px] font-bold text-[#202720]">{value}</p>
+    </div>
+  );
+}
+
+// ============================================================
 // FIELD
 // ============================================================
 
@@ -891,26 +1178,6 @@ function SmallField({
         placeholder={placeholder}
         className="h-9 w-full rounded-lg border border-[#dfe5da] bg-white px-2.5 text-[9px] outline-none"
       />
-    </div>
-  );
-}
-
-// ============================================================
-// SECTION TITLE
-// ============================================================
-
-function SectionTitle({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div>
-      <h2 className="text-[15px] font-semibold">{title}</h2>
-
-      <p className="mt-1 text-[9px] leading-4 text-[#99a198]">{description}</p>
     </div>
   );
 }

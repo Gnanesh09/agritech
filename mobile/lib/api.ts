@@ -1,4 +1,4 @@
-const API_URL = "http://10.17.255.210:3000/api";
+const API_URL = "http://10.77.167.210:5000/api";
 
 export async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const response = await fetch(`${API_URL}${endpoint}`, {

@@ -12,11 +12,16 @@ import {
   Plus,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 
 import api from "../../../lib/axios";
+
+// ============================================================
+// TYPES
+// ============================================================
+
+type ModelKind = "GENERIC" | "RACK";
 
 type ModelStatus = "ACTIVE" | "INACTIVE" | "DISCONTINUED";
 
@@ -28,10 +33,20 @@ type DeviceModel = {
   version: string | null;
   status: ModelStatus;
   imageUrl: string | null;
+
+  kind: ModelKind;
+  rackRowCount: number | null;
+  traysPerRow: number;
+
   deviceCount: number;
+
   createdAt: string;
   updatedAt: string;
 };
+
+// ============================================================
+// PAGE
+// ============================================================
 
 export default function ModelsPage() {
   const [models, setModels] = useState<DeviceModel[]>([]);
@@ -50,8 +65,12 @@ export default function ModelsPage() {
 
   const [error, setError] = useState("");
 
+  // ==========================================================
+  // LOAD
+  // ==========================================================
+
   useEffect(() => {
-    loadModels();
+    void loadModels();
   }, []);
 
   async function loadModels(manual = false) {
@@ -77,6 +96,10 @@ export default function ModelsPage() {
     }
   }
 
+  // ==========================================================
+  // FILTER
+  // ==========================================================
+
   const filteredModels = useMemo(() => {
     const value = search.trim().toLowerCase();
 
@@ -92,9 +115,14 @@ export default function ModelsPage() {
     });
   }, [models, search, status]);
 
+  // ==========================================================
+  // DELETE
+  // ==========================================================
+
   async function deleteModel(id: string) {
     try {
       setDeleteId(id);
+      setError("");
 
       await api.delete(`/admin/devicemodel/${id}`);
 
@@ -108,10 +136,15 @@ export default function ModelsPage() {
     }
   }
 
+  // ==========================================================
+  // LOADING
+  // ==========================================================
+
   if (loading) {
     return (
       <div className="space-y-4">
         <div className="h-12 w-60 animate-pulse rounded-2xl bg-white" />
+
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((item) => (
             <div
@@ -124,8 +157,16 @@ export default function ModelsPage() {
     );
   }
 
+  // ==========================================================
+  // PAGE
+  // ==========================================================
+
   return (
     <div className="space-y-5">
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
       <section className="rounded-[28px] bg-white p-5 lg:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
@@ -138,15 +179,15 @@ export default function ModelsPage() {
             </h1>
 
             <p className="mt-2 max-w-xl text-[10px] leading-5 text-[#929b91]">
-              Define the hardware types your platform supports, including
-              images, versions and dynamic capabilities.
+              Define the hardware types your platform supports, including rack
+              layouts, images, versions and dynamic capabilities.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => loadModels(true)}
+              onClick={() => void loadModels(true)}
               className="flex items-center gap-2 rounded-full border border-[#e3e8e0] bg-[#fafbf9] px-4 py-3 text-[9px] font-bold"
             >
               <RefreshCw
@@ -172,6 +213,10 @@ export default function ModelsPage() {
           </div>
         )}
 
+        {/* ====================================================
+            SEARCH / FILTER
+        ==================================================== */}
+
         <div className="mt-6 flex flex-col gap-3 lg:flex-row">
           <div className="relative flex-1">
             <Search
@@ -181,7 +226,7 @@ export default function ModelsPage() {
 
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search models..."
               className="h-12 w-full rounded-2xl border border-[#e6eae4] bg-[#f8f9f7] pl-11 pr-4 text-[10px] outline-none focus:border-[#91a66d]"
             />
@@ -190,12 +235,17 @@ export default function ModelsPage() {
           <div className="flex gap-2">
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value as typeof status)}
+              onChange={(event) =>
+                setStatus(event.target.value as typeof status)
+              }
               className="h-12 rounded-2xl border border-[#e6eae4] bg-[#f8f9f7] px-4 text-[10px] font-semibold outline-none"
             >
               <option value="ALL">All statuses</option>
+
               <option value="ACTIVE">Active</option>
+
               <option value="INACTIVE">Inactive</option>
+
               <option value="DISCONTINUED">Discontinued</option>
             </select>
 
@@ -209,6 +259,10 @@ export default function ModelsPage() {
           </div>
         </div>
       </section>
+
+      {/* ======================================================
+          EMPTY
+      ====================================================== */}
 
       {filteredModels.length === 0 ? (
         <div className="rounded-[28px] bg-white px-6 py-16 text-center">
@@ -230,125 +284,194 @@ export default function ModelsPage() {
           </Link>
         </div>
       ) : view === "GRID" ? (
+        /* ====================================================
+           GRID
+        ==================================================== */
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredModels.map((model) => (
-            <div
-              key={model.id}
-              className="overflow-hidden rounded-[28px] bg-white"
-            >
-              <div className="relative h-48 bg-[#edf2e8]">
-                {model.imageUrl ? (
-                  <img
-                    src={model.imageUrl}
-                    alt={model.name}
-                    className="h-full w-full object-contain p-8"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <Boxes size={45} className="text-[#b0b8aa]" />
-                  </div>
-                )}
+          {filteredModels.map((model) => {
+            const isRack = model.kind === "RACK";
 
-                <div className="absolute left-4 top-4">
-                  <StatusBadge status={model.status} />
-                </div>
-              </div>
+            const totalTrays =
+              isRack && model.rackRowCount
+                ? model.rackRowCount * model.traysPerRow
+                : null;
 
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="truncate text-[17px] font-semibold">
-                      {model.name}
-                    </h2>
+            return (
+              <div
+                key={model.id}
+                className="overflow-hidden rounded-[28px] bg-white"
+              >
+                {/* IMAGE */}
 
-                    <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#9ca49b]">
-                      {model.code}
-                    </p>
+                <div className="relative h-48 bg-[#edf2e8]">
+                  {model.imageUrl ? (
+                    <img
+                      src={model.imageUrl}
+                      alt={model.name}
+                      className="h-full w-full object-contain p-8"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <Boxes size={45} className="text-[#b0b8aa]" />
+                    </div>
+                  )}
+
+                  <div className="absolute left-4 top-4">
+                    <StatusBadge status={model.status} />
                   </div>
 
-                  <span className="rounded-full bg-[#f1f4ee] px-2.5 py-1 text-[8px] font-bold text-[#6f7d6a]">
-                    {model.deviceCount} devices
-                  </span>
+                  {/* TYPE */}
+
+                  <div className="absolute right-4 top-4">
+                    <span className="rounded-full bg-white/90 px-2.5 py-1 text-[7px] font-bold uppercase tracking-[0.1em] text-[#596455]">
+                      {model.kind}
+                    </span>
+                  </div>
                 </div>
 
-                <p className="mt-4 line-clamp-2 min-h-[32px] text-[10px] leading-4 text-[#9aa198]">
-                  {model.description || "No description added."}
-                </p>
+                {/* BODY */}
 
-                <div className="mt-5 flex gap-2">
-                  <Link
-                    href={`/admin/dashboard/models/${model.id}`}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#202720] py-3 text-[9px] font-bold text-white"
-                  >
-                    Manage
-                    <ChevronRight size={12} />
-                  </Link>
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-[17px] font-semibold">
+                        {model.name}
+                      </h2>
 
-                  <button
-                    type="button"
-                    onClick={() => deleteModel(model.id)}
-                    disabled={deleteId === model.id || model.deviceCount > 0}
-                    title={
-                      model.deviceCount > 0
-                        ? "Model cannot be deleted while devices use it"
-                        : "Delete model"
-                    }
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-500 disabled:cursor-not-allowed disabled:opacity-30"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                      <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#9ca49b]">
+                        {model.code}
+                      </p>
+                    </div>
+
+                    <span className="shrink-0 rounded-full bg-[#f1f4ee] px-2.5 py-1 text-[8px] font-bold text-[#6f7d6a]">
+                      {model.deviceCount} devices
+                    </span>
+                  </div>
+
+                  {/* RACK SUMMARY */}
+
+                  {isRack && (
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <MiniStat
+                        label="Rows"
+                        value={String(model.rackRowCount ?? "-")}
+                      />
+
+                      <MiniStat
+                        label="Trays"
+                        value={String(totalTrays ?? "-")}
+                      />
+                    </div>
+                  )}
+
+                  <p className="mt-4 line-clamp-2 min-h-[32px] text-[10px] leading-4 text-[#9aa198]">
+                    {model.description || "No description added."}
+                  </p>
+
+                  <div className="mt-5 flex gap-2">
+                    <Link
+                      href={`/admin/dashboard/models/${model.id}`}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#202720] py-3 text-[9px] font-bold text-white"
+                    >
+                      Manage
+                      <ChevronRight size={12} />
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => void deleteModel(model.id)}
+                      disabled={deleteId === model.id || model.deviceCount > 0}
+                      title={
+                        model.deviceCount > 0
+                          ? "Model cannot be deleted while devices use it"
+                          : "Delete model"
+                      }
+                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-500 disabled:cursor-not-allowed disabled:opacity-30"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
       ) : (
+        /* ====================================================
+           LIST
+        ==================================================== */
         <section className="overflow-hidden rounded-[28px] bg-white">
-          {filteredModels.map((model) => (
-            <div
-              key={model.id}
-              className="flex items-center gap-4 border-b border-[#edf0eb] p-4 last:border-0"
-            >
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#edf2e8]">
-                {model.imageUrl ? (
-                  <img
-                    src={model.imageUrl}
-                    alt=""
-                    className="h-full w-full object-contain p-1"
-                  />
-                ) : (
-                  <Boxes size={20} className="text-[#8b9788]" />
-                )}
-              </div>
+          {filteredModels.map((model) => {
+            const isRack = model.kind === "RACK";
 
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[12px] font-bold">{model.name}</p>
-                <p className="mt-1 text-[9px] text-[#99a198]">
-                  {model.code}
-                  {" · "}
-                  {model.deviceCount}
-                  {" devices"}
-                </p>
-              </div>
+            const totalTrays =
+              isRack && model.rackRowCount
+                ? model.rackRowCount * model.traysPerRow
+                : null;
 
-              <StatusBadge status={model.status} />
-
-              <Link
-                href={`/admin/dashboard/models/${model.id}`}
-                className="rounded-full bg-[#f1f4ee] p-2"
+            return (
+              <div
+                key={model.id}
+                className="flex items-center gap-4 border-b border-[#edf0eb] p-4 last:border-0"
               >
-                <ChevronRight size={14} />
-              </Link>
-            </div>
-          ))}
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#edf2e8]">
+                  {model.imageUrl ? (
+                    <img
+                      src={model.imageUrl}
+                      alt=""
+                      className="h-full w-full object-contain p-1"
+                    />
+                  ) : (
+                    <Boxes size={20} className="text-[#8b9788]" />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] font-bold">{model.name}</p>
+
+                  <p className="mt-1 text-[9px] text-[#99a198]">
+                    {model.code}
+                    {" · "}
+                    {model.deviceCount}
+                    {" devices"}
+                    {" · "}
+                    {model.kind}
+
+                    {isRack && totalTrays !== null && (
+                      <>
+                        {" · "}
+                        {model.rackRowCount}
+                        {" rows · "}
+                        {totalTrays}
+                        {" trays"}
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                <StatusBadge status={model.status} />
+
+                <Link
+                  href={`/admin/dashboard/models/${model.id}`}
+                  className="rounded-full bg-[#f1f4ee] p-2"
+                >
+                  <ChevronRight size={14} />
+                </Link>
+              </div>
+            );
+          })}
         </section>
       )}
     </div>
   );
 }
 
+// ============================================================
+// STATUS BADGE
+// ============================================================
+
 function StatusBadge({ status }: { status: ModelStatus }) {
-  const styles = {
+  const styles: Record<ModelStatus, string> = {
     ACTIVE: "bg-[#e9f5da] text-[#658743]",
     INACTIVE: "bg-[#f0f0ed] text-[#767d75]",
     DISCONTINUED: "bg-[#fff0e9] text-[#a66648]",
@@ -360,5 +483,21 @@ function StatusBadge({ status }: { status: ModelStatus }) {
     >
       {status}
     </span>
+  );
+}
+
+// ============================================================
+// MINI STAT
+// ============================================================
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-[#f5f7f3] px-3 py-2.5">
+      <p className="text-[7px] font-bold uppercase tracking-[0.1em] text-[#9aa198]">
+        {label}
+      </p>
+
+      <p className="mt-0.5 text-[11px] font-bold text-[#202720]">{value}</p>
+    </div>
   );
 }

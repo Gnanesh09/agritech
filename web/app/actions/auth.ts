@@ -3,16 +3,12 @@
 
 import { cookies } from "next/headers";
 
-const apiUrl =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 /**
  * LOGIN
  */
-export async function loginServerAction(
-  email: string,
-  password: string
-) {
+export async function loginServerAction(email: string, password: string) {
   try {
     const res = await fetch(`${apiUrl}/api/auth/login`, {
       method: "POST",
@@ -38,9 +34,7 @@ export async function loginServerAction(
     const setCookieHeader = res.headers.get("set-cookie");
 
     if (setCookieHeader) {
-      const tokenMatch = setCookieHeader.match(
-        /refreshToken=([^;]+)/
-      );
+      const tokenMatch = setCookieHeader.match(/refreshToken=([^;]+)/);
 
       if (tokenMatch) {
         const cookieStore = await cookies();
@@ -113,10 +107,7 @@ export async function registerServerAction(userData: {
       message: data.message,
     };
   } catch (error) {
-    console.error(
-      "Register Server Action Error:",
-      error
-    );
+    console.error("Register Server Action Error:", error);
 
     return {
       success: false,
@@ -127,10 +118,7 @@ export async function registerServerAction(userData: {
 /**
  * VERIFY EMAIL / OTP
  */
-export async function verifyEmailServerAction(
-  email: string,
-  otp: string
-) {
+export async function verifyEmailServerAction(email: string, otp: string) {
   try {
     const res = await fetch(`${apiUrl}/api/auth/verify-email`, {
       method: "POST",
@@ -158,9 +146,7 @@ export async function verifyEmailServerAction(
     const setCookieHeader = res.headers.get("set-cookie");
 
     if (setCookieHeader) {
-      const tokenMatch = setCookieHeader.match(
-        /refreshToken=([^;]+)/
-      );
+      const tokenMatch = setCookieHeader.match(/refreshToken=([^;]+)/);
 
       if (tokenMatch) {
         const cookieStore = await cookies();
@@ -192,15 +178,13 @@ export async function verifyEmailServerAction(
   }
 }
 
-
 /**
  * LOGOUT
  */
 export async function logoutServerAction() {
   try {
     const cookieStore = await cookies();
-    const refreshToken =
-      cookieStore.get("refreshToken")?.value;
+    const refreshToken = cookieStore.get("refreshToken")?.value;
 
     if (refreshToken) {
       await fetch(`${apiUrl}/api/auth/logout`, {
@@ -226,10 +210,7 @@ export async function logoutServerAction() {
 
     return {
       success: false,
-      error:
-        "Failed to log out from server, but local session cleared.",
+      error: "Failed to log out from server, but local session cleared.",
     };
   }
 }
-
-
