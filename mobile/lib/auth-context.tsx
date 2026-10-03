@@ -20,7 +20,11 @@ type AuthContextType = {
   user: User | null;
   accessToken: string | null;
   loading: boolean;
+
   login: (email: string, password: string) => Promise<void>;
+
+  setSession: (accessToken: string, user: User) => Promise<void>;
+
   logout: () => Promise<void>;
 };
 
@@ -28,10 +32,11 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+
   const [accessToken, setAccessToken] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
 
-  // Restore session when app starts
   useEffect(() => {
     restoreSession();
   }, []);
@@ -41,28 +46,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const token = await getAccessToken();
 
       if (!token) {
-        setAccessToken(null);
         setUser(null);
+        setAccessToken(null);
         return;
       }
 
-      // Keep token available to the rest of the app
       setAccessToken(token);
 
-      const data = await apiRequest("/auth/get-me", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const data = await apiRequest("/auth/get-me");
+
+      if (!data?.user) {
+        throw new Error("Invalid user session.");
+      }
 
       setUser(data.user);
     } catch (error) {
-      console.log("Session restore failed:", error);
+      console.log("[AUTH] Session restore failed:", error);
 
       await removeAccessToken();
 
-      setAccessToken(null);
       setUser(null);
+      setAccessToken(null);
     } finally {
       setLoading(false);
     }
@@ -71,33 +75,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(email: string, password: string) {
     const data = await apiRequest("/auth/login", {
       method: "POST",
+      skipRefresh: true,
       body: JSON.stringify({
         email: email.trim().toLowerCase(),
         password,
       }),
     });
 
-    await saveAccessToken(data.accessToken);
+    if (!data?.accessToken || !data?.user) {
+      throw new Error("Login succeeded but session data was not returned.");
+    }
 
-    // Keep token in memory
-    setAccessToken(data.accessToken);
+    await setSession(data.accessToken, data.user);
+  }
 
-    setUser(data.user);
+  async function setSession(token: string, authenticatedUser: User) {
+    await saveAccessToken(token);
+
+    setAccessToken(token);
+    setUser(authenticatedUser);
   }
 
   async function logout() {
     try {
-      const token = await getAccessToken();
-
-      if (token) {
-        await apiRequest("/auth/logout", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      }
+      await apiRequest("/auth/logout");
     } catch (error) {
-      console.log("Logout API error:", error);
+      console.log("[AUTH] Logout API error:", error);
     } finally {
       await removeAccessToken();
 
@@ -113,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         accessToken,
         loading,
         login,
+        setSession,
         logout,
       }}
     >

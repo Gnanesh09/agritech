@@ -6,13 +6,11 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { router } from "expo-router";
 
-//  Changed to useRouter hook import
-import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 
 export default function LoginScreen() {
-  const router = useRouter(); // 💡 Initialised the router hook here
   const { login } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -25,7 +23,9 @@ export default function LoginScreen() {
   async function handleLogin() {
     setError("");
 
-    if (!email.trim() || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !password) {
       setError("Please enter your email and password.");
       return;
     }
@@ -33,12 +33,11 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      await login(email, password);
+      await login(cleanEmail, password);
 
-      // Authentication succeeded - Hook uses exact same syntax
       router.replace("/(tabs)");
-    } catch (error: any) {
-      setError(error.message || "Invalid email or password.");
+    } catch (err: any) {
+      setError(err?.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }
@@ -47,43 +46,48 @@ export default function LoginScreen() {
   return (
     <View className="flex-1 bg-[#070A08] px-6 pt-16">
       {/* HEADER */}
+
       <View>
         <Text className="text-[32px] font-bold tracking-[-0.8px] text-white">
           Welcome back
         </Text>
+
         <Text className="mt-2 text-[15px] text-[#7D857E]">
           Log in to continue
         </Text>
       </View>
 
       {/* FORM */}
+
       <View className="mt-10">
         {/* EMAIL */}
-        <View>
-          <Text className="mb-2 ml-1 text-[13px] font-medium text-[#A3AAA4]">
-            Email
-          </Text>
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Enter your email"
-            placeholderTextColor="#626962"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!loading}
-            className="h-[56px] rounded-[18px] border border-[#252C27] bg-[#111611] px-5 text-[15px] text-white"
-          />
-        </View>
+
+        <Text className="mb-2 ml-1 text-[13px] font-medium text-[#A3AAA4]">
+          Email
+        </Text>
+
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Enter your email"
+          placeholderTextColor="#626962"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!loading}
+          className="h-[56px] rounded-[18px] border border-[#252C27] bg-[#111611] px-5 text-[15px] text-white"
+        />
 
         {/* PASSWORD */}
+
         <View className="mt-5">
           <View className="mb-2 flex-row items-center justify-between px-1">
             <Text className="text-[13px] font-medium text-[#A3AAA4]">
               Password
             </Text>
+
             <Pressable
-              onPress={() => router.push("/forgetpass")}
+              onPress={() => router.push("/(auth)/forgetpass")}
               disabled={loading}
             >
               <Text className="text-[13px] font-medium text-[#9DFFB5]">
@@ -102,10 +106,11 @@ export default function LoginScreen() {
               editable={!loading}
               className="flex-1 px-5 text-[15px] text-white"
             />
+
             <Pressable
-              onPress={() => setShowPassword(!showPassword)}
-              className="w-[56px] items-center justify-center"
+              onPress={() => setShowPassword((value) => !value)}
               disabled={loading}
+              className="w-[56px] items-center justify-center"
             >
               <Text className="text-[13px] text-[#7D857E]">
                 {showPassword ? "Hide" : "Show"}
@@ -115,11 +120,13 @@ export default function LoginScreen() {
         </View>
 
         {/* ERROR */}
+
         {error ? (
           <Text className="mt-3 px-1 text-[13px] text-[#FF6B6B]">{error}</Text>
         ) : null}
 
         {/* LOGIN */}
+
         <Pressable
           onPress={handleLogin}
           disabled={loading}
@@ -136,9 +143,15 @@ export default function LoginScreen() {
       </View>
 
       {/* SIGNUP */}
+
       <View className="mt-8 flex-row items-center justify-center">
         <Text className="text-[14px] text-[#626962]">New here?</Text>
-        <Pressable onPress={() => router.push("/signup")} className="ml-2">
+
+        <Pressable
+          onPress={() => router.push("/(auth)/signup")}
+          disabled={loading}
+          className="ml-2"
+        >
           <Text className="text-[14px] font-semibold text-white">
             Create an account
           </Text>
@@ -146,6 +159,7 @@ export default function LoginScreen() {
       </View>
 
       {/* TERMS */}
+
       <View className="mt-auto items-center pb-8">
         <Text className="text-center text-[11px] leading-4 text-[#555D56]">
           By continuing, you agree to our{" "}

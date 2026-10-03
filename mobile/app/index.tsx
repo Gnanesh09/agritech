@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+
 import {
   Animated,
   Dimensions,
@@ -10,20 +11,22 @@ import {
   Text,
   View,
 } from "react-native";
+
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/lib/auth-context";
+import { hasSeenOnboarding, markOnboardingSeen } from "@/lib/auth-storage";
+
 const { width, height } = Dimensions.get("window");
 
 const INTRO_DURATION = 3500;
-
 const OUTER_GAP = 12;
 
 const slides = [
   {
     id: "1",
-
     image: "https://ik.imagekit.io/tut1/m2.png",
   },
   {
@@ -32,25 +35,71 @@ const slides = [
   },
   {
     id: "3",
-    image: "https://ik.imagekit.io/tut1/MODEL1.mp4",
+    image: "https://ik.imagekit.io/tut1/MODEL1.png",
   },
 ];
 
-export default function IntroScreen() {
+export default function RootIndex() {
   const insets = useSafeAreaInsets();
 
+  const { user, loading: authLoading } = useAuth();
+
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   const flatListRef = useRef<FlatList>(null);
+
   const progress = useRef(new Animated.Value(0)).current;
 
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const goToAuth = useCallback(() => {
-    router.replace("/login");
+  // --------------------------------------------------
+  // ENTRY DECISION
+  // --------------------------------------------------
+
+  useEffect(() => {
+    async function decideEntry() {
+      if (authLoading) {
+        return;
+      }
+
+      if (user) {
+        router.replace("/(tabs)");
+        return;
+      }
+
+      const seen = await hasSeenOnboarding();
+
+      if (seen) {
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      setShowOnboarding(true);
+      setCheckingOnboarding(false);
+    }
+
+    decideEntry();
+  }, [authLoading, user]);
+
+  // --------------------------------------------------
+  // FINISH ONBOARDING
+  // --------------------------------------------------
+
+  const finishOnboarding = useCallback(async () => {
+    await markOnboardingSeen();
+
+    router.replace("/(auth)/login");
   }, []);
+
+  // --------------------------------------------------
+  // NEXT SLIDE
+  // --------------------------------------------------
 
   const nextSlide = useCallback(() => {
     if (currentIndex >= slides.length - 1) {
-      goToAuth();
+      finishOnboarding();
       return;
     }
 
@@ -58,9 +107,17 @@ export default function IntroScreen() {
       index: currentIndex + 1,
       animated: true,
     });
-  }, [currentIndex, goToAuth]);
+  }, [currentIndex, finishOnboarding]);
+
+  // --------------------------------------------------
+  // AUTO PROGRESS
+  // --------------------------------------------------
 
   useEffect(() => {
+    if (authLoading || user || !showOnboarding) {
+      return;
+    }
+
     progress.stopAnimation();
     progress.setValue(0);
 
@@ -77,9 +134,14 @@ export default function IntroScreen() {
     });
 
     return () => {
+      animation.stop();
       progress.stopAnimation();
     };
-  }, [currentIndex, nextSlide]);
+  }, [currentIndex, nextSlide, authLoading, user, showOnboarding, progress]);
+
+  // --------------------------------------------------
+  // SCROLL
+  // --------------------------------------------------
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const index = Math.round(event.nativeEvent.contentOffset.x / width);
@@ -89,11 +151,27 @@ export default function IntroScreen() {
     }
   };
 
+  // --------------------------------------------------
+  // LOADING
+  // --------------------------------------------------
+
+  if (authLoading || checkingOnboarding || !showOnboarding) {
+    return (
+      <View className="flex-1 bg-[#070A08]">
+        <StatusBar style="light" />
+      </View>
+    );
+  }
+
+  // --------------------------------------------------
+  // ONBOARDING
+  // --------------------------------------------------
+
   return (
     <View className="flex-1 bg-[#070A08]">
       <StatusBar style="light" translucent backgroundColor="transparent" />
 
-      {/* TOP PROGRESS */}
+      {/* PROGRESS */}
 
       <View
         className="absolute left-0 right-0 z-30"
@@ -105,6 +183,7 @@ export default function IntroScreen() {
         <View className="flex-row" style={{ gap: 5 }}>
           {slides.map((_, index) => {
             const completed = index < currentIndex;
+
             const active = index === currentIndex;
 
             return (
@@ -151,7 +230,6 @@ export default function IntroScreen() {
         pagingEnabled
         bounces={false}
         showsHorizontalScrollIndicator={false}
-        showsVerticalScrollIndicator={false}
         decelerationRate="fast"
         keyExtractor={(item) => item.id}
         onMomentumScrollEnd={handleScroll}
@@ -165,38 +243,30 @@ export default function IntroScreen() {
             style={{
               width,
               height,
-              backgroundColor: "#070A08",
-
-              // OUTER GAP
               paddingTop: insets.top + 48,
               paddingBottom: insets.bottom + 92,
               paddingHorizontal: OUTER_GAP,
             }}
           >
-            {/* IMAGE CARD */}
-
             <View
               style={{
                 flex: 1,
-                width: "100%",
                 borderRadius: 30,
                 overflow: "hidden",
-
                 backgroundColor: "#101510",
-
                 elevation: 8,
               }}
             >
               <Image
-                source={{ uri: item.image }}
+                source={{
+                  uri: item.image,
+                }}
                 resizeMode="cover"
                 style={{
                   width: "100%",
                   height: "100%",
                 }}
               />
-
-              {/* VERY SUBTLE DARK TINT */}
 
               <View
                 pointerEvents="none"
@@ -214,9 +284,7 @@ export default function IntroScreen() {
         )}
       />
 
-      {/* BRAND */}
-
-      {/* BOTTOM CONTROLS */}
+      {/* SKIP */}
 
       <View
         className="absolute left-0 right-0"
@@ -225,18 +293,14 @@ export default function IntroScreen() {
           paddingHorizontal: OUTER_GAP,
         }}
       >
-        {/* FULL WIDTH SKIP BUTTON */}
-
         <Pressable
-          onPress={goToAuth}
+          onPress={finishOnboarding}
           style={{
             height: 54,
-            width: "100%",
             borderRadius: 27,
-            backgroundColor: "#06c261",
+            backgroundColor: "#06C261",
             alignItems: "center",
             justifyContent: "center",
-
             elevation: 5,
           }}
         >
