@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { ArrowRight, CloudSun, Droplets, Sprout } from "lucide-react";
-import { FadeUp, Floating, ScaleIn } from "@/components/animations";
+import { FadeUp, Floating, ScaleIn } from "@/components/ui/animations";
 
 const highlights = [
   { value: "24/7", label: "Crop monitoring" },

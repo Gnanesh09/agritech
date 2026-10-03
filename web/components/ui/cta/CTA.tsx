@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Leaf } from "lucide-react";
 
@@ -75,12 +76,18 @@ export default function CTA() {
           viewport={{ once: true }}
           className="mt-9 flex flex-col justify-center gap-3 sm:flex-row"
         >
-          <a href="#home" className="group inline-flex items-center justify-center rounded-full bg-[#b9d48d] px-7 py-3.5 text-base font-semibold text-[#173c2c] shadow-lg transition-transform duration-300 hover:-translate-y-0.5">
+          <Link
+            href="/login"
+            className="group inline-flex items-center justify-center rounded-full bg-[#b9d48d] px-7 py-3.5 text-base font-semibold text-[#173c2c] shadow-lg transition-transform duration-300 hover:-translate-y-0.5"
+          >
             Get Started
             <ArrowRight className="ml-3 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
-          </a>
+          </Link>
 
-          <a href="#contact" className="rounded-full border border-white/25 bg-white/5 px-7 py-3.5 text-base font-semibold text-white transition-colors duration-300 hover:bg-white/10">
+          <a
+            href="#contact"
+            className="rounded-full border border-white/25 bg-white/5 px-7 py-3.5 text-base font-semibold text-white transition-colors duration-300 hover:bg-white/10"
+          >
             Contact Us
           </a>
         </motion.div>

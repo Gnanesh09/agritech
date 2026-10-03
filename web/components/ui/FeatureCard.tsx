@@ -1,6 +1,6 @@
 "use client";
 
-import { MouseGlow } from "@/components/animations";
+import { MouseGlow } from "@/components/ui/animations";
 
 type FeatureCardProps = {
   icon: React.ReactNode;

@@ -1,4 +1,4 @@
-import { FadeUp } from "@/components/animations";
+import { FadeUp } from "@/components/ui/animations";
 
 export default function Dashboard() {
   return (

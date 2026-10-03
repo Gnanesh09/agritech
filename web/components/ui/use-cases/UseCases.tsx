@@ -1,6 +1,6 @@
 "use client";
 
-import { FadeLeft, FadeRight, FadeUp } from "@/components/animations";
+import { FadeLeft, FadeRight, FadeUp } from "@/components/ui/animations";
 import {
   Warehouse,
   Sprout,

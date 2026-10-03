@@ -1,7 +1,7 @@
 "use client";
 
 import FeatureCard from "./FeatureCard";
-import { FadeUp, Stagger, StaggerItem } from "@/components/animations";
+import { FadeUp, Stagger, StaggerItem } from "@/components/ui/animations";
 
 import {
   Thermometer,

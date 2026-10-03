@@ -1,6 +1,6 @@
 "use client";
 
-import { FadeUp } from "@/components/animations";
+import { FadeUp } from "@/components/ui/animations";
 import { motion } from "framer-motion";
 import {
   Sprout,

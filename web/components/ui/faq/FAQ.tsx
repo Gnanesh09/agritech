@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { faqData } from "./faqData";
 import FAQItem from "./FAQItem";
-import { FadeUp } from "@/components/animations";
+import { FadeUp } from "@/components/ui/animations";
 
 export default function FAQ() {
   const [open, setOpen] = useState<number | null>(0);

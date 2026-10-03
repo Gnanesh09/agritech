@@ -1,6 +1,6 @@
 "use client";
 
-import { FadeLeft, FadeUp, ScaleIn } from "@/components/animations";
+import { FadeLeft, FadeUp, ScaleIn } from "@/components/ui/animations";
 import {
   Thermometer,
   Droplets,

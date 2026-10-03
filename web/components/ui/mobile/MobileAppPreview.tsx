@@ -1,6 +1,6 @@
 "use client";
 
-import { FadeLeft, FadeUp, Floating, ScaleIn } from "@/components/animations";
+import { FadeLeft, FadeUp, Floating, ScaleIn } from "@/components/ui/animations";
 import PhoneFrame from "./PhoneFrame";
 import AppScreen from "./AppScreen";
 

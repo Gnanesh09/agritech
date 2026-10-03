@@ -44,6 +44,7 @@ export default function Navbar() {
       sections.forEach((section) => {
         if (section) observer.unobserve(section);
       });
+      observer.disconnect();
     };
   }, []);
 
@@ -57,13 +58,12 @@ export default function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
         {/* Logo */}
         <Link href="#home" className="flex items-center gap-3">
-
-<Image
-  src="/logo.png"
-  alt="Smart Agri Logo"
-  width={52}
-  height={52}
-/>
+          <Image
+            src="/logo.png"
+            alt="Smart Agri Logo"
+            width={52}
+            height={52}
+          />
 
           <div>
             <h1 className="text-xl font-bold text-gray-900">
@@ -103,14 +103,17 @@ export default function Navbar() {
         </nav>
 
         {/* CTA */}
-        <motion.a
-          href="#contact"
+        <motion.div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="rounded-full bg-green-700 px-6 py-3 text-white shadow-lg transition hover:bg-green-800"
         >
-          Get Started
-        </motion.a>
+          <Link
+            href="/login"
+            className="rounded-full bg-green-700 px-6 py-3 text-white shadow-lg transition hover:bg-green-800"
+          >
+            Get Started
+          </Link>
+        </motion.div>
       </div>
     </motion.header>
   );
