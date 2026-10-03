@@ -1,690 +1,864 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Bell,
-  ChevronRight,
-  ChevronDown,
-  Plus,
-  SlidersHorizontal,
-  Wifi,
+  Bell, Leaf, Sun, Moon, MapPin, ChevronDown, ChevronRight,
+  Wifi, Cloud, Thermometer, Droplets, Sprout, Box, Lightbulb,
+  Wind, Clock, ArrowUpRight, Activity, Plus, Search,
+  CircleCheck, Circle, Settings2, RefreshCw, AlertCircle,
+  CalendarDays, MoreHorizontal, Zap, Gauge, Waves
 } from "lucide-react";
-
 import api from "../lib/axios";
 
-// ============================================================
-// TYPES
-// ============================================================
+/*
+  AGROIND HOME PAGE
 
-type CapabilityType = "number" | "boolean" | "string";
+  Image dimensions:
+  botanical-leaves.png : 600 x 400, transparent PNG
+  weather-garden.jpg   : 900 x 500
+  pea-shoots.jpg       : 600 x 450
+  sunflower.jpg        : 600 x 450
+  broccoli.jpg         : 600 x 450
+  profile.jpg          : 120 x 120
+  greenhouse.jpg       : 1200 x 800
+  growth-leaves.png    : 500 x 400, transparent PNG
 
-type DeviceCapability = {
+  Add these to public/images/
+*/
+
+type Sensor = {
   key: string;
   label?: string;
-  type: CapabilityType;
+  type: "number" | "boolean" | "string";
   unit?: string;
-  min?: number;
-  max?: number;
-};
-
-type DeviceCapabilities = {
-  sensors: DeviceCapability[];
-  actuators: DeviceCapability[];
-};
-
-type DeviceState = {
-  actual: Record<string, unknown>;
-  desired: Record<string, unknown>;
-  modes: Record<string, unknown>;
-  lastReportedAt: string | null;
 };
 
 type Device = {
   id: string;
   deviceCode: string;
-  serialNumber: string;
-  status: string;
-  linkedAt: string | null;
-  lastSeenAt: string | null;
-  firmwareVersion: string | null;
   name: string | null;
-
+  status: string;
+  lastSeenAt: string | null;
   deviceModel: {
-    id: string;
     name: string;
-    code: string;
-    imageUrl: string | null;
-    capabilities: DeviceCapabilities;
+    capabilities: {
+      sensors: Sensor[];
+    };
   };
-
-  state: DeviceState | null;
-
-  latest?: Telemetry | null;
+  latest?: {
+    data: Record<string, unknown>;
+    recordedAt: string;
+  } | null;
 };
 
-type Telemetry = {
-  id: string;
-  data: Record<string, unknown>;
-  recordedAt: string;
-};
-
-// ============================================================
-// DUMMY SHOP CATALOG
-// ============================================================
-
-type Product = {
-  id: number;
-  name: string;
-  price: number;
-  image: string;
-};
-
-const products: Product[] = [
+const crops = [
   {
-    id: 1,
-    name: "Humide",
-    price: 2499,
-    image:
-      "https://rexus.id/cdn/shop/files/b7735e993ff74d8cb0b21f674bdc626b.jpg?v=1755493197&width=720",
+    name: "Pea shoots",
+    tray: "T1",
+    harvest: "11 Oct 2026",
+    progress: 68,
+    image: "/images/pea-shoots1.png",
+    description: "Microgreens",
   },
   {
-    id: 2,
-    name: "Soil Pro",
-    price: 3999,
-    image:
-      "https://s.alicdn.com/@sc04/kf/H2ba4a43b7c454984b988b90ee8594e81S/Multi-function-Cleaning-Kits-Electronic-Products-Portable-Computer-Mobile-Phone-Cleaning-Tools.jpg_300x300.jpg",
+    name: "Sunflower",
+    tray: "T2",
+    harvest: "9 Oct 2026",
+    progress: 75,
+    image: "/images/sunflower.png",
+    description: "Microgreens",
   },
   {
-    id: 3,
-    name: "Weather Mini",
-    price: 2999,
-    image:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTOq-WqlJraqymvPHGj-NK_byNT9vPQsTcmYAPKcu9EmKKnQS-BsQ9cKwCe&s=10",
-  },
-  {
-    id: 4,
-    name: "Farm Hub",
-    price: 5499,
-    image:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQzD7RdIb_7YHSRwLd_Ooo80eTyI1zRAkowjVrK1-BM1ufdxrY1Cb2Wwelk&s=10",
-  },
-  {
-    id: 5,
-    name: "Leaf Sense",
-    price: 3299,
-    image:
-      "https://www.techwelike.com/wp-content/uploads/2019/07/Sevenhugs-Smart-Remote-X-SRX-3-1024x1024.jpg",
-  },
-  {
-    id: 6,
-    name: "Climate Pro",
-    price: 6999,
-    image:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS9vKN8A5VI74cgIVyUbz7A-d25xX_k3IrXjWqj7ZMb9g&s=10",
+    name: "Broccoli",
+    tray: "T3",
+    harvest: "9 Oct 2026",
+    progress: 55,
+    image: "/images/broccoli.png",
+    description: "Microgreens",
   },
 ];
 
-// ============================================================
-// HOME
-// ============================================================
+const careTasks = [
+  { title: "Watering", time: "07:00 AM – 07:30 AM", done: true },
+  { title: "Nutrients", time: "08:00 AM – 08:30 AM", done: true },
+  { title: "Inspect leaves", time: "09:00 AM – 09:15 AM", done: false },
+];
+
+function Trend({
+  color,
+  positive = true,
+}: {
+  color: string;
+  positive?: boolean;
+}) {
+  return (
+    <svg
+      viewBox="0 0 120 32"
+      className="h-8 w-full"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path
+        d={
+          positive
+            ? "M0 27 C12 29 12 16 23 19 S37 26 49 17 S65 21 75 11 S91 19 102 8 S114 8 120 3"
+            : "M0 8 C12 5 15 20 27 16 S43 7 54 19 S72 12 83 22 S102 15 120 26"
+        }
+        stroke={color}
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SectionTitle({
+  title,
+  subtitle,
+  dark,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  dark: boolean;
+  action?: string;
+}) {
+  return (
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <div>
+        <h2
+          className={`text-[17px] font-semibold ${
+            dark ? "text-[#f1f8ef]" : "text-[#15221a]"
+          }`}
+        >
+          {title}
+        </h2>
+        {subtitle && (
+          <p
+            className={`mt-0.5 text-[10px] ${
+              dark ? "text-[#a1b6a3]" : "text-[#858d82]"
+            }`}
+          >
+            {subtitle}
+          </p>
+        )}
+      </div>
+      {action && (
+        <button className="shrink-0 text-xs font-semibold text-[#287a38]">
+          {action}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function HomePage() {
   const [devices, setDevices] = useState<Device[]>([]);
-
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [showDevices, setShowDevices] = useState(false);
-
-  const selectedDevice =
-    devices.find((device) => device.id === selectedDeviceId) || devices[0];
-
-  // ==========================================================
-  // LOAD DEVICES
-  // ==========================================================
+  const [dark, setDark] = useState(false);
+  const [gardenOpen, setGardenOpen] = useState(false);
+  const [autoMode, setAutoMode] = useState(true);
+  const [expandedActivity, setExpandedActivity] = useState(false);
+  const [selectedLayer, setSelectedLayer] = useState(3);
+  const [selectedTray, setSelectedTray] = useState("T1");
 
   useEffect(() => {
+    setDark(localStorage.getItem("agrigrow-theme") === "dark");
+
+    async function loadDevices() {
+      try {
+        const response = await api.get("/user/devices");
+        const list: Device[] = response.data.devices ?? [];
+
+        const enriched = await Promise.all(
+          list.map(async (device) => {
+            try {
+              const result = await api.get(
+                `/user/devices/${device.id}/telemetry`
+              );
+              return {
+                ...device,
+                latest: result.data.telemetry?.[0] ?? null,
+              };
+            } catch {
+              return { ...device, latest: null };
+            }
+          })
+        );
+
+        setDevices(enriched);
+
+        const saved = localStorage.getItem("selectedDeviceId");
+        const id = enriched.some((d) => d.id === saved)
+          ? saved!
+          : enriched[0]?.id ?? null;
+
+        setSelectedId(id);
+        if (id) localStorage.setItem("selectedDeviceId", id);
+      } catch (error) {
+        console.error("Failed to load devices", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     loadDevices();
   }, []);
 
-  async function loadDevices() {
-    try {
-      setLoading(true);
+  const device =
+    devices.find((d) => d.id === selectedId) ?? devices[0];
 
-      const response = await api.get("/user/devices");
+  const sensors = device?.deviceModel.capabilities?.sensors ?? [];
+  const readings = device?.latest?.data ?? {};
 
-      const userDevices = response.data.devices || [];
+  const online =
+    !!device?.lastSeenAt &&
+    Date.now() - new Date(device.lastSeenAt).getTime() < 120000;
 
-      const devicesWithTelemetry = await Promise.all(
-        userDevices.map(async (device: Device) => {
-          try {
-            const telemetryResponse = await api.get(
-              `/user/devices/${device.id}/telemetry`,
-            );
+  const page = dark ? "bg-[#03180d]" : "bg-[#f5f6f0]";
+  const text = dark ? "text-[#f1f8ef]" : "text-[#15221a]";
+  const muted = dark ? "text-[#a1b6a3]" : "text-[#858d82]";
+  const card = dark
+    ? "border border-[#17432b] bg-[#082b19]"
+    : "border border-[#edf0e7] bg-white/90 shadow-[0_4px_16px_rgba(40,80,30,0.045)]";
+  const soft = dark ? "bg-[#0d3922]" : "bg-[#f7f9f2]";
+  const line = dark ? "border-[#17432b]" : "border-[#edf0e7]";
 
-            const telemetry = telemetryResponse.data.telemetry || [];
-
-            return {
-              ...device,
-
-              latest: telemetry.length > 0 ? telemetry[0] : null,
-            };
-          } catch {
-            return {
-              ...device,
-              latest: null,
-            };
-          }
-        }),
-      );
-
-      setDevices(devicesWithTelemetry);
-
-      // --------------------------------------------------------
-      // Selected device persistence
-      // --------------------------------------------------------
-
-      const savedDevice = localStorage.getItem("selectedDeviceId");
-
-      if (
-        savedDevice &&
-        devicesWithTelemetry.some((device) => device.id === savedDevice)
-      ) {
-        setSelectedDeviceId(savedDevice);
-      } else if (devicesWithTelemetry.length > 0) {
-        const first = devicesWithTelemetry[0];
-
-        setSelectedDeviceId(first.id);
-
-        localStorage.setItem("selectedDeviceId", first.id);
-      }
-    } catch (error) {
-      console.error("Failed to load devices:", error);
-    } finally {
-      setLoading(false);
-    }
+  function toggleTheme() {
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("agrigrow-theme", next ? "dark" : "light");
   }
 
-  // ==========================================================
-  // SELECT DEVICE
-  // ==========================================================
+  function getReading(key: string) {
+    const sensor = sensors.find((s) => s.key === key);
+    const raw = readings[key];
+
+    if (!sensor || raw === null || raw === undefined) return "--";
+
+    if (sensor.type === "number") {
+      const number = Number(raw);
+      return Number.isFinite(number)
+        ? Number.isInteger(number)
+          ? String(number)
+          : number.toFixed(1)
+        : "--";
+    }
+    return String(raw);
+  }
+
+  function getUnit(key: string, fallback: string) {
+    return sensors.find((s) => s.key === key)?.unit ?? fallback;
+  }
 
   function selectDevice(id: string) {
-    setSelectedDeviceId(id);
-
+    setSelectedId(id);
     localStorage.setItem("selectedDeviceId", id);
-
-    setShowDevices(false);
+    setGardenOpen(false);
   }
-
-  // ==========================================================
-  // NUMERIC SENSOR VALUES
-  // ==========================================================
-
-  const sensors = selectedDevice?.deviceModel.capabilities?.sensors || [];
-
-  const latestData = selectedDevice?.latest?.data || {};
-
-  const primarySensor =
-    sensors.find((sensor) => sensor.key === "temperature") ||
-    sensors.find((sensor) => sensor.type === "number");
-
-  // ==========================================================
-  // LOADING
-  // ==========================================================
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f6f6f2] px-4 pt-6">
-        <div className="mx-auto max-w-md">
-          <div className="h-16 animate-pulse rounded-3xl bg-white" />
-
-          <div className="mt-5 h-[390px] animate-pulse rounded-[30px] bg-white" />
-
-          <div className="mt-5 h-32 animate-pulse rounded-[28px] bg-white" />
+      <main className={`${page} min-h-screen p-4`}>
+        <div className="mx-auto max-w-[390px] animate-pulse space-y-3">
+          <div className="h-12 rounded-xl bg-black/5" />
+          <div className="h-36 rounded-2xl bg-black/5" />
+          <div className="h-64 rounded-2xl bg-black/5" />
         </div>
       </main>
     );
   }
 
-  // ==========================================================
-  // RENDER
-  // ==========================================================
-
   return (
-    <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-5">
-      <div className="mx-auto max-w-md">
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
+    <main
+      className={`${page} min-h-screen px-3 pb-8 pt-3 transition-colors duration-300`}
+    >
+      <div className="mx-auto w-full max-w-[390px] space-y-2.5">
 
-        <header className="flex items-center justify-between"></header>
-
-        {/* =====================================================
-            PRIMARY DEVICE
-        ===================================================== */}
-
-        {selectedDevice ? (
-          <section className="mt-6 overflow-hidden rounded-[30px] bg-white shadow-[0_5px_25px_rgba(0,0,0,0.045)]">
-            {/* TOP */}
-
-            <div className="flex items-center justify-between px-5 pt-5">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-semibold tracking-wide text-[#252525]">
-                    {selectedDevice.deviceModel.code}
-                  </span>
-
-                  <span className="flex items-center gap-1 text-[10px] font-medium text-[#63a52d]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#79bd35]" />
-                    {selectedDevice.lastSeenAt
-                      ? isRecentlySeen(selectedDevice.lastSeenAt)
-                        ? "Online"
-                        : "Offline"
-                      : "Unknown"}
-                  </span>
-                </div>
-
-                <p className="mt-1 text-[10px] text-[#aaa9a2]">
-                  {selectedDevice.deviceCode}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowDevices(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f5f5f2]"
-              >
-                <SlidersHorizontal size={16} strokeWidth={1.8} />
-              </button>
+        {/* HEADER */}
+        <header className="flex h-[49px] items-center justify-between px-0.5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#287a38] text-white">
+              <Leaf size={22} fill="white" />
             </div>
-
-            {/* DEVICE HERO */}
-
-            <div className="relative mt-2 h-[245px] overflow-hidden px-5">
-              {/* Primary reading */}
-
-              <div className="absolute left-5 top-7 z-10">
-                <p className="text-[54px] font-light leading-none tracking-[-0.07em] text-[#171717]">
-                  {primarySensor
-                    ? formatSensorValue(
-                        latestData[primarySensor.key],
-                        primarySensor,
-                      )
-                    : "--"}
-                </p>
-
-                {primarySensor?.unit && (
-                  <span className="mt-2 block text-[11px] font-medium text-[#989790]">
-                    {primarySensor.label || primarySensor.key}
-                  </span>
-                )}
-              </div>
-
-              {/* IMAGE */}
-
-              {selectedDevice.deviceModel.imageUrl ? (
-                <img
-                  src={selectedDevice.deviceModel.imageUrl}
-                  alt={selectedDevice.deviceModel.name}
-                  className="absolute bottom-0 right-[-10px] h-[235px] w-[62%] object-contain object-bottom drop-shadow-[0_15px_20px_rgba(0,0,0,0.12)]"
-                />
-              ) : (
-                <div className="absolute bottom-8 right-8 flex h-36 w-36 items-center justify-center rounded-full bg-[#f4f4f1]">
-                  <Wifi size={35} className="text-gray-300" />
-                </div>
-              )}
-            </div>
-
-            {/* DEVICE NAME */}
-
-            <div className="px-5 pb-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-[22px] font-semibold tracking-[-0.045em] text-[#1b1b1b]">
-                    {selectedDevice.name || selectedDevice.deviceModel.name}
-                  </h2>
-
-                  <p className="mt-1 text-[10px] text-[#aaa9a2]">
-                    {selectedDevice.serialNumber}
-                  </p>
-                </div>
-
-                <span className="rounded-full bg-[#eef8dc] px-3 py-1.5 text-[9px] font-semibold text-[#65a632]">
-                  {selectedDevice.status}
-                </span>
-              </div>
-            </div>
-          </section>
-        ) : (
-          /* ===================================================
-             EMPTY STATE
-          =================================================== */
-
-          <section className="mt-6 rounded-[30px] bg-white px-6 py-14 text-center shadow-[0_5px_25px_rgba(0,0,0,0.045)]">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand/20">
-              <Wifi size={30} className="text-black" />
-            </div>
-
-            <h2 className="mt-5 text-[22px] font-semibold tracking-[-0.04em]">
-              No device yet
-            </h2>
-
-            <p className="mx-auto mt-2 max-w-[260px] text-[11px] leading-5 text-[#999991]">
-              Connect your first device and start monitoring your farm.
-            </p>
-
-            {/* <button
-              type="button"
-              onClick={() => setShowDevices(true)}
-              className="mt-5 rounded-full bg-[#1c1c1c] px-6 py-3 text-xs font-semibold text-white"
-            >
-              <span className="flex items-center gap-2">
-                <Plus size={14} />
-                Add device
-              </span>
-            </button> */}
-          </section>
-        )}
-
-        {/* =====================================================
-            CAPABILITY SNAPSHOT
-        ===================================================== */}
-
-        {selectedDevice && sensors.length > 0 && (
-          <section className="mt-4 rounded-[28px] bg-white p-4 shadow-[0_5px_25px_rgba(0,0,0,0.035)]">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[13px] font-semibold text-[#30302e]">
-                Live data
-              </h3>
-
-              <span className="text-[9px] text-[#a4a39d]">
-                {selectedDevice.latest
-                  ? formatTime(selectedDevice.latest.recordedAt)
-                  : "No data"}
-              </span>
-            </div>
-
-            <div
-              className={`mt-4 grid gap-2 ${
-                sensors.length === 1
-                  ? "grid-cols-1"
-                  : sensors.length === 2
-                  ? "grid-cols-2"
-                  : "grid-cols-3"
-              }`}
-            >
-              {sensors.slice(0, 6).map((sensor, index) => (
-                <div
-                  key={sensor.key}
-                  className={`rounded-[18px] p-3 ${
-                    index % 3 === 1 ? "bg-[#252525]" : "bg-brand/30"
-                  }`}
-                >
-                  <p
-                    className={`text-[9px] font-medium ${
-                      index % 3 === 1 ? "text-white/45" : "text-[#89917b]"
-                    }`}
-                  >
-                    {(sensor.label || sensor.key).toUpperCase()}
-                  </p>
-
-                  <p
-                    className={`mt-5 text-[21px] font-semibold tracking-[-0.04em] ${
-                      index % 3 === 1 ? "text-white" : "text-[#48553d]"
-                    }`}
-                  >
-                    {formatSensorValue(latestData[sensor.key], sensor)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* =====================================================
-            CHANGE DEVICE
-        ===================================================== */}
-
-        {selectedDevice && (
-          <button
-            type="button"
-            onClick={() => setShowDevices(true)}
-            className="mt-3 flex w-full items-center justify-between rounded-[22px] bg-white px-4 py-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#eef3df]">
-                <Wifi size={15} className="text-[#6f9347]" />
-              </div>
-
-              <div className="text-left">
-                <p className="text-[11px] font-semibold">Current device</p>
-
-                <p className="mt-0.5 text-[9px] text-[#aaa9a2]">
-                  Change the device shown on Home
-                </p>
-              </div>
-            </div>
-
-            <ChevronRight size={17} className="text-gray-400" />
-          </button>
-        )}
-
-        {/* =====================================================
-            SHOP
-        ===================================================== */}
-
-        <section className="mt-8">
-          <div className="flex items-center justify-between">
             <div>
-              <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-[#aaa9a2]">
-                Explore
+              <h1 className={`text-[25px] font-bold leading-5 ${text}`}>
+                SmartAgri
+              </h1>
+              <p className="mt-1 text-[8px] tracking-[0.12em] text-[#287a38]">
+                SMALL SPACE. FRESH GROWTH.
               </p>
-
-              <h2 className="mt-1 text-[21px] font-semibold tracking-[-0.04em]">
-                Shop devices
-              </h2>
             </div>
-
-            <button
-              type="button"
-              className="flex items-center gap-1 text-[10px] font-semibold text-[#777]"
-            >
-              View all
-              <ChevronRight size={13} />
-            </button>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2.5">
-            {products.map((product) => (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              aria-label={dark ? "Switch to light mode" : "Switch to night mode"}
+              title={dark ? "Light mode" : "Night mode"}
+              className={`flex h-9 w-9 items-center justify-center rounded-xl ${card} ${text}`}
+            >
+              {dark ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
+            <button
+              aria-label="Notifications"
+              className={`relative flex h-9 w-9 items-center justify-center rounded-xl ${card} ${text}`}
+            >
+              <Bell size={17} />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
+            </button>
+            <div className="h-9 w-9 overflow-hidden rounded-full bg-[#e2e7d9]">
+              <img
+                src="/images/Profile.png"
+                alt="Profile"
+                className="h-full w-full object-cover"
+              />
+            </div>
+          </div>
+        </header>
+
+        {/* WEATHER CARD */}
+        <section
+          className={`relative h-[151px] overflow-hidden rounded-[20px] border ${
+            dark
+              ? "border-[#17432b] bg-gradient-to-br from-[#103b23] to-[#082b19]"
+              : "border-[#edf0e7] bg-gradient-to-br from-white via-[#fbfcf4] to-[#e8f0d9]"
+          } px-3.5 py-3`}
+        >
+          <div
+            className={`relative z-10 flex items-center justify-between text-[11px] ${
+              dark ? "text-[#f1f8ef]" : "text-[#15221a]"
+            }`}
+          >
+            <div className="flex items-center gap-1.5">
+              <MapPin size={16} />
+              <span>Karnataka, Bengaluru</span>
+            </div>
+            <div className="text-right leading-4">
+              <p>Tue, 10 Sep 2024</p>
+              <p>09:37 AM</p>
+            </div>
+          </div>
+
+          <img
+            src="images/Botanical leaves1.png"
+            alt=""
+            className="pointer-events-none absolute bottom-0 left-[10%] h-[120px] w-[64%] object-contain opacity-80"
+          />
+
+          <div className="relative z-10 mt-5 flex items-end justify-between">
+            <div className={dark ? "text-[#f1f8ef]" : "text-[#15221a]"}>
+              <Sun
+                size={30}
+                fill="#ffb900"
+                className="mb-1 text-[#ffb900]"
+              />
+              <p className="text-[14px] font-semibold">Sunny</p>
+              <p className="text-[11px]">H:46°C&nbsp; L:52°C</p>
+            </div>
+            <div
+              className={`mb-3 mr-1 text-[36px] font-semibold leading-none tracking-tight ${
+                dark ? "text-[#f1f8ef]" : "text-[#15221a]"
+              }`}
+            >
+              24°C
+            </div>
+          </div>
+        </section>
+
+        {/* GARDEN SELECTOR */}
+        <section className="relative">
+          <button
+            onClick={() => setGardenOpen(!gardenOpen)}
+            className={`flex h-[46px] w-full items-center justify-between rounded-[17px] px-3 ${card}`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e8f5d7] text-[#287a38]">
+                <Sprout size={19} />
+              </div>
+              <span className={`text-[12px] font-medium ${text}`}>
+                Spinach Garden 08
+              </span>
+            </div>
+            <ChevronDown
+              size={17}
+              className={`${text} transition-transform ${
+                gardenOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          {gardenOpen && (
+            <div className={`absolute left-0 right-0 top-[50px] z-30 rounded-xl p-2 ${card}`}>
+              {devices.length ? (
+                devices.map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={() => selectDevice(d.id)}
+                    className={`w-full rounded-lg p-2.5 text-left text-xs ${
+                      d.id === device?.id
+                        ? "bg-[#e8f5d7] text-[#183b16]"
+                        : text
+                    }`}
+                  >
+                    {d.name || d.deviceModel.name}
+                  </button>
+                ))
+              ) : (
+                <p className={`p-2 text-xs ${muted}`}>
+                  No devices registered.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* RACK CARD */}
+        <section className={`rounded-[21px] p-3 ${card}`}>
+          <div className="flex items-start justify-between gap-1.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-[43px] w-[43px] items-center justify-center rounded-xl bg-[#edf5e3] text-[#398a34]">
+                <Box size={27} fill="#398a34" stroke="white" />
+              </div>
+              <div>
+                <h2 className={`text-[19px] font-semibold leading-5 ${text}`}>
+                  {device?.name || "Rack 01"}
+                </h2>
+                <p className={`mt-1 text-[10px] ${muted}`}>
+                  Grow room · rack master
+                </p>
+              </div>
+            </div>
+
+            <span
+              className={`flex items-center gap-1 rounded-full px-2 py-1.5 text-[9px] font-medium ${
+                online
+                  ? "bg-[#e6f8bc] text-[#275e23]"
+                  : "bg-gray-100 text-gray-500"
+              }`}
+            >
+              <Wifi size={13} />
+              {online ? "Online · demo" : "Offline"}
+            </span>
+          </div>
+
+          <div className={`mt-2 space-y-0.5 text-[10px] ${muted}`}>
+            <p>12 trays · 3 layers · 4 trays per layer</p>
+            <p>9 planted · 3 empty · each tray has its own crop</p>
+          </div>
+
+          {/* SENSOR CARDS */}
+          <div className="mt-3 grid grid-cols-3 gap-1.5">
+            {[
+              {
+                key: "temperature",
+                name: "Temperature",
+                icon: Thermometer,
+                fallback: "°C",
+                color: "#438c2d",
+                graph: "#269b29",
+              },
+              {
+                key: "humidity",
+                name: "Humidity",
+                icon: Droplets,
+                fallback: "%",
+                color: "#079df3",
+                graph: "#00aaff",
+              },
+              {
+                key: "light",
+                name: "Light",
+                icon: Sun,
+                fallback: "klux",
+                color: "#ffb900",
+                graph: "#ffb900",
+              },
+            ].map(({ key, name, icon: Icon, fallback, color, graph }) => (
               <div
-                key={product.id}
-                className="overflow-hidden rounded-[20px] bg-white shadow-[0_4px_18px_rgba(0,0,0,0.035)]"
+                key={key}
+                className={`min-w-0 rounded-[14px] border p-2 ${
+                  dark
+                    ? "border-[#17432b] bg-[#0d3922]"
+                    : "border-[#edf0e7] bg-[#fbfcf7]"
+                }`}
               >
-                <div className="aspect-square bg-[#eeeeea]">
+                <div className="flex items-center gap-1">
+                  <Icon size={25} style={{ color }} strokeWidth={1.8} />
+                  <p className={`whitespace-nowrap text-[16px] font-semibold tracking-tight ${text}`}>
+                    {getReading(key)}
+                    <span className="text-[9px] font-medium">
+                      {getUnit(key, fallback)}
+                    </span>
+                  </p>
+                </div>
+                <p className={`mt-1 text-[10px] ${muted}`}>{name}</p>
+                <Trend color={graph} />
+              </div>
+            ))}
+          </div>
+
+          {/* CLOUD STATUS */}
+          <div className={`mt-2.5 flex items-center justify-between border-t pt-2.5 ${line}`}>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Cloud size={17} className={muted} />
+              <span className={`truncate text-[9px] ${muted}`}>
+                {device?.latest
+                  ? `Updated ${new Date(
+                      device.latest.recordedAt
+                    ).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`
+                  : "Waiting for sensor data"}
+              </span>
+            </div>
+            <button className="flex shrink-0 items-center gap-0.5 text-[10px] font-medium text-[#17652b]">
+              History <ChevronRight size={14} />
+            </button>
+          </div>
+        </section>
+
+        {/* TRAYS */}
+        <section className="pt-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sprout size={26} className="text-[#6a9e3e]" />
+              <div>
+                <h2 className={`text-[17px] font-semibold ${text}`}>
+                  Your trays
+                </h2>
+                <p className={`text-[9px] ${muted}`}>
+                  Select a tray to add or edit its crop.
+                </p>
+              </div>
+            </div>
+            <span className={`text-[10px] ${muted}`}>
+              Top layer first
+            </span>
+          </div>
+
+          {/* LAYER AND MODE SELECTOR */}
+          <div className="mt-3 flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedLayer}
+                onChange={(e) => setSelectedLayer(Number(e.target.value))}
+                aria-label="Select layer"
+                className={`w-[78px] bg-transparent text-[15px] font-semibold outline-none ${text}`}
+              >
+                {[1, 2, 3].map((layer) => (
+                  <option key={layer} value={layer}>
+                    Layer {layer}
+                  </option>
+                ))}
+              </select>
+              <span className={`text-[9px] ${muted}`}>
+                4 trays · independent controls
+              </span>
+            </div>
+
+            <div className={`flex shrink-0 rounded-full p-0.5 ${dark ? "bg-[#17432b]" : "bg-[#e9eddf]"}`}>
+              <button
+                onClick={() => setAutoMode(true)}
+                className={`rounded-full px-2.5 py-1.5 text-[9px] font-semibold ${
+                  autoMode
+                    ? "bg-[#77ac35] text-white"
+                    : dark
+                      ? "text-[#c7d9c6]"
+                      : "text-[#384b35]"
+                }`}
+              >
+                Auto
+              </button>
+              <button
+                onClick={() => setAutoMode(false)}
+                className={`rounded-full px-2.5 py-1.5 text-[9px] ${
+                  !autoMode
+                    ? "bg-[#77ac35] text-white"
+                    : dark
+                      ? "text-[#c7d9c6]"
+                      : "text-[#384b35]"
+                }`}
+              >
+                Manual · 15 min
+              </button>
+            </div>
+          </div>
+
+          {/* PLANT CARDS */}
+          <div className="mt-2.5 grid grid-cols-3 gap-2">
+            {crops.map((crop) => (
+              <button
+                key={crop.tray}
+                onClick={() => setSelectedTray(crop.tray)}
+                className={`min-w-0 overflow-hidden rounded-[13px] border text-left transition ${
+                  selectedTray === crop.tray
+                    ? "border-[#8bbd56]"
+                    : dark
+                      ? "border-[#17432b]"
+                      : "border-[#edf0e7]"
+                } ${dark ? "bg-[#082b19]" : "bg-white/80"}`}
+              >
+                <div className="aspect-[1.2/0.82] overflow-hidden bg-[#e8f0d9]">
                   <img
-                    src={product.image}
-                    alt={product.name}
+                    src={crop.image}
+                    alt={crop.name}
                     className="h-full w-full object-cover"
                   />
                 </div>
-
-                <div className="p-2.5">
-                  <p className="truncate text-[10px] font-semibold">
-                    {product.name}
+                <div className="p-2">
+                  <p className={`text-[9px] ${muted}`}>
+                    R1 · L{selectedLayer} · {crop.tray}
                   </p>
+                  <p className={`mt-0.5 truncate text-[11px] font-semibold ${text}`}>
+                    {crop.name}
+                  </p>
+                  <p className={`mt-0.5 whitespace-nowrap text-[9px] ${muted}`}>
+                    Est. {crop.harvest}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
 
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[11px] font-bold">
-                      ₹{product.price.toLocaleString("en-IN")}
-                    </span>
+        {/* ADDITIONAL CONTENT BELOW THE INITIAL SCREEN */}
+        <section className="pt-4">
+          <SectionTitle
+            title="Growing environment"
+            subtitle="A quick look at your growing conditions"
+            dark={dark}
+          />
 
-                    <button
-                      type="button"
-                      className="flex h-6 w-6 items-center justify-center rounded-full bg-[#1c1c1c] text-white"
-                    >
-                      <ChevronRight size={11} />
-                    </button>
-                  </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className={`rounded-[18px] p-3 ${card}`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-xs ${muted}`}>Temperature</span>
+                <Thermometer size={17} className="text-orange-500" />
+              </div>
+              <p className={`mt-2 text-2xl font-semibold ${text}`}>
+                {getReading("temperature")}
+                <span className="text-sm">
+                  {getUnit("temperature", "°C")}
+                </span>
+              </p>
+              <p className={`mt-1 text-[10px] ${muted}`}>
+                Latest available reading
+              </p>
+            </div>
+
+            <div className={`rounded-[18px] p-3 ${card}`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-xs ${muted}`}>Humidity</span>
+                <Droplets size={17} className="text-sky-500" />
+              </div>
+              <p className={`mt-2 text-2xl font-semibold ${text}`}>
+                {getReading("humidity")}
+                <span className="text-sm">
+                  {getUnit("humidity", "%")}
+                </span>
+              </p>
+              <p className={`mt-1 text-[10px] ${muted}`}>
+                Latest available reading
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* CARE SCHEDULE */}
+        <section className={`rounded-[20px] p-3.5 ${card}`}>
+          <SectionTitle
+            title="Care schedule"
+            subtitle="Daily plant care checklist"
+            dark={dark}
+            action="View all"
+          />
+
+          <div className="space-y-0">
+            {careTasks.map((task, index) => (
+              <div
+                key={task.title}
+                className={`flex items-center gap-2.5 border-t py-3 first:border-0 ${line}`}
+              >
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                  index === 0
+                    ? "bg-[#e0f5fb] text-sky-500"
+                    : index === 1
+                      ? "bg-[#e8f5d7] text-[#287a38]"
+                      : "bg-[#f0f5e8] text-[#287a38]"
+                }`}>
+                  {index === 0 ? (
+                    <Droplets size={20} />
+                  ) : index === 1 ? (
+                    <Leaf size={19} />
+                  ) : (
+                    <Search size={19} />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-xs font-semibold ${text}`}>
+                    {task.title}
+                  </p>
+                  <p className={`mt-1 text-[10px] ${muted}`}>
+                    {task.time}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {task.done ? (
+                    <CircleCheck
+                      size={20}
+                      className="fill-[#70aa38] text-white"
+                    />
+                  ) : (
+                    <Circle size={20} className={muted} />
+                  )}
+                  <span className={`text-[10px] ${muted}`}>
+                    {task.done ? "Completed" : "Pending"}
+                  </span>
                 </div>
               </div>
             ))}
           </div>
         </section>
-      </div>
 
-      {/* =======================================================
-          DEVICE SELECTOR
-      ======================================================= */}
+        {/* DEVICE STATUS */}
+        <section className={`rounded-[20px] p-3.5 ${card}`}>
+          <SectionTitle
+            title="Device status"
+            subtitle="Connected hardware"
+            dark={dark}
+          />
 
-      {showDevices && (
-        <div
-          onClick={() => setShowDevices(false)}
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/25 px-3 pb-3 backdrop-blur-sm"
-        >
-          <div
-            onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-md overflow-hidden rounded-[30px] bg-white"
-          >
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-              <div>
-                <h3 className="text-[15px] font-semibold">My devices</h3>
-
-                <p className="mt-0.5 text-[9px] text-gray-400">
-                  Choose your Home device
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowDevices(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100"
-              >
-                <ChevronDown size={15} />
-              </button>
+          {devices.length === 0 ? (
+            <div className={`rounded-xl p-4 text-center ${soft}`}>
+              <AlertCircle size={22} className={`mx-auto ${muted}`} />
+              <p className={`mt-2 text-xs ${muted}`}>
+                No devices connected yet.
+              </p>
             </div>
+          ) : (
+            devices.map((d) => {
+              const isOnline =
+                !!d.lastSeenAt &&
+                Date.now() - new Date(d.lastSeenAt).getTime() < 120000;
 
-            <div className="max-h-[55vh] overflow-y-auto p-3">
-              {devices.length === 0 ? (
-                <div className="py-10 text-center">
-                  <p className="text-sm font-semibold">No linked devices</p>
-
-                  <p className="mt-1 text-xs text-gray-400">
-                    Add a device to see it here.
-                  </p>
+              return (
+                <div
+                  key={d.id}
+                  className={`flex items-center gap-3 border-t py-3 first:border-0 ${line}`}
+                >
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${soft}`}>
+                    <Wifi size={19} className={isOnline ? "text-[#398a34]" : muted} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate text-xs font-semibold ${text}`}>
+                      {d.name || d.deviceModel.name}
+                    </p>
+                    <p className={`mt-1 text-[10px] ${muted}`}>
+                      {d.deviceCode}
+                    </p>
+                  </div>
+                  <span className={`rounded-full px-2 py-1 text-[9px] ${
+                    isOnline
+                      ? "bg-[#e6f8bc] text-[#275e23]"
+                      : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {isOnline ? "Online" : "Offline"}
+                  </span>
                 </div>
-              ) : (
-                devices.map((device) => (
-                  <button
-                    type="button"
-                    key={device.id}
-                    onClick={() => selectDevice(device.id)}
-                    className={`mb-2 flex w-full items-center gap-3 rounded-2xl p-3 text-left ${
-                      selectedDevice?.id === device.id
-                        ? "bg-brand"
-                        : "bg-[#f7f7f5]"
-                    }`}
-                  >
-                    <div className="h-12 w-12 overflow-hidden rounded-xl bg-white">
-                      {device.deviceModel.imageUrl && (
-                        <img
-                          src={device.deviceModel.imageUrl}
-                          alt=""
-                          className="h-full w-full object-contain p-1"
-                        />
-                      )}
-                    </div>
+              );
+            })
+          )}
+        </section>
 
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold">
-                        {device.name || device.deviceModel.name}
-                      </p>
+        {/* RECENT ACTIVITY */}
+        <section className={`rounded-[20px] p-3.5 ${card}`}>
+          <div className="flex items-center justify-between">
+            <SectionTitle
+              title="Recent activity"
+              subtitle="Your growing space updates"
+              dark={dark}
+            />
+            <button
+              onClick={() => setExpandedActivity(!expandedActivity)}
+              aria-label="Expand activity"
+              className={`rounded-full p-2 ${soft} ${text}`}
+            >
+              <ChevronDown
+                size={17}
+                className={`transition-transform ${
+                  expandedActivity ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          </div>
 
-                      <p className="mt-0.5 text-[9px] text-gray-700">
-                        {device.deviceCode}
-                      </p>
-                    </div>
-
-                    {selectedDevice?.id === device.id && (
-                      <span className="text-[9px] font-semibold text-[#68963a]">
-                        Selected
-                      </span>
-                    )}
-                  </button>
-                ))
-              )}
+          <div className="flex items-start gap-3">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${soft}`}>
+              <Activity size={18} className="text-[#398a34]" />
+            </div>
+            <div className="flex-1">
+              <p className={`text-xs font-semibold ${text}`}>
+                Sensor monitoring
+              </p>
+              <p className={`mt-1 text-[10px] ${muted}`}>
+                {device?.latest
+                  ? `Last telemetry received at ${new Date(
+                      device.latest.recordedAt
+                    ).toLocaleString()}`
+                  : "No recent telemetry is available."}
+              </p>
             </div>
           </div>
-        </div>
-      )}
+
+          {expandedActivity && (
+            <div className={`mt-3 border-t pt-3 ${line}`}>
+              <p className={`text-[11px] ${muted}`}>
+                Only the latest available telemetry is shown here. Historical
+                activity will appear when the backend supports it.
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* QUICK CONTROLS PLACEHOLDER */}
+        <section className={`rounded-[20px] p-3.5 ${card}`}>
+          <SectionTitle
+            title="Quick controls"
+            subtitle="Hardware control interface"
+            dark={dark}
+          />
+
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { name: "Water pump", icon: Droplets },
+              { name: "Fan", icon: Wind },
+              { name: "Lighting", icon: Lightbulb },
+            ].map(({ name, icon: Icon }) => (
+              <div
+                key={name}
+                className={`rounded-[15px] p-3 text-center ${soft}`}
+              >
+                <Icon size={21} className="mx-auto text-[#398a34]" />
+                <p className={`mt-2 text-[10px] font-semibold ${text}`}>
+                  {name}
+                </p>
+                <p className={`mt-1 text-[9px] ${muted}`}>
+                  Not connected
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className={`mt-3 text-[10px] ${muted}`}>
+            These controls are visual placeholders. No hardware commands are
+            sent.
+          </p>
+        </section>
+
+      </div>
     </main>
   );
-}
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-function formatSensorValue(
-  value: unknown,
-  capability: DeviceCapability,
-): string {
-  if (value === null || value === undefined) {
-    return "--";
-  }
-
-  if (capability.type === "number") {
-    const number = Number(value);
-
-    if (Number.isNaN(number)) {
-      return "--";
-    }
-
-    return Number.isInteger(number) ? String(number) : number.toFixed(1);
-  }
-
-  if (capability.type === "boolean") {
-    return value ? "ON" : "OFF";
-  }
-
-  return String(value);
-}
-
-function isRecentlySeen(value: string): boolean {
-  const time = new Date(value).getTime();
-
-  if (Number.isNaN(time)) {
-    return false;
-  }
-
-  return Date.now() - time < 2 * 60 * 1000;
-}
-
-function formatTime(date: string): string {
-  const diff = Date.now() - new Date(date).getTime();
-
-  const seconds = Math.floor(diff / 1000);
-
-  if (seconds < 10) {
-    return "Just now";
-  }
-
-  if (seconds < 60) {
-    return `${seconds}s ago`;
-  }
-
-  const minutes = Math.floor(seconds / 60);
-
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  return `${Math.floor(hours / 24)}d ago`;
 }
