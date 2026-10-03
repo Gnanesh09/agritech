@@ -7,7 +7,7 @@ import {
   Zap,
   ArrowRight,
 } from "lucide-react";
-import { FadeLeft, FadeRight, FadeUp, ScaleIn } from "@/components/animations";
+import { FadeLeft, FadeRight, FadeUp, ScaleIn } from "@/components/ui/animations";
 
 const cards = [
   {
