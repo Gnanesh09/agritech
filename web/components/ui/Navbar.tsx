@@ -102,18 +102,7 @@ export default function Navbar() {
           })}
         </nav>
 
-        {/* CTA */}
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Link
-            href="/login"
-            className="rounded-full bg-green-700 px-6 py-3 text-white shadow-lg transition hover:bg-green-800"
-          >
-            Get Started
-          </Link>
-        </motion.div>
+        
       </div>
     </motion.header>
   );
