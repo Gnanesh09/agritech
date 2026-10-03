@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -12,10 +13,8 @@ import {
   Search,
   Bell,
   Menu,
-  Command,
   User,
 } from "lucide-react";
-import api from "../../lib/axios";
 import { toast } from "../../../components/ui/toast";
 
 import {
@@ -40,21 +39,15 @@ export default function HomeLayout({
 
   const handleLogout = async () => {
     try {
-      // 1. Call the Server Action
-      const result = await logoutServerAction();
+      await logoutServerAction();
 
-      // 2. Show Success
       toast.add({
         title: "Logged out successfully",
         description: "See you next time!",
         type: "success",
       });
 
-      // 3. Clear any frontend state (if you have Context/Zustand)
-      // setAccessToken(null);
-
-      // 4. Safely Redirect
-      router.refresh(); // Forces Next.js to realize the cookie is gone
+      router.refresh();
       router.push("/login");
     } catch (error) {
       console.error("Logout Error Details:", error);
@@ -71,9 +64,6 @@ export default function HomeLayout({
     { name: "Analytics", href: "/home/analytics", icon: Activity },
     { name: "Reports", href: "/home/reports", icon: PieChart },
     { name: "Settings", href: "/home/settings", icon: Settings },
-    { name: "Settings", href: "/home/settings", icon: Settings },
-    { name: "Settings", href: "/home/settings", icon: Settings },
-    { name: "Settings", href: "/home/settings", icon: Settings },
   ];
 
   return (
@@ -88,7 +78,7 @@ export default function HomeLayout({
       <aside
         className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-64 bg-surface  flex flex-col transition-transform duration-300 ease-in-out
+        w-64 bg-surface flex flex-col transition-transform duration-300 ease-in-out
         ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }
@@ -102,14 +92,16 @@ export default function HomeLayout({
           </div>
         </div>
 
-        <nav className="flex-1 px-4 py-6  space-y-2 overflow-y-auto">
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
+
             return (
               <Link
-                key={item.name}
+                key={item.href}
                 href={item.href}
+                onClick={() => setIsSidebarOpen(false)}
                 className={`
                   flex items-center gap-3 px-4 py-3 rounded-es-2xl text-sm font-semibold transition-all
                   ${
