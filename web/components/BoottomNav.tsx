@@ -2,132 +2,90 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 import { Home, User, Radar, Plus } from "lucide-react";
+
+const tabs = [
+  { name: "Home", href: "/home", icon: Home },
+  { name: "Add", href: "/home/add", icon: Plus },
+  { name: "Monitor", href: "/home/monitor", icon: Radar },
+  { name: "Profile", href: "/home/profile", icon: User },
+];
 
 export default function BottomNav() {
   const pathname = usePathname();
 
-  const isHome = pathname === "/home";
-  const isProfile = pathname.startsWith("/home/profile");
-  const isMonitor = pathname.startsWith("/home/monitor");
-  const isAdd = pathname.startsWith("/home/add");
+  const activeTab = tabs.findIndex((tab) =>
+    tab.href === "/home"
+      ? pathname === "/home"
+      : pathname.startsWith(tab.href)
+  );
 
   return (
-    <nav className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2">
-      <div
-        className="
-                    flex
-                    items-center
-                    gap-full
-                    rounded-full
-                    border
-                    border-gray-300/80
-                    bg-white/95
-                    p-1
-                    shadow-[0_8px_30px_rgba(0,0,0,0.12)]
-                    backdrop-blur-xl
-                    h-16
-                "
-      >
-        {/* HOME */}
+    <nav className="fixed bottom-5 left-1/2 z-50 w-[calc(100%-32px)] max-w-[430px] -translate-x-1/2">
+      <div className="flex h-[66px] items-center justify-around rounded-full border border-gray-200/80 bg-white/90 p-1.5 shadow-[0_8px_35px_rgba(0,0,0,0.12)] backdrop-blur-2xl transition-colors duration-300 dark:border-gray-700 dark:bg-gray-800">
+        {tabs.map(({ name, href, icon: Icon }, index) => {
+          const isActive = activeTab === index;
 
-        <Link
-          href="/home"
-          className={`
-                        flex
-                        
-                        h-full
-                        min-w-[92px]
-                        flex-col
-                        items-center
-                        justify-center
-                        rounded-full
-                        transition-all
-                        duration-200
-                        ${
-                          isHome
-                            ? "bg-brand/30 text-black shadow-sm"
-                            : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-                        }
-                    `}
-        >
-          <Home size={18} strokeWidth={isHome ? 2.5 : 2} />
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={isActive ? "page" : undefined}
+              className="relative flex h-full min-w-0 flex-1 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-green-500"
+            >
+              {isActive && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute inset-0 rounded-full bg-lime-200 dark:bg-green-700"
+                  transition={{
+                    type: "spring",
+                    stiffness: 380,
+                    damping: 32,
+                  }}
+                />
+              )}
 
-          <span className="mt-1 text-[11px] font-medium">Home</span>
-        </Link>
-        <Link
-          href="/home/add"
-          className={`
-                        flex
-                        
-                        h-full
-                        min-w-[92px]
-                        flex-col
-                        items-center
-                        justify-center
-                        rounded-full
-                        transition-all
-                        duration-200
-                        ${
-                          isAdd
-                            ? "bg-brand/30 text-black shadow-sm"
-                            : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-                        }
-                    `}
-        >
-          <Plus size={18} strokeWidth={isAdd ? 2.5 : 2} />
+              <motion.div
+                className={`relative z-10 flex flex-col items-center justify-center gap-1 ${
+                  isActive
+                    ? "text-gray-950 dark:text-white"
+                    : "text-gray-400 dark:text-gray-400"
+                }`}
+                animate={{
+                  scale: isActive ? 1.04 : 1,
+                  y: isActive ? -1 : 0,
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 350,
+                  damping: 22,
+                }}
+              >
+                <motion.div
+                  animate={{
+                    rotate: isActive && name === "Add" ? 90 : 0,
+                  }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <Icon
+                    size={21}
+                    strokeWidth={isActive ? 2.6 : 1.9}
+                  />
+                </motion.div>
 
-          <span className="mt-1 text-[11px] font-medium">Add</span>
-        </Link>
-
-        {/* PROFILE */}
-
-        <Link
-          href="/home/monitor"
-          className={`
-                        flex
-                        h-full
-                        min-w-[82px]
-                        flex-col
-                        items-center
-                        justify-center
-                        rounded-full
-                        transition-all
-                        duration-200
-                        ${
-                          isMonitor
-                            ? "bg-brand/30 text-black shadow-sm"
-                            : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-                        }
-                    `}
-        >
-          <Radar size={18} strokeWidth={isMonitor ? 2.5 : 2} />
-
-          <span className="mt-1 text-[11px] font-medium">Monitor</span>
-        </Link>
-        <Link
-          href="/home/profile"
-          className={`
-                        flex
-                        h-full
-                        min-w-[82px]
-                        flex-col
-                        items-center
-                        justify-center
-                        rounded-full
-                        transition-all
-                        duration-200
-                        ${
-                          isProfile
-                            ? "bg-brand/30 text-black shadow-sm"
-                            : "text-gray-400 hover:bg-gray-50 hover:text-gray-600"
-                        }
-                    `}
-        >
-          <User size={18} strokeWidth={isProfile ? 2.5 : 2} />
-
-          <span className="mt-1 text-[11px] font-medium">Profile</span>
-        </Link>
+                <motion.span
+                  className="text-[11px] font-semibold"
+                  animate={{
+                    opacity: isActive ? 1 : 0.8,
+                  }}
+                >
+                  {name}
+                </motion.span>
+              </motion.div>
+            </Link>
+          );
+        })}
       </div>
     </nav>
   );

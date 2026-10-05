@@ -1,516 +1,176 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
+  Cpu,
+  Layers3,
+  Sprout,
   ChevronRight,
-  Loader2,
-  Sparkles,
-  Wifi,
-  X,
+  Plus,
 } from "lucide-react";
-
 import { useRouter } from "next/navigation";
-import api from "../../lib/axios";
 
-type Device = {
-  id: string;
-  deviceCode: string;
-  serialNumber: string;
-  status: string;
-  name: string | null;
+const options = [
+  {
+    title: "Add Device",
+    description: "Connect your ESP32 and smart hardware",
+    icon: Cpu,
+    route: "/home/add/device",
+  },
+  {
+    title: "Add Rack",
+    description: "Create a rack for your growing space",
+    icon: Layers3,
+    route: "/home/add/rack",
+  },
+  {
+    title: "Add Crop",
+    description: "Add a crop to one of your trays",
+    icon: Sprout,
+    route: "/home/add/crop",
+  },
+];
 
-  deviceModel: {
-    id: string;
-    name: string;
-    code: string;
-    imageUrl: string | null;
-  };
-};
-
-type Step = "code" | "checking" | "found" | "naming" | "success";
-
-export default function AddDevicePage() {
+export default function AddPage() {
   const router = useRouter();
 
-  const [step, setStep] = useState<Step>("code");
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#071A13] px-4 pb-10 pt-6 text-[#F1F7F2]">
+      {/* Ambient background glow */}
+      <div className="pointer-events-none absolute -left-24 top-20 h-64 w-64 rounded-full bg-[#35C759]/10 blur-3xl" />
 
-  const [deviceCode, setDeviceCode] = useState("");
+      <div className="pointer-events-none absolute -right-24 top-[45%] h-72 w-72 rounded-full bg-[#7CFF6B]/5 blur-3xl" />
 
-  const [device, setDevice] = useState<Device | null>(null);
+      <div className="relative mx-auto w-full max-w-[430px]">
 
-  const [deviceName, setDeviceName] = useState("");
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8"
+        >
+          <div className="mb-4 flex items-center gap-3">
 
-  const [error, setError] = useState("");
-
-  const [saving, setSaving] = useState(false);
-
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  /* ============================================================
-       SUCCESS SOUND
-    ============================================================ */
-
-  useEffect(() => {
-    audioRef.current = new Audio("/sounds/device-success2.mp3");
-
-    audioRef.current.preload = "auto";
-  }, []);
-
-  /* ============================================================
-       CHECK / CLAIM DEVICE
-    ============================================================ */
-
-  async function addDevice() {
-    const code = deviceCode.trim().toUpperCase();
-
-    if (!code) {
-      setError("Enter your device code");
-      return;
-    }
-
-    setError("");
-    setStep("checking");
-
-    try {
-      /*
-       * Your existing endpoint:
-       *
-       * POST /api/user/devices/claim
-       */
-
-      const response = await api.post("/user/devices/claim", {
-        deviceCode: code,
-      });
-
-      const claimedDevice = response.data.device;
-
-      setDevice(claimedDevice);
-
-      /*
-       * Give the user a small
-       * "we found it" moment.
-       */
-
-      setStep("found");
-
-      setTimeout(() => {
-        setStep("naming");
-      }, 1400);
-    } catch (err: any) {
-      console.error("Device claim failed:", err);
-
-      setError(err?.response?.data?.message || "This device cannot be added.");
-
-      setStep("code");
-    }
-  }
-
-  /* ============================================================
-       SAVE PERSONAL NAME
-    ============================================================ */
-
-  async function saveName() {
-    if (!device) return;
-
-    const name = deviceName.trim();
-
-    if (!name) {
-      setError("Give your device a name");
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setError("");
-
-      /*
-       * UserDevice name.
-       *
-       * This does NOT change the
-       * admin/device model name.
-       */
-
-      await api.patch(`/user/devices/${device.id}/name`, {
-        name,
-      });
-
-      setStep("success");
-
-      /*
-       * Play success sound.
-       */
-
-      try {
-        await audioRef.current?.play();
-      } catch {
-        /*
-         * Browser may block autoplay.
-         * The interaction that led here
-         * normally allows it, but don't
-         * let audio failure break flow.
-         */
-      }
-
-      /*
-       * Give the success screen time
-       * to breathe.
-       */
-
-      setTimeout(() => {
-        router.replace("/home");
-      }, 2400);
-    } catch (err: any) {
-      console.error("Failed to save device name:", err);
-
-      setError(
-        err?.response?.data?.message || "Could not save the device name.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  /* ============================================================
-       CODE SCREEN
-    ============================================================ */
-
-  if (step === "code" || step === "checking") {
-    return (
-      <main className="min-h-screen overflow-hidden bg-amber-50">
-        <div className="relative mx-auto flex min-h-screen max-w-md flex-col px-5">
-          {/* Background decoration */}
-
-          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white opacity-50 blur-3xl" />
-
-          <div className="pointer-events-none absolute -bottom-32 -left-24 h-72 w-72 rounded-full bg-[#e8f3a7] opacity-50 blur-3xl" />
-
-          {/* Header */}
-
-          <header className="relative flex items-center pt-6">
-            <button
-              onClick={() => router.back()}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
+            {/* Add icon */}
+            <motion.div
+              initial={{ scale: 0.7, rotate: -15 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                duration: 0.5,
+                type: "spring",
+              }}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#28513B] bg-[#0D251C]"
             >
-              <ArrowLeft size={18} />
-            </button>
-          </header>
-
-          {/* Hero */}
-
-          <section className="relative flex flex-1 flex-col justify-center pb-60">
-            <div className="mb-7">
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[17px] bg-brand">
-                <Wifi size={80} strokeWidth={2} />
-              </div>
-
-              <h1 className="mt-2 text-[40px] font-semibold leading-[0.95] tracking-[-0.07em] text-[#181818]">
-                Let's add
-                <br />
-                something
-                <br />
-                <span className="text-[#000000]">smart.</span>
-              </h1>
-
-              <p className="mt-5 max-w-[290px] text-[12px] leading-5 text-[#85857e]">
-                Enter the device code printed on your device to connect it to
-                your account.
-              </p>
-            </div>
-
-            {/* CODE INPUT */}
+              <Plus
+                size={21}
+                className="text-[#7CFF6B]"
+                strokeWidth={2}
+              />
+            </motion.div>
 
             <div>
-              <label className="mb-2 block text-[10px] font-semibold  tracking-[0.13em] text-[#999991]">
-                Device code
-              </label>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#7CFF6B]">
+                Smart Agriculture
+              </p>
 
-              <div className="relative">
-                <input
-                  autoFocus
-                  value={deviceCode}
-                  onChange={(event) => {
-                    setDeviceCode(event.target.value.toUpperCase());
-                    setError("");
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      addDevice();
-                    }
-                  }}
-                  placeholder="HUMIDE-000001"
-                  disabled={step === "checking"}
-                  className="h-[62px] w-full rounded-[21px] border border-[#e4e4de] bg-white px-5 pr-14 text-[16px] font-semibold tracking-[0.03em] text-[#202020] outline-none transition placeholder:text-[#c7c7c0] focus:border-[#9bb759] focus:ring-4 focus:ring-[#d9ed65]/20"
-                />
-
-                {deviceCode && (
-                  <button
-                    onClick={() => setDeviceCode("")}
-                    className="absolute right-4 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[#f1f1ed]"
-                  >
-                    <X size={13} />
-                  </button>
-                )}
-              </div>
-
-              {/* ERROR */}
-
-              {error && (
-                <div className="mt-3 rounded-[17px] bg-[#fff0f0] px-4 py-3 text-[11px] font-medium text-red-600">
-                  {error}
-                </div>
-              )}
-
-              {/* BUTTON */}
-
-              <button
-                onClick={addDevice}
-                disabled={step === "checking" || !deviceCode.trim()}
-                className="mt-4 flex h-[58px] w-full items-center justify-between rounded-full bg-[#3f29ff] px-5 text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <span className="text-[13px] font-semibold">
-                  {step === "checking"
-                    ? "Checking device..."
-                    : "Find my device"}
-                </span>
-              </button>
+              <p className="mt-0.5 text-[11px] text-[#718C7D]">
+                System configuration
+              </p>
             </div>
-          </section>
-        </div>
-      </main>
-    );
-  }
-  if (step === "found") {
-    return (
-      <main className="fixed inset-0 z-[200] flex min-h-screen items-center justify-center overflow-hidden bg-black">
-        {/* subtle background glow */}
-        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/10 blur-3xl" />
-
-        <div className="relative flex flex-col items-center text-center">
-          {/* Tick */}
-
-          <div className="flex h-[100px] w-[100px] items-center justify-center rounded-full bg-brand shadow-[0_20px_50px_rgba(0,0,0,0.18)]">
-            <Check size={48} strokeWidth={3} className="text-[#202020]" />
           </div>
 
-          {/* Text */}
-
-          <h1 className="mt-8 text-[30px] font-bold uppercase tracking-[-0.04em] text-brand">
-            Device found
+          <h1 className="text-[30px] font-bold tracking-tight text-[#F1F7F2]">
+            Build your farm
           </h1>
 
-          <p className="mt-1 text-[14px] font-semibold uppercase tracking-[0.08em] text-brand/60">
-            Successfully
+          <p className="mt-2 max-w-[340px] text-[13px] leading-5 text-[#8DA99A]">
+            Add devices, racks and crops to build your smart growing
+            environment.
           </p>
+        </motion.div>
 
-          {/* Device code */}
+        {/* Add options */}
+        <div className="space-y-3">
+          {options.map((option, index) => {
+            const Icon = option.icon;
 
-          {device && (
-            <p className="mt-5 rounded-full text-brand/10 px-4 py-2 text-[10px] font-semibold tracking-[0.12em] text-[#171717]/60">
-              {device.deviceCode}
-            </p>
-          )}
-        </div>
-      </main>
-    );
-  }
-  /* ============================================================
-       NAME SCREEN
-    ============================================================ */
+            return (
+              <motion.button
+                key={option.title}
+                type="button"
+                onClick={() => router.push(option.route)}
+                initial={{
+                  opacity: 0,
+                  y: 20,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                transition={{
+                  delay: 0.12 + index * 0.1,
+                  duration: 0.45,
+                }}
+                whileHover={{
+                  y: -3,
+                }}
+                whileTap={{
+                  scale: 0.975,
+                }}
+                className="group relative flex w-full items-center gap-4 overflow-hidden rounded-[24px] border border-[#1D4032] bg-[#0D251C] p-4 text-left shadow-[0_12px_35px_rgba(0,0,0,0.16)] transition-all duration-300 hover:border-[#35C759]/40 hover:bg-[#102A20]"
+              >
+                {/* Hover glow */}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#7CFF6B]/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-  if (step === "naming") {
-    return (
-      <main className="min-h-screen bg-[#f6f6f2]">
-        <div className="mx-auto flex min-h-screen max-w-md flex-col px-5">
-          <header className="flex items-center pt-6">
-            <button
-              onClick={() => setStep("code")}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"
-            >
-              <ArrowLeft size={18} />
-            </button>
-          </header>
-
-          <section className="flex flex-1 flex-col justify-center pb-20">
-            {/* Small device image */}
-
-            <div className="mb-8 flex h-[150px] items-center justify-center">
-              {device?.deviceModel.imageUrl && (
-                <img
-                  src={device.deviceModel.imageUrl}
-                  alt=""
-                  className="h-full w-full object-contain drop-shadow-[0_15px_15px_rgba(0,0,0,0.10)]"
-                />
-              )}
-            </div>
-
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8e927f]">
-              One last thing
-            </p>
-
-            <h1 className="mt-2 text-[38px] font-semibold leading-[0.95] tracking-[-0.07em]">
-              Give it
-              <br />a name.
-            </h1>
-
-            <p className="mt-4 text-[12px] leading-5 text-[#898982]">
-              Choose a name that makes sense to you. This name is private to
-              your account.
-            </p>
-
-            {/* NAME */}
-
-            <input
-              autoFocus
-              value={deviceName}
-              onChange={(event) => {
-                setDeviceName(event.target.value);
-                setError("");
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  saveName();
-                }
-              }}
-              placeholder="My Greenhouse"
-              maxLength={40}
-              className="mt-7 h-[62px] w-full rounded-[21px] border border-[#e2e2dc] bg-white px-5 text-[16px] font-medium outline-none transition placeholder:text-[#c4c4bd] focus:border-[#9bb759] focus:ring-4 focus:ring-[#d9ed65]/20"
-            />
-
-            {error && (
-              <p className="mt-3 text-[11px] font-medium text-red-500">
-                {error}
-              </p>
-            )}
-
-            <button
-              onClick={saveName}
-              disabled={saving || !deviceName.trim()}
-              className="mt-4 flex h-[58px] w-full items-center justify-between rounded-full bg-[#1b1b1b] px-5 text-white transition active:scale-[0.98] disabled:opacity-40"
-            >
-              <span className="text-[13px] font-semibold">
-                {saving ? "Setting everything up..." : "Finish setup"}
-              </span>
-
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-black">
-                {saving ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <ArrowRight size={16} />
-                )}
-              </span>
-            </button>
-          </section>
-        </div>
-      </main>
-    );
-  }
-
-  /* ============================================================
-   DEVICE SUCCESS
-============================================================ */
-
-  if (step === "success") {
-    return (
-      <main className="relative min-h-screen overflow-hidden bg-[#f7f8f2] text-[#171717]">
-        {/* Soft brand glow */}
-        <div className="pointer-events-none absolute left-1/2 top-[8%] h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-brand/20 blur-[110px]" />
-
-        <div className="relative mx-auto flex min-h-screen max-w-md flex-col px-6 pb-8 pt-12">
-          {/* Top */}
-          <div className="flex items-center justify-center">
-            <div className="flex items-center gap-2 rounded-full border border-[#dfe5cf] bg-white/80 px-4 py-2 shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-brand" />
-
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#2204ca]">
-                Successfully connected
-              </span>
-            </div>
-          </div>
-
-          {/* Main content */}
-          <div className="flex flex-1 flex-col items-center justify-center">
-            {/* Success visual */}
-            <div className="relative flex h-[270px] w-[270px] items-center justify-center">
-              {/* Soft glow */}
-              <div className="absolute h-[190px] w-[190px] rounded-full bg-brand/25 blur-[55px]" />
-
-              {/* Outer ring */}
-              <div className="absolute h-[235px] w-[235px] rounded-full border border-[#d8dfc2]" />
-
-              {/* Inner ring */}
-              <div className="absolute h-[195px] w-[195px] rounded-full border border-[#e2e7d5]" />
-
-              {/* Main circle */}
-              <div className="relative flex h-[145px] w-[145px] items-center justify-center rounded-full bg-brand shadow-[0_20px_50px_rgba(130,155,55,0.22)]">
-                <div className="flex h-[112px] w-[112px] items-center justify-center rounded-full bg-[#171717]">
-                  <Check size={52} strokeWidth={2.5} className="text-brand" />
-                </div>
-              </div>
-            </div>
-
-            {/* Heading */}
-            <div className="mt-2 text-center">
-              <h1 className="text-[48px] font-semibold leading-[0.92] tracking-[-0.07em]">
-                You're
-                <br />
-                <span className="">connected.</span>
-              </h1>
-
-              <p className="mx-auto mt-5 max-w-[275px] text-[12px] leading-[1.7] text-[#92948d]">
-                Your device has been connected successfully and is ready to use.
-              </p>
-            </div>
-          </div>
-
-          {/* Device card */}
-          <div className="rounded-[24px] border border-black/[0.06] bg-white p-4 pb-10 shadow-[0_15px_45px_rgba(0,0,0,0.06)]">
-            <div className="flex items-center gap-4">
-              {/* Device image */}
-              <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[18px] bg-[#f3f5ec]">
-                {device?.deviceModel.imageUrl ? (
-                  <img
-                    src={device.deviceModel.imageUrl}
-                    alt={device.deviceModel.name}
-                    className="h-11 w-11 object-contain"
-                  />
-                ) : (
-                  <Wifi
-                    size={22}
+                {/* Icon */}
+                <motion.div
+                  whileHover={{
+                    scale: 1.06,
+                    rotate: 2,
+                  }}
+                  className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] border border-[#28513B] bg-[#102D22]"
+                >
+                  <Icon
+                    size={25}
+                    className="text-[#7CFF6B]"
                     strokeWidth={1.7}
-                    className="text-[#829f3d]"
                   />
-                )}
-              </div>
 
-              {/* Details */}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[#1b1b1b]">
-                  {device?.deviceModel.name}
-                </p>
+                  {/* Status dot */}
+                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#7CFF6B] shadow-[0_0_8px_#7CFF6B]" />
+                </motion.div>
 
-                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-[#a2a49d]">
-                  {device?.deviceCode}
-                </p>
-              </div>
+                {/* Text */}
+                <div className="relative min-w-0 flex-1">
+                  <h2 className="text-[15px] font-semibold text-[#F1F7F2]">
+                    {option.title}
+                  </h2>
 
-              {/* Connected */}
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eef4dc]">
-                <Check size={16} strokeWidth={3} className="text-[#1215c7]" />
-              </div>
-            </div>
-          </div>
+                  <p className="mt-1 text-[11px] leading-4 text-[#8DA99A]">
+                    {option.description}
+                  </p>
+                </div>
 
-          {/* Footer */}
-          <div className="mt-5 flex items-center justify-center">
-            <span className="text-[9px] font-medium uppercase tracking-[0.18em] text-[#b0b2aa]">
-              Ready to use
-            </span>
-          </div>
+                {/* Arrow */}
+                <motion.div
+                  whileHover={{
+                    x: 3,
+                  }}
+                  className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#1D4032] bg-[#102D22]"
+                >
+                  <ChevronRight
+                    size={17}
+                    className="text-[#7CFF6B]"
+                    strokeWidth={1.8}
+                  />
+                </motion.div>
+              </motion.button>
+            );
+          })}
         </div>
-      </main>
-    );
-  }
+
+      </div>
+    </main>
+  );
 }

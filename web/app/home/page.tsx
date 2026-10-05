@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTheme } from "../../context/ThemeContext";
 import {
   Bell, Leaf, Sun, Moon, MapPin, ChevronDown, ChevronRight,
   Wifi, Cloud, Thermometer, Droplets, Sprout, Box, Lightbulb,
@@ -9,22 +10,9 @@ import {
   CalendarDays, MoreHorizontal, Zap, Gauge, Waves
 } from "lucide-react";
 import api from "../lib/axios";
+import { motion } from "framer-motion";
 
-/*
-  AGROIND HOME PAGE
 
-  Image dimensions:
-  botanical-leaves.png : 600 x 400, transparent PNG
-  weather-garden.jpg   : 900 x 500
-  pea-shoots.jpg       : 600 x 450
-  sunflower.jpg        : 600 x 450
-  broccoli.jpg         : 600 x 450
-  profile.jpg          : 120 x 120
-  greenhouse.jpg       : 1200 x 800
-  growth-leaves.png    : 500 x 400, transparent PNG
-
-  Add these to public/images/
-*/
 
 type Sensor = {
   key: string;
@@ -162,8 +150,9 @@ export default function HomePage() {
   const [autoMode, setAutoMode] = useState(true);
   const [expandedActivity, setExpandedActivity] = useState(false);
   const [selectedLayer, setSelectedLayer] = useState(3);
-  const [selectedTray, setSelectedTray] = useState("T1");
-
+  const [selectedTray, setSelectedTray] = useState("T1");const [pumpOn, setPumpOn] = useState(false);
+const [fanOn, setFanOn] = useState(false);
+const [lightOn, setLightOn] = useState(false);
   useEffect(() => {
     setDark(localStorage.getItem("agrigrow-theme") === "dark");
 
@@ -261,7 +250,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <main className={`${page} min-h-screen p-4`}>
+      <main className={`${page} min-h-screen p-4pb-32`}>
         <div className="mx-auto max-w-[390px] animate-pulse space-y-3">
           <div className="h-12 rounded-xl bg-black/5" />
           <div className="h-36 rounded-2xl bg-black/5" />
@@ -824,39 +813,135 @@ export default function HomePage() {
           )}
         </section>
 
-        {/* QUICK CONTROLS PLACEHOLDER */}
-        <section className={`rounded-[20px] p-3.5 ${card}`}>
-          <SectionTitle
-            title="Quick controls"
-            subtitle="Hardware control interface"
-            dark={dark}
+        
+{/* QUICK CONTROLS */}
+<motion.section
+  initial={{ opacity: 0, y: 14 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.45, ease: "easeOut" }}
+  className={`rounded-[20px] p-3.5 ${card}`}
+>
+  <SectionTitle
+    title="Quick controls"
+    subtitle="Hardware control interface"
+    dark={dark}
+  />
+
+  <div className="grid grid-cols-3 gap-2">
+    {[
+      {
+        name: "Water pump",
+        icon: Droplets,
+        on: pumpOn,
+        toggle: () => setPumpOn((prev) => !prev),
+      },
+      {
+        name: "Fan",
+        icon: Wind,
+        on: fanOn,
+        toggle: () => setFanOn((prev) => !prev),
+      },
+      {
+        name: "Lighting",
+        icon: Lightbulb,
+        on: lightOn,
+        toggle: () => setLightOn((prev) => !prev),
+      },
+    ].map(({ name, icon: Icon, on, toggle }, index) => (
+      <motion.button
+        key={name}
+        type="button"
+        aria-label={`${name}: ${on ? "ON" : "OFF"}`}
+        aria-pressed={on}
+        onClick={toggle}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          delay: index * 0.08,
+          duration: 0.35,
+        }}
+        whileHover={{ y: -3, scale: 1.02 }}
+        whileTap={{ scale: 0.96 }}
+        className={`relative overflow-hidden rounded-[15px] border p-3 text-center transition-colors duration-300 ${
+          on
+            ? dark
+              ? "border-green-500/40 bg-green-500/10"
+              : "border-green-300 bg-green-50"
+            : dark
+              ? "border-white/10"
+              : "border-transparent"
+        } ${soft}`}
+      >
+        {/* ACTIVE BACKGROUND GLOW */}
+        <motion.div
+          className="pointer-events-none absolute inset-0 bg-green-400/5"
+          initial={false}
+          animate={{
+            opacity: on ? 1 : 0,
+          }}
+          transition={{ duration: 0.3 }}
+        />
+
+        {/* ICON */}
+        <motion.div
+          className="relative mx-auto flex h-9 w-9 items-center justify-center rounded-xl"
+          animate={{
+            scale: on ? 1.08 : 1,
+          }}
+          transition={{
+            type: "spring",
+            stiffness: 300,
+            damping: 15,
+          }}
+        >
+          <Icon
+            size={22}
+            className={on ? "text-green-500" : "text-[#398a34]"}
+          />
+        </motion.div>
+
+        {/* DEVICE NAME */}
+        <p className={`relative mt-2 text-[10px] font-semibold ${text}`}>
+          {name}
+        </p>
+
+        {/* STATUS */}
+        <div className="relative mt-2 flex items-center justify-center gap-1.5">
+          <motion.span
+            className={`h-2 w-2 rounded-full ${
+              on ? "bg-green-500" : "bg-gray-400"
+            }`}
+            animate={{
+              scale: on ? [1, 1.2, 1] : 1,
+              opacity: on ? [1, 0.65, 1] : 0.7,
+            }}
+            transition={{
+              duration: 1.5,
+              repeat: on ? Infinity : 0,
+              ease: "easeInOut",
+            }}
           />
 
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { name: "Water pump", icon: Droplets },
-              { name: "Fan", icon: Wind },
-              { name: "Lighting", icon: Lightbulb },
-            ].map(({ name, icon: Icon }) => (
-              <div
-                key={name}
-                className={`rounded-[15px] p-3 text-center ${soft}`}
-              >
-                <Icon size={21} className="mx-auto text-[#398a34]" />
-                <p className={`mt-2 text-[10px] font-semibold ${text}`}>
-                  {name}
-                </p>
-                <p className={`mt-1 text-[9px] ${muted}`}>
-                  Not connected
-                </p>
-              </div>
-            ))}
-          </div>
-          <p className={`mt-3 text-[10px] ${muted}`}>
-            These controls are visual placeholders. No hardware commands are
-            sent.
-          </p>
-        </section>
+          <motion.span
+            key={on ? "on" : "off"}
+            initial={{ opacity: 0, y: 3 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className={`text-[10px] font-bold ${
+              on ? "text-green-600" : muted
+            }`}
+          >
+            {on ? "ON" : "OFF"}
+          </motion.span>
+        </div>
+      </motion.button>
+    ))}
+  </div>
+
+  <p className={`mt-3 text-[10px] ${muted}`}>
+    Demo mode · Hardware not connected
+  </p>
+</motion.section>
 
       </div>
     </main>
