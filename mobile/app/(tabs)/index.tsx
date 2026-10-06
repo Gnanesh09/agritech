@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-
+// import DateTimePicker from "@react-native-community/datetimepicker"; // Make sure this is installed
+import DateTimePicker, { useDefaultStyles } from "react-native-ui-datepicker";
+import dayjs from "dayjs";
 import {
   ActivityIndicator,
   Alert,
@@ -596,6 +598,9 @@ export default function HomeScreen() {
   /* --------------------------------------------------------------------------
      ROW EXPAND
   -------------------------------------------------------------------------- */
+  const [sowingDate, setSowingDate] = useState<Date>(new Date());
+  const [dateOption, setDateOption] = useState<"today" | "custom">("today");
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   function toggleRow(rowId: string) {
     setExpandedRows((previous) => {
@@ -614,11 +619,8 @@ export default function HomeScreen() {
   /* --------------------------------------------------------------------------
      ADD CROP
   -------------------------------------------------------------------------- */
-
   function openPlantCrop(row: RackRow, tray: Tray) {
-    if (!rack) {
-      return;
-    }
+    if (!rack) return;
 
     setSelectedTray({
       rackId: rack.id,
@@ -629,16 +631,23 @@ export default function HomeScreen() {
     setCropName("");
     setGrowthDays("7");
     setError("");
+    // Reset date states when opening
+    setSowingDate(new Date());
+    setDateOption("today");
+    setShowDatePicker(false);
+
     setPlantModalOpen(true);
   }
-
+  const defaultStyles = useDefaultStyles();
   async function plantCrop() {
-    if (!selectedTray || !cropName.trim()) {
+    if (!selectedTray) return;
+
+    if (!cropName.trim()) {
+      setError("Please enter a crop name.");
       return;
     }
 
     const days = Number(growthDays);
-
     if (!Number.isInteger(days) || days < 1 || days > 365) {
       setError("Growth days must be between 1 and 365.");
       return;
@@ -654,16 +663,14 @@ export default function HomeScreen() {
           method: "POST",
           body: JSON.stringify({
             cropName: cropName.trim(),
-            sowingDate: new Date().toISOString(),
+            sowingDate: sowingDate.toISOString(), // <-- Sends the selected date
             estimatedGrowthDays: days,
           }),
         },
       );
 
       setPlantModalOpen(false);
-
       setSelectedTray(null);
-
       await loadHome(false);
     } catch (err: any) {
       setError(err?.message || "Unable to add crop.");
@@ -1164,9 +1171,11 @@ export default function HomeScreen() {
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
           >
-            <View
+            <ScrollView
+              bounces={false}
+              showsVerticalScrollIndicator={false}
               className="rounded-t-[30px] bg-[#0C0F0C] px-6 pt-5"
-              style={{
+              contentContainerStyle={{
                 paddingBottom: Math.max(insets.bottom + 18, 28),
               }}
             >
@@ -1209,10 +1218,104 @@ export default function HomeScreen() {
                   editable={!planting}
                   className="h-14 w-24 rounded-2xl border border-white/[0.06] bg-[#151915] px-4 text-[17px] text-white"
                 />
-
                 <Text className="ml-3 text-[14px] text-zinc-500">days</Text>
               </View>
 
+              {/* --- SOWING DATE SECTION --- */}
+              <Text className="mb-2 mt-5 text-[13px] text-zinc-400">
+                Sowing date
+              </Text>
+
+              <View className="flex-row items-center space-x-3">
+                {/* Today Option */}
+                <Pressable
+                  onPress={() => {
+                    setDateOption("today");
+                    setSowingDate(new Date());
+                  }}
+                  className={`h-12 flex-1 items-center justify-center rounded-xl border ${
+                    dateOption === "today"
+                      ? "border-primary bg-primary/20"
+                      : "border-white/[0.06] bg-[#151915]"
+                  }`}
+                >
+                  <Text
+                    className={`text-[15px] font-medium ${
+                      dateOption === "today" ? "text-primary" : "text-zinc-400"
+                    }`}
+                  >
+                    Today
+                  </Text>
+                </Pressable>
+
+                {/* Select Custom Date Option */}
+                <Pressable
+                  onPress={() => setDateOption("custom")}
+                  className={`h-12 flex-1 items-center justify-center rounded-xl border ${
+                    dateOption === "custom"
+                      ? "border-primary bg-primary/20"
+                      : "border-white/[0.06] bg-[#151915]"
+                  }`}
+                >
+                  <Text
+                    className={`text-[15px] font-medium ${
+                      dateOption === "custom" ? "text-primary" : "text-zinc-400"
+                    }`}
+                  >
+                    {dateOption === "custom"
+                      ? sowingDate.toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : "Select date..."}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* --- MODERN INLINE DARK CALENDAR --- */}
+              {/* --- SHADCN-STYLE INLINE DARK CALENDAR --- */}
+              {/* --- SHADCN-STYLE INLINE DARK CALENDAR (v3 Fix) --- */}
+              {dateOption === "custom" && (
+                <View className="mt-4 overflow-hidden rounded-xl border border-zinc-800 bg-[#09090b] p-2">
+                  <DateTimePicker
+                    mode="single"
+                    date={sowingDate}
+                    onChange={(params) => {
+                      if (params.date) {
+                        // Fix 1: Properly convert the DateType to a JS Date using dayjs
+                        setSowingDate(dayjs(params.date).toDate());
+                      }
+                    }}
+                    // Fix 2: v3.x moved all styles into a single 'styles' prop
+                    styles={
+                      {
+                        ...defaultStyles,
+                        headerText: {
+                          color: "#fafafa",
+                          fontWeight: "600",
+                          fontSize: 14,
+                        },
+                        weekDaysText: {
+                          color: "#a1a1aa",
+                          fontWeight: "400",
+                          fontSize: 13,
+                        },
+                        dayText: { color: "#a1a1aa", fontWeight: "400" },
+                        selectedDay: { backgroundColor: "#fafafa" },
+                        selectedDayText: {
+                          color: "#09090b",
+                          fontWeight: "600",
+                        },
+                        todayContainer: {
+                          backgroundColor: "#27272a",
+                          borderWidth: 0,
+                        },
+                        todayText: { color: "#fafafa", fontWeight: "600" },
+                      } as any
+                    } // 'as any' bypasses strict TS checking for exact key names
+                  />
+                </View>
+              )}
               <Pressable
                 onPress={() => void plantCrop()}
                 disabled={planting}
@@ -1236,7 +1339,7 @@ export default function HomeScreen() {
                   Cancel
                 </Text>
               </Pressable>
-            </View>
+            </ScrollView>
           </KeyboardAvoidingView>
         </View>
       </Modal>
