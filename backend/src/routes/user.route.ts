@@ -178,4 +178,10 @@ userRouter.patch(
   userController.updateCommunityOrderStatus,
 );
 
+userRouter.post(
+  "/devices/check",
+  protectRoute,
+  userController.checkDeviceAvailability,
+);
+
 export default userRouter;

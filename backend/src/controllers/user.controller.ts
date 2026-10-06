@@ -3044,3 +3044,118 @@ export async function updateCommunityOrderStatus(
     });
   }
 }
+// ======================================================
+// CHECK DEVICE AVAILABILITY
+// POST /api/user/devices/check
+// ======================================================
+export async function checkDeviceAvailability(req: AuthRequest, res: Response) {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({
+        message: "Authentication required",
+      });
+    }
+
+    const { deviceCode, serialNumber } = req.body;
+
+    if (!deviceCode && !serialNumber) {
+      return res.status(400).json({
+        message: "deviceCode or serialNumber is required",
+      });
+    }
+
+    const cleanDeviceCode = deviceCode
+      ? String(deviceCode).trim().toUpperCase()
+      : null;
+
+    const cleanSerialNumber = serialNumber
+      ? String(serialNumber).trim().toUpperCase()
+      : null;
+
+    // First find the physical device WITHOUT status filter
+    const device = await prisma.device.findFirst({
+      where: {
+        OR: [
+          ...(cleanDeviceCode
+            ? [
+                {
+                  deviceCode: cleanDeviceCode,
+                },
+              ]
+            : []),
+
+          ...(cleanSerialNumber
+            ? [
+                {
+                  serialNumber: cleanSerialNumber,
+                },
+              ]
+            : []),
+        ],
+      },
+
+      include: {
+        deviceModel: true,
+      },
+    });
+
+    // Device code / serial does not exist
+    if (!device) {
+      return res.status(404).json({
+        message: "Device not found",
+      });
+    }
+
+    // Device exists but is already claimed
+    if (device.status !== "AVAILABLE") {
+      return res.status(409).json({
+        message: "Device is not available",
+        status: device.status,
+      });
+    }
+
+    // Check user's existing relationship
+    const alreadyLinked = await prisma.userDevice.findUnique({
+      where: {
+        userId_deviceId: {
+          userId: req.userId,
+          deviceId: device.id,
+        },
+      },
+    });
+
+    if (alreadyLinked) {
+      return res.status(409).json({
+        message: "This device is already linked to your account",
+      });
+    }
+
+    return res.status(200).json({
+      available: true,
+
+      device: {
+        id: device.id,
+        deviceCode: device.deviceCode,
+        serialNumber: device.serialNumber,
+        status: device.status,
+
+        deviceModel: {
+          id: device.deviceModel.id,
+          name: device.deviceModel.name,
+          code: device.deviceModel.code,
+          imageUrl: device.deviceModel.imageUrl,
+          kind: device.deviceModel.kind,
+          rackRowCount: device.deviceModel.rackRowCount,
+          traysPerRow: device.deviceModel.traysPerRow,
+          capabilities: device.deviceModel.capabilities,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("checkDeviceAvailability:", error);
+
+    return res.status(500).json({
+      message: "Failed to check device availability",
+    });
+  }
+}
