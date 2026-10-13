@@ -5,7 +5,7 @@ import {
 } from "./auth-storage";
 
 const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? "http://10.77.167.210:5000/api";
+  process.env.EXPO_PUBLIC_API_URL ?? "http://10.193.242.210:5000/api";
 
 type ApiOptions = RequestInit & {
   skipRefresh?: boolean;

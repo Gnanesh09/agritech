@@ -7,9 +7,662 @@ datasource db {
   provider = "postgresql"
 }
 
-// ============================================================
-// ENUMS
-// ============================================================
+model User {
+  id                        String               @id @default(uuid())
+  username                  String
+  email                     String               @unique
+  password                  String
+  countryCode               String
+  phoneNo                   String
+  role                      Role                 @default(USER)
+  verified                  Boolean              @default(false)
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  communitiesOwned          Community[]          @relation("CommunityOwner")
+  communityListings         CommunityListing[]
+  communityMemberships      CommunityMember[]
+  communityOrdersAsBuyer    CommunityOrder[]     @relation("CommunityOrderBuyer")
+  communityOrdersAsSeller   CommunityOrder[]     @relation("CommunityOrderSeller")
+  automations               DeviceAutomation[]
+  marketplaceListings       MarketplaceListing[]
+  marketplaceOrdersAsBuyer  MarketplaceOrder[]   @relation("MarketplaceBuyer")
+  marketplaceOrdersAsSeller MarketplaceOrder[]   @relation("MarketplaceSeller")
+  marketplacePayments       MarketplacePayment[]
+  otps                      Otp[]
+  racks                     Rack[]
+  sessions                  Session[]
+  userDevices               UserDevice[]
+  userLocations             UserLocation[]
+
+  @@map("users")
+}
+
+model Otp {
+  id        String   @id @default(uuid())
+  email     String
+  otpHash   String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otps")
+}
+
+model Session {
+  id               String   @id @default(uuid())
+  refreshTokenHash String
+  ip               String
+  userAgent        String
+  revoked          Boolean  @default(false)
+  userId           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model DeviceModel {
+  id           String            @id @default(uuid())
+  name         String
+  code         String            @unique
+  description  String?
+  version      String?
+  status       DeviceModelStatus @default(ACTIVE)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  imageUrl     String?
+  /// *
+  ///    * Example:
+  ///    * {
+  ///    * "sensors": [
+  ///    * {
+  ///    * "key": "temperature",
+  ///    * "label": "Temperature",
+  ///    * "type": "number",
+  ///    * "unit": "°C"
+  ///    * }
+  ///    * ],
+  ///    * "actuators": [
+  ///    * {
+  ///    * "key": "fan",
+  ///    * "label": "Fan",
+  ///    * "type": "switch"
+  ///    * }
+  ///    * ]
+  ///    * }
+  capabilities Json              @default("{}")
+  kind         DeviceKind        @default(GENERIC)
+  rackRowCount Int?
+  traysPerRow  Int               @default(4)
+  devices      Device[]
+
+  @@index([kind])
+  @@map("device_models")
+}
+
+model Device {
+  id              String             @id @default(uuid())
+  deviceCode      String             @unique
+  serialNumber    String             @unique
+  macAddress      String?            @unique
+  chipId          String?            @unique
+  deviceModelId   String
+  status          DeviceStatus       @default(AVAILABLE)
+  batchNumber     String?
+  manufacturedAt  DateTime?
+  linkedAt        DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  firmwareVersion String?
+  lastSeenAt      DateTime?
+  automations     DeviceAutomation[]
+  commands        DeviceCommand[]
+  credential      DeviceCredential?
+  state           DeviceState?
+  telemetry       DeviceTelemetry[]
+  deviceModel     DeviceModel        @relation(fields: [deviceModelId], references: [id])
+  racks           Rack[]
+  userDevices     UserDevice[]
+
+  @@index([deviceModelId])
+  @@index([status])
+  @@index([batchNumber])
+  @@index([lastSeenAt])
+  @@map("devices")
+}
+
+model DeviceCredential {
+  id         String    @id @default(uuid())
+  deviceId   String    @unique
+  tokenHash  String    @unique
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("device_credentials")
+}
+
+model DeviceTelemetry {
+  id          String   @id @default(uuid())
+  deviceId    String
+  /// *
+  ///    * Kept temporarily so existing Home/Monitor code
+  ///    * continues to work while we migrate the frontend.
+  temperature Float?
+  humidity    Float?
+  recordedAt  DateTime @default(now())
+  /// *
+  ///    * Generic sensor payload.
+  ///    * HUMDIE:
+  ///    * {
+  ///    * "temperature": 28.1,
+  ///    * "humidity": 67.4
+  ///    * }
+  ///    * GREENHOUSE:
+  ///    * {
+  ///    * "temperature": 28.1,
+  ///    * "humidity": 67.4,
+  ///    * "light": 780,
+  ///    * "soilMoisture": 42
+  ///    * }
+  data        Json     @default("{}")
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([recordedAt])
+  @@index([deviceId, recordedAt])
+  @@map("device_telemetry")
+}
+
+model DeviceState {
+  id             String    @id @default(uuid())
+  deviceId       String    @unique
+  /// *
+  ///    * What the hardware actually reports.
+  ///    * {
+  ///    * "fan": true,
+  ///    * "light": false
+  ///    * }
+  actual         Json      @default("{}")
+  /// *
+  ///    * What the platform wants the device to do.
+  ///    * {
+  ///    * "fan": true,
+  ///    * "light": false
+  ///    * }
+  desired        Json      @default("{}")
+  /// *
+  ///    * Control mode per actuator.
+  ///    * {
+  ///    * "fan": "AUTO",
+  ///    * "light": "MANUAL"
+  ///    * }
+  modes          Json      @default("{}")
+  lastReportedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  device         Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("device_states")
+}
+
+model DeviceCommand {
+  id             String              @id @default(uuid())
+  deviceId       String
+  /// *
+  ///    * {
+  ///    * "target": "fan",
+  ///    * "action": "set",
+  ///    * "value": true,
+  ///    * "mode": "MANUAL"
+  ///    * }
+  command        Json
+  source         String              @default("USER")
+  status         DeviceCommandStatus @default(PENDING)
+  errorMessage   String?
+  createdAt      DateTime            @default(now())
+  sentAt         DateTime?
+  acknowledgedAt DateTime?
+  updatedAt      DateTime            @updatedAt
+  device         Device              @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("device_commands")
+}
+
+model DeviceAutomation {
+  id        String           @id @default(uuid())
+  userId    String
+  deviceId  String
+  name      String
+  status    AutomationStatus @default(ACTIVE)
+  /// *
+  ///    * Example:
+  ///    * {
+  ///    * "field": "humidity",
+  ///    * "operator": ">",
+  ///    * "value": 75
+  ///    * }
+  trigger   Json
+  /// *
+  ///    * Example:
+  ///    * [
+  ///    * {
+  ///    * "target": "fan",
+  ///    * "action": "set",
+  ///    * "value": true
+  ///    * }
+  ///    * ]
+  actions   Json
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  device    Device           @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([status])
+  @@map("device_automations")
+}
+
+model UserDevice {
+  id        String   @id @default(uuid())
+  userId    String
+  deviceId  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@index([deviceId])
+  @@map("user_devices")
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  publisher String
+  url       String
+  details   String
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([publisher])
+  @@map("reports")
+}
+
+model Rack {
+  id          String     @id @default(uuid())
+  userId      String
+  deviceId    String
+  name        String
+  rowCount    Int
+  traysPerRow Int        @default(4)
+  status      RackStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  rows        RackRow[]
+  device      Device     @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([deviceId, status])
+  @@index([status])
+  @@map("racks")
+}
+
+model RackRow {
+  id                   String     @id @default(uuid())
+  rackId               String
+  rowNumber            Int
+  name                 String
+  fanTarget            String
+  lightTarget          String
+  temperatureSensorKey String?
+  humiditySensorKey    String?
+  lightSensorKey       String?
+  controlConfig        Json       @default("{}")
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  rack                 Rack       @relation(fields: [rackId], references: [id], onDelete: Cascade)
+  trays                RackTray[]
+
+  @@unique([rackId, rowNumber])
+  @@index([rackId])
+  @@map("rack_rows")
+}
+
+model RackTray {
+  id        String          @id @default(uuid())
+  rowId     String
+  slot      Int
+  name      String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  row       RackRow         @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  cycles    TrayCropCycle[]
+
+  @@unique([rowId, slot])
+  @@index([rowId])
+  @@map("rack_trays")
+}
+
+model TrayCropCycle {
+  id                  String               @id @default(uuid())
+  trayId              String
+  cropName            String
+  sowingDate          DateTime
+  estimatedGrowthDays Int
+  expectedHarvestDate DateTime
+  status              TrayCropStatus       @default(GROWING)
+  harvestedAt         DateTime?
+  notes               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  communityListings   CommunityListing[]
+  marketplaceListings MarketplaceListing[]
+  tray                RackTray             @relation(fields: [trayId], references: [id], onDelete: Cascade)
+
+  @@index([trayId])
+  @@index([trayId, status])
+  @@index([status])
+  @@index([expectedHarvestDate])
+  @@index([cropName])
+  @@map("tray_crop_cycles")
+}
+
+model Community {
+  id          String             @id @default(uuid())
+  name        String
+  slug        String             @unique
+  description String?
+  ownerId     String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  owner       User               @relation("CommunityOwner", fields: [ownerId], references: [id])
+  listings    CommunityListing[]
+  members     CommunityMember[]
+  orders      CommunityOrder[]
+
+  @@index([ownerId])
+  @@index([name])
+  @@map("communities")
+}
+
+model CommunityMember {
+  id          String              @id @default(uuid())
+  communityId String
+  userId      String
+  role        CommunityMemberRole @default(MEMBER)
+  joinedAt    DateTime            @default(now())
+  community   Community           @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, userId])
+  @@index([communityId])
+  @@index([userId])
+  @@map("community_members")
+}
+
+model CommunityListing {
+  id                  String                 @id @default(uuid())
+  communityId         String
+  sellerId            String
+  cropCycleId         String
+  packSizeValue       Decimal                @db.Decimal(10, 3)
+  packSizeUnit        PackUnit
+  price               Decimal                @db.Decimal(10, 2)
+  quantityAvailable   Int?
+  harvestAvailability HarvestAvailability
+  imageUrl            String?
+  imageFileId         String?
+  imageSizeBytes      Int?
+  status              CommunityListingStatus @default(ACTIVE)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  community           Community              @relation(fields: [communityId], references: [id])
+  cropCycle           TrayCropCycle          @relation(fields: [cropCycleId], references: [id])
+  seller              User                   @relation(fields: [sellerId], references: [id])
+  orders              CommunityOrder[]
+
+  @@unique([communityId, cropCycleId])
+  @@index([communityId, status, createdAt])
+  @@index([sellerId])
+  @@index([cropCycleId])
+  @@index([harvestAvailability])
+  @@map("community_listings")
+}
+
+model CommunityOrder {
+  id                  String               @id @default(uuid())
+  orderNumber         String               @unique
+  communityId         String
+  listingId           String
+  buyerId             String
+  sellerId            String
+  cropName            String
+  expectedHarvestDate DateTime
+  packSizeValue       Decimal              @db.Decimal(10, 3)
+  packSizeUnit        PackUnit
+  quantity            Int
+  unitPrice           Decimal              @db.Decimal(10, 2)
+  totalPrice          Decimal              @db.Decimal(12, 2)
+  status              CommunityOrderStatus @default(PLACED)
+  cancelledAt         DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  buyer               User                 @relation("CommunityOrderBuyer", fields: [buyerId], references: [id])
+  community           Community            @relation(fields: [communityId], references: [id])
+  listing             CommunityListing     @relation(fields: [listingId], references: [id])
+  seller              User                 @relation("CommunityOrderSeller", fields: [sellerId], references: [id])
+
+  @@index([communityId])
+  @@index([listingId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([communityId, createdAt])
+  @@map("community_orders")
+}
+
+model UserLocation {
+  id                  String               @id @default(uuid())
+  userId              String
+  label               String
+  address             String
+  landmark            String?
+  mapplsPin           String?
+  latitude            Decimal              @db.Decimal(10, 7)
+  longitude           Decimal              @db.Decimal(10, 7)
+  isDefault           Boolean              @default(false)
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  marketplaceListings MarketplaceListing[]
+  buyerOrders         MarketplaceOrder[]   @relation("BuyerLocation")
+  sellerOrders        MarketplaceOrder[]   @relation("SellerLocation")
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([latitude, longitude])
+  @@map("user_locations")
+}
+
+model MarketplaceListing {
+  id                  String                   @id @default(uuid())
+  sellerId            String
+  cropCycleId         String
+  cropName            String
+  harvestType         MarketplaceHarvestType
+  expectedHarvestDate DateTime?
+  packSizeValue       Decimal                  @db.Decimal(10, 3)
+  packSizeUnit        PackUnit
+  originalPrice       Decimal                  @db.Decimal(10, 2)
+  discountPercent     Decimal                  @default(0) @db.Decimal(5, 2)
+  price               Decimal                  @db.Decimal(10, 2)
+  quantityAvailable   Int
+  minOrderQuantity    Int                      @default(1)
+  maxOrderQuantity    Int?
+  description         String?
+  imageUrl            String?
+  imageFileId         String?
+  imageSizeBytes      Int?
+  sellerLocationId    String
+  sellerDelivery      Boolean                  @default(false)
+  customerPickup      Boolean                  @default(false)
+  deliveryRadiusKm    Decimal?                 @db.Decimal(8, 2)
+  deliveryFee         Decimal                  @default(0) @db.Decimal(10, 2)
+  status              MarketplaceListingStatus @default(DRAFT)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  cropCycle           TrayCropCycle            @relation(fields: [cropCycleId], references: [id])
+  seller              User                     @relation(fields: [sellerId], references: [id])
+  sellerLocation      UserLocation             @relation(fields: [sellerLocationId], references: [id])
+  orders              MarketplaceOrder[]
+
+  @@unique([sellerId, cropCycleId])
+  @@index([status, createdAt])
+  @@index([sellerId, status])
+  @@index([cropName])
+  @@index([cropCycleId])
+  @@index([sellerLocationId])
+  @@map("marketplace_listings")
+}
+
+model MarketplaceOrder {
+  id                       String                     @id @default(uuid())
+  orderNumber              String                     @unique
+  listingId                String
+  buyerId                  String
+  sellerId                 String
+  cropName                 String
+  expectedHarvestDate      DateTime?
+  packSizeValue            Decimal                    @db.Decimal(10, 3)
+  packSizeUnit             PackUnit
+  quantity                 Int
+  originalUnitPrice        Decimal                    @db.Decimal(10, 2)
+  discountPercent          Decimal                    @db.Decimal(5, 2)
+  unitPrice                Decimal                    @db.Decimal(10, 2)
+  subtotal                 Decimal                    @db.Decimal(12, 2)
+  discountAmount           Decimal                    @default(0) @db.Decimal(12, 2)
+  deliveryFee              Decimal                    @default(0) @db.Decimal(10, 2)
+  totalAmount              Decimal                    @db.Decimal(12, 2)
+  fulfillmentType          MarketplaceFulfillmentType
+  paymentMethod            MarketplacePaymentMethod
+  paymentStatus            MarketplacePaymentStatus   @default(PENDING)
+  buyerLocationId          String
+  sellerLocationId         String
+  buyerAddressSnapshot     String
+  buyerLatitude            Decimal                    @db.Decimal(10, 7)
+  buyerLongitude           Decimal                    @db.Decimal(10, 7)
+  sellerAddressSnapshot    String
+  sellerLatitude           Decimal                    @db.Decimal(10, 7)
+  sellerLongitude          Decimal                    @db.Decimal(10, 7)
+  straightLineDistanceKm   Decimal?                   @db.Decimal(10, 3)
+  routeDistanceKm          Decimal?                   @db.Decimal(10, 3)
+  estimatedDeliveryMinutes Int?
+  routeGeometry            String?
+  razorpayOrderId          String?
+  reservationExpiresAt     DateTime?
+  inventoryReleasedAt      DateTime?
+  status                   MarketplaceOrderStatus     @default(PLACED)
+  cancelledAt              DateTime?
+  completedAt              DateTime?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  tracking                 MarketplaceOrderTracking?
+  buyer                    User                       @relation("MarketplaceBuyer", fields: [buyerId], references: [id])
+  buyerLocation            UserLocation               @relation("BuyerLocation", fields: [buyerLocationId], references: [id])
+  listing                  MarketplaceListing         @relation(fields: [listingId], references: [id])
+  seller                   User                       @relation("MarketplaceSeller", fields: [sellerId], references: [id])
+  sellerLocation           UserLocation               @relation("SellerLocation", fields: [sellerLocationId], references: [id])
+  payments                 MarketplacePayment[]
+
+  @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
+  @@index([listingId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([reservationExpiresAt])
+  @@map("marketplace_orders")
+}
+
+model MarketplacePayment {
+  id                String                   @id @default(uuid())
+  orderId           String
+  userId            String
+  kind              MarketplacePaymentKind
+  status            MarketplacePaymentStatus @default(PENDING)
+  amount            Decimal                  @db.Decimal(12, 2)
+  currency          String                   @default("INR")
+  provider          String                   @default("RAZORPAY")
+  providerOrderId   String?
+  providerPaymentId String?
+  providerLinkId    String?
+  providerSignature String?
+  collectedAt       DateTime?
+  metadata          Json?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  order             MarketplaceOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user              User                     @relation(fields: [userId], references: [id])
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@index([providerPaymentId])
+  @@index([providerOrderId])
+  @@index([providerLinkId])
+  @@map("marketplace_payments")
+}
+
+model MarketplaceOrderTracking {
+  id                   String                         @id @default(uuid())
+  orderId              String                         @unique
+  isActive             Boolean                        @default(false)
+  latitude             Decimal?                       @db.Decimal(10, 7)
+  longitude            Decimal?                       @db.Decimal(10, 7)
+  heading              Decimal?                       @db.Decimal(6, 2)
+  speedKmh             Decimal?                       @db.Decimal(8, 2)
+  distanceRemainingKm  Decimal?                       @db.Decimal(10, 3)
+  etaMinutes           Int?
+  routeDistanceKm      Decimal?                       @db.Decimal(10, 3)
+  routeDurationMinutes Int?
+  routeGeometry        String?
+  startedAt            DateTime?
+  reachedAt            DateTime?
+  completedAt          DateTime?
+  lastUpdatedAt        DateTime                       @default(now())
+  order                MarketplaceOrder               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  pings                MarketplaceOrderTrackingPing[]
+
+  @@index([lastUpdatedAt])
+  @@map("marketplace_order_tracking")
+}
+
+model MarketplaceOrderTrackingPing {
+  id         String                   @id @default(uuid())
+  trackingId String
+  latitude   Decimal                  @db.Decimal(10, 7)
+  longitude  Decimal                  @db.Decimal(10, 7)
+  heading    Decimal?                 @db.Decimal(6, 2)
+  speedKmh   Decimal?                 @db.Decimal(8, 2)
+  recordedAt DateTime                 @default(now())
+  tracking   MarketplaceOrderTracking @relation(fields: [trackingId], references: [id], onDelete: Cascade)
+
+  @@index([trackingId, recordedAt])
+  @@map("marketplace_order_tracking_pings")
+}
 
 enum Role {
   USER
@@ -61,541 +714,6 @@ enum TrayCropStatus {
   CANCELLED
 }
 
-// ============================================================
-// USER
-// ============================================================
-model User {
-  id          String  @id @default(uuid())
-  username    String
-  email       String  @unique
-  password    String
-  countryCode String
-  phoneNo     String
-  role        Role    @default(USER)
-  verified    Boolean @default(false)
-
-  otps        Otp[]
-  sessions    Session[]
-  userDevices UserDevice[]
-  automations DeviceAutomation[]
-  racks       Rack[]
-
-  communitiesOwned        Community[]        @relation("CommunityOwner")
-  communityMemberships    CommunityMember[]
-  communityListings       CommunityListing[]
-  communityOrdersAsBuyer  CommunityOrder[]   @relation("CommunityOrderBuyer")
-  communityOrdersAsSeller CommunityOrder[]   @relation("CommunityOrderSeller")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("users")
-}
-
-// ============================================================
-// OTP
-// ============================================================
-
-model Otp {
-  id      String @id @default(uuid())
-  email   String
-  otpHash String
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("otps")
-}
-
-// ============================================================
-// SESSION
-// ============================================================
-
-model Session {
-  id               String  @id @default(uuid())
-  refreshTokenHash String
-  ip               String
-  userAgent        String
-  revoked          Boolean @default(false)
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("sessions")
-}
-
-// ============================================================
-// DEVICE MODEL
-//
-// Defines what a PRODUCT can do.
-// Example:
-// HUMDIE
-// GREENHOUSE_PRO
-// SMART_FAN
-// SMART_RELAY
-// ============================================================
-
-model DeviceModel {
-  id          String  @id @default(uuid())
-  name        String
-  code        String  @unique
-  description String?
-  version     String?
-  imageUrl    String?
-
-  // Product type. RACK models represent 3-row or 4-row growing racks.
-  kind DeviceKind @default(GENERIC)
-
-  // Required only for RACK models. Supported values: 3 or 4.
-  rackRowCount Int?
-
-  // AgriTech rack layout: four trays per row.
-  traysPerRow Int @default(4)
-
-  /**
-   * Example:
-   * {
-   * "sensors": [
-   * {
-   * "key": "temperature",
-   * "label": "Temperature",
-   * "type": "number",
-   * "unit": "°C"
-   * }
-   * ],
-   * "actuators": [
-   * {
-   * "key": "fan",
-   * "label": "Fan",
-   * "type": "switch"
-   * }
-   * ]
-   * }
-   */
-  capabilities Json @default("{}")
-
-  status DeviceModelStatus @default(ACTIVE)
-
-  devices Device[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([kind])
-  @@map("device_models")
-}
-
-// ============================================================
-// PHYSICAL DEVICE
-// ============================================================
-
-model Device {
-  id String @id @default(uuid())
-
-  deviceCode   String @unique
-  serialNumber String @unique
-
-  macAddress String? @unique
-  chipId     String? @unique
-
-  deviceModelId String
-  deviceModel   DeviceModel @relation(fields: [deviceModelId], references: [id])
-
-  status DeviceStatus @default(AVAILABLE)
-
-  batchNumber    String?
-  manufacturedAt DateTime?
-
-  linkedAt DateTime?
-
-  // Last communication from physical device
-  lastSeenAt DateTime?
-
-  // Firmware currently reported
-  firmwareVersion String?
-
-  credential DeviceCredential?
-
-  telemetry DeviceTelemetry[]
-
-  state DeviceState?
-
-  commands DeviceCommand[]
-
-  automations DeviceAutomation[]
-
-  userDevices UserDevice[]
-  racks       Rack[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([deviceModelId])
-  @@index([status])
-  @@index([batchNumber])
-  @@index([lastSeenAt])
-  @@map("devices")
-}
-
-// ============================================================
-// DEVICE CREDENTIAL
-// ============================================================
-
-model DeviceCredential {
-  id String @id @default(uuid())
-
-  deviceId String @unique
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  tokenHash String @unique
-
-  lastUsedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("device_credentials")
-}
-
-// ============================================================
-// GENERIC TELEMETRY
-// ============================================================
-
-model DeviceTelemetry {
-  id String @id @default(uuid())
-
-  deviceId String
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  /**
-   * Generic sensor payload.
-   * HUMDIE:
-   * {
-   * "temperature": 28.1,
-   * "humidity": 67.4
-   * }
-   * GREENHOUSE:
-   * {
-   * "temperature": 28.1,
-   * "humidity": 67.4,
-   * "light": 780,
-   * "soilMoisture": 42
-   * }
-   */
-  data Json @default("{}")
-
-  /**
-   * Kept temporarily so existing Home/Monitor code
-   * continues to work while we migrate the frontend.
-   */
-  temperature Float?
-  humidity    Float?
-
-  recordedAt DateTime @default(now())
-
-  @@index([deviceId])
-  @@index([recordedAt])
-  @@index([deviceId, recordedAt])
-  @@map("device_telemetry")
-}
-
-// ============================================================
-// CURRENT DEVICE STATE
-// ============================================================
-
-model DeviceState {
-  id String @id @default(uuid())
-
-  deviceId String @unique
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  /**
-   * What the hardware actually reports.
-   * {
-   * "fan": true,
-   * "light": false
-   * }
-   */
-  actual Json @default("{}")
-
-  /**
-   * What the platform wants the device to do.
-   * {
-   * "fan": true,
-   * "light": false
-   * }
-   */
-  desired Json @default("{}")
-
-  /**
-   * Control mode per actuator.
-   * {
-   * "fan": "AUTO",
-   * "light": "MANUAL"
-   * }
-   */
-  modes Json @default("{}")
-
-  lastReportedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("device_states")
-}
-
-// ============================================================
-// COMMAND
-// ============================================================
-
-model DeviceCommand {
-  id String @id @default(uuid())
-
-  deviceId String
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  /**
-   * {
-   * "target": "fan",
-   * "action": "set",
-   * "value": true,
-   * "mode": "MANUAL"
-   * }
-   */
-  command Json
-
-  source String @default("USER")
-
-  status DeviceCommandStatus @default(PENDING)
-
-  errorMessage String?
-
-  createdAt      DateTime  @default(now())
-  sentAt         DateTime?
-  acknowledgedAt DateTime?
-  updatedAt      DateTime  @updatedAt
-
-  @@index([deviceId])
-  @@index([status])
-  @@index([createdAt])
-  @@map("device_commands")
-}
-
-// ============================================================
-// AUTOMATION
-// ============================================================
-
-model DeviceAutomation {
-  id String @id @default(uuid())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  deviceId String
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  name String
-
-  status AutomationStatus @default(ACTIVE)
-
-  /**
-   * Example:
-   * {
-   * "field": "humidity",
-   * "operator": ">",
-   * "value": 75
-   * }
-   */
-  trigger Json
-
-  /**
-   * Example:
-   * [
-   * {
-   * "target": "fan",
-   * "action": "set",
-   * "value": true
-   * }
-   * ]
-   */
-  actions Json
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-  @@index([deviceId])
-  @@index([status])
-  @@map("device_automations")
-}
-
-// ============================================================
-// USER DEVICE
-//
-// User-specific relationship + private name.
-// Admin/product never controls this name.
-// ============================================================
-
-model UserDevice {
-  id String @id @default(uuid())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  deviceId String
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  name String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, deviceId])
-  @@index([userId])
-  @@index([deviceId])
-  @@map("user_devices")
-}
-
-model Report {
-  id        String   @id @default(uuid())
-  publisher String
-  url       String
-  details   String
-  userId    String?
-  createdAt DateTime @default(now())
-
-  @@index([createdAt])
-  @@index([publisher])
-  @@map("reports")
-}
-
-// ============================================================
-// AGRIGROW RACK
-// User-owned business object built from a physical RACK device.
-// A 3-row rack has 12 trays; a 4-row rack has 16 trays.
-// ============================================================
-
-model Rack {
-  id String @id @default(uuid())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  deviceId String
-  device   Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  name String
-
-  // Snapshot of the layout when this rack was claimed.
-  rowCount    Int
-  traysPerRow Int @default(4)
-
-  status RackStatus @default(ACTIVE)
-
-  rows RackRow[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-  @@index([deviceId])
-  @@index([deviceId, status])
-  @@index([status])
-  @@map("racks")
-}
-
-model RackRow {
-  id String @id @default(uuid())
-
-  rackId String
-  rack   Rack   @relation(fields: [rackId], references: [id], onDelete: Cascade)
-
-  rowNumber Int
-  name      String
-
-  // Generic device capability keys for this physical row.
-  fanTarget   String
-  lightTarget String
-
-  temperatureSensorKey String?
-  humiditySensorKey    String?
-  lightSensorKey       String?
-
-  // Per-row future automation configuration for the ESP32.
-  controlConfig Json @default("{}")
-
-  trays RackTray[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([rackId, rowNumber])
-  @@index([rackId])
-  @@map("rack_rows")
-}
-
-model RackTray {
-  id String @id @default(uuid())
-
-  rowId String
-  row   RackRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
-
-  slot Int
-  name String
-
-  cycles TrayCropCycle[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([rowId, slot])
-  @@index([rowId])
-  @@map("rack_trays")
-}
-
-// ============================================================
-// TRAY CROP CYCLE
-//
-// cropName is intentionally free-form. A user can grow ANY crop
-// and name it however they want. There is no mandatory Crop master.
-// Each planting creates a new historical cycle for the tray.
-// ============================================================
-model TrayCropCycle {
-  id String @id @default(uuid())
-
-  trayId String
-  tray   RackTray @relation(fields: [trayId], references: [id], onDelete: Cascade)
-
-  cropName String
-
-  sowingDate          DateTime
-  estimatedGrowthDays Int
-  expectedHarvestDate DateTime
-
-  status TrayCropStatus @default(GROWING)
-
-  harvestedAt DateTime?
-  notes       String?
-
-  communityListings CommunityListing[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([trayId])
-  @@index([trayId, status])
-  @@index([status])
-  @@index([expectedHarvestDate])
-  @@index([cropName])
-  @@map("tray_crop_cycles")
-}
-
 enum CommunityMemberRole {
   OWNER
   MEMBER
@@ -630,129 +748,53 @@ enum CommunityOrderStatus {
   CANCELLED
 }
 
-// ============================================================
-// COMMUNITY MARKETPLACE
-// ============================================================
-
-model Community {
-  id          String  @id @default(uuid())
-  name        String
-  slug        String  @unique
-  description String?
-
-  ownerId String
-  owner   User   @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-
-  members  CommunityMember[]
-  listings CommunityListing[]
-  orders   CommunityOrder[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([ownerId])
-  @@index([name])
-  @@map("communities")
+enum MarketplaceListingStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  SOLD_OUT
+  EXPIRED
+  REMOVED
 }
 
-model CommunityMember {
-  id String @id @default(uuid())
-
-  communityId String
-  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  role     CommunityMemberRole @default(MEMBER)
-  joinedAt DateTime            @default(now())
-
-  @@unique([communityId, userId])
-  @@index([communityId])
-  @@index([userId])
-  @@map("community_members")
+enum MarketplaceHarvestType {
+  HARVESTED
+  UPCOMING
 }
 
-model CommunityListing {
-  id String @id @default(uuid())
-
-  communityId String
-  community   Community @relation(fields: [communityId], references: [id], onDelete: Restrict)
-
-  sellerId String
-  seller   User   @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-
-  cropCycleId String
-  cropCycle   TrayCropCycle @relation(fields: [cropCycleId], references: [id], onDelete: Restrict)
-
-  packSizeValue Decimal  @db.Decimal(10, 3)
-  packSizeUnit  PackUnit
-
-  price             Decimal @db.Decimal(10, 2)
-  quantityAvailable Int?
-
-  harvestAvailability HarvestAvailability
-
-  imageUrl       String?
-  imageFileId    String?
-  imageSizeBytes Int?
-
-  status CommunityListingStatus @default(ACTIVE)
-
-  orders CommunityOrder[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([communityId, cropCycleId])
-  @@index([communityId, status, createdAt])
-  @@index([sellerId])
-  @@index([cropCycleId])
-  @@index([harvestAvailability])
-  @@map("community_listings")
+enum MarketplaceFulfillmentType {
+  SELLER_DELIVERY
+  CUSTOMER_PICKUP
 }
 
-model CommunityOrder {
-  id String @id @default(uuid())
+enum MarketplaceOrderStatus {
+  PENDING_PAYMENT
+  PLACED
+  ACCEPTED
+  PREPARING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  REACHED
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
 
-  orderNumber String @unique
+enum MarketplacePaymentMethod {
+  ONLINE
+  COD
+}
 
-  communityId String
-  community   Community @relation(fields: [communityId], references: [id], onDelete: Restrict)
+enum MarketplacePaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+}
 
-  listingId String
-  listing   CommunityListing @relation(fields: [listingId], references: [id], onDelete: Restrict)
-
-  buyerId String
-  buyer   User   @relation("CommunityOrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
-
-  sellerId String
-  seller   User   @relation("CommunityOrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
-
-  // Snapshot fields so the order remains historically accurate
-  // even if the listing changes later.
-  cropName            String
-  expectedHarvestDate DateTime
-  packSizeValue       Decimal  @db.Decimal(10, 3)
-  packSizeUnit        PackUnit
-
-  quantity   Int
-  unitPrice  Decimal @db.Decimal(10, 2)
-  totalPrice Decimal @db.Decimal(12, 2)
-
-  status CommunityOrderStatus @default(PLACED)
-
-  cancelledAt DateTime?
-  completedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([communityId])
-  @@index([listingId])
-  @@index([buyerId])
-  @@index([sellerId])
-  @@index([status])
-  @@index([communityId, createdAt])
-  @@map("community_orders")
+enum MarketplacePaymentKind {
+  CHECKOUT
+  DOORSTEP_UPI
+  CASH
 }

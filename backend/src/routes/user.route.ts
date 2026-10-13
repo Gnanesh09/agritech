@@ -2,6 +2,9 @@ import { Router } from "express";
 import * as userController from "../controllers/user.controller";
 import * as commandController from "../controllers/userCommand.controller";
 import { protectRoute } from "../middleware/auth.middleware";
+import * as marketplaceController from "../controllers/marketplace.controller";
+import * as mapsController from "../controllers/maps.controller";
+import * as paymentController from "../controllers/payment.controller";
 
 const userRouter = Router();
 
@@ -83,101 +86,254 @@ userRouter.post(
 // COMMUNITIES
 // ============================================================
 
-userRouter.get("/communities", protectRoute, userController.getCommunities);
+// userRouter.get("/communities", protectRoute, userController.getCommunities);
 
-userRouter.post("/communities", protectRoute, userController.createCommunity);
+// userRouter.post("/communities", protectRoute, userController.createCommunity);
 
+// userRouter.post(
+//   "/communities/:communityId/join",
+//   protectRoute,
+//   userController.joinCommunity,
+// );
+
+// userRouter.delete(
+//   "/communities/:communityId/leave",
+//   protectRoute,
+//   userController.leaveCommunity,
+// );
+
+// // ============================================================
+// // MARKETPLACE LISTINGS
+// // ============================================================
+
+// userRouter.get(
+//   "/communities/:communityId/listings",
+//   protectRoute,
+//   userController.getCommunityListings,
+// );
+
+// userRouter.post(
+//   "/communities/:communityId/listings",
+//   protectRoute,
+//   userController.createCommunityListing,
+// );
+
+// userRouter.get(
+//   "/communities/:communityId/my-listings",
+//   protectRoute,
+//   userController.getMyCommunityListings,
+// );
+
+// userRouter.get(
+//   "/communities/:communityId/listings/:listingId",
+//   protectRoute,
+//   userController.getCommunityListing,
+// );
+
+// userRouter.patch(
+//   "/communities/:communityId/listings/:listingId",
+//   protectRoute,
+//   userController.updateCommunityListing,
+// );
+
+// userRouter.delete(
+//   "/communities/:communityId/listings/:listingId",
+//   protectRoute,
+//   userController.removeCommunityListing,
+// );
+
+// // ============================================================
+// // BUYING
+// // ============================================================
+
+// userRouter.post(
+//   "/communities/:communityId/listings/:listingId/orders",
+//   protectRoute,
+//   userController.createCommunityOrder,
+// );
+
+// // ============================================================
+// // ORDERS
+// // IMPORTANT: buying/selling routes come BEFORE :orderId
+// // ============================================================
+
+// userRouter.get(
+//   "/communities/:communityId/orders/buying",
+//   protectRoute,
+//   userController.getMyBuyingOrders,
+// );
+
+// userRouter.get(
+//   "/communities/:communityId/orders/selling",
+//   protectRoute,
+//   userController.getMySellingOrders,
+// );
+
+// userRouter.get(
+//   "/communities/:communityId/orders/:orderId",
+//   protectRoute,
+//   userController.getCommunityOrder,
+// );
+
+// userRouter.patch(
+//   "/communities/:communityId/orders/:orderId/status",
+//   protectRoute,
+//   userController.updateCommunityOrderStatus,
+// );
+
+// userRouter.post(
+//   "/devices/check",
+//   protectRoute,
+//   userController.checkDeviceAvailability,
+// );
+
+// export default userRouter;
+
+// Seller gets crops automatically from their existing grow records.
+userRouter.get(
+  "/marketplace/my-crops",
+  protectRoute,
+  marketplaceController.getSellableCrops,
+);
+
+// Locations: user can add/edit multiple locations anytime.
+userRouter.get(
+  "/marketplace/locations",
+  protectRoute,
+  marketplaceController.getMarketplaceLocations,
+);
 userRouter.post(
-  "/communities/:communityId/join",
+  "/marketplace/locations",
   protectRoute,
-  userController.joinCommunity,
+  marketplaceController.createMarketplaceLocation,
 );
-
-userRouter.delete(
-  "/communities/:communityId/leave",
-  protectRoute,
-  userController.leaveCommunity,
-);
-
-// ============================================================
-// MARKETPLACE LISTINGS
-// ============================================================
-
-userRouter.get(
-  "/communities/:communityId/listings",
-  protectRoute,
-  userController.getCommunityListings,
-);
-
-userRouter.post(
-  "/communities/:communityId/listings",
-  protectRoute,
-  userController.createCommunityListing,
-);
-
-userRouter.get(
-  "/communities/:communityId/my-listings",
-  protectRoute,
-  userController.getMyCommunityListings,
-);
-
-userRouter.get(
-  "/communities/:communityId/listings/:listingId",
-  protectRoute,
-  userController.getCommunityListing,
-);
-
 userRouter.patch(
-  "/communities/:communityId/listings/:listingId",
+  "/marketplace/locations/:locationId",
   protectRoute,
-  userController.updateCommunityListing,
+  marketplaceController.updateMarketplaceLocation,
 );
-
 userRouter.delete(
-  "/communities/:communityId/listings/:listingId",
+  "/marketplace/locations/:locationId",
   protectRoute,
-  userController.removeCommunityListing,
+  marketplaceController.deleteMarketplaceLocation,
 );
 
-// ============================================================
-// BUYING
-// ============================================================
-
+// Listings.
+userRouter.get(
+  "/marketplace/listings",
+  protectRoute,
+  marketplaceController.getMarketplaceListings,
+);
 userRouter.post(
-  "/communities/:communityId/listings/:listingId/orders",
+  "/marketplace/listings",
   protectRoute,
-  userController.createCommunityOrder,
+  marketplaceController.createMarketplaceListing,
 );
-
-// ============================================================
-// ORDERS
-// IMPORTANT: buying/selling routes come BEFORE :orderId
-// ============================================================
-
 userRouter.get(
-  "/communities/:communityId/orders/buying",
+  "/marketplace/listings/:listingId",
   protectRoute,
-  userController.getMyBuyingOrders,
+  marketplaceController.getMarketplaceListing,
 );
-
-userRouter.get(
-  "/communities/:communityId/orders/selling",
-  protectRoute,
-  userController.getMySellingOrders,
-);
-
-userRouter.get(
-  "/communities/:communityId/orders/:orderId",
-  protectRoute,
-  userController.getCommunityOrder,
-);
-
 userRouter.patch(
-  "/communities/:communityId/orders/:orderId/status",
+  "/marketplace/listings/:listingId",
   protectRoute,
-  userController.updateCommunityOrderStatus,
+  marketplaceController.updateMarketplaceListing,
+);
+userRouter.delete(
+  "/marketplace/listings/:listingId",
+  protectRoute,
+  marketplaceController.removeMarketplaceListing,
+);
+userRouter.get(
+  "/marketplace/my-listings",
+  protectRoute,
+  marketplaceController.getMyMarketplaceListings,
 );
 
+// Map mode.
+userRouter.get(
+  "/marketplace/map/listings",
+  protectRoute,
+  mapsController.getNearbyMarketplaceListings,
+);
+userRouter.post(
+  "/marketplace/map/distance",
+  protectRoute,
+  mapsController.calculateMarketplaceDistance,
+);
+userRouter.post(
+  "/marketplace/map/route",
+  protectRoute,
+  mapsController.calculateMarketplaceRoute,
+);
+
+// Orders - specific collection routes before :orderId.
+userRouter.post(
+  "/marketplace/orders",
+  protectRoute,
+  marketplaceController.createMarketplaceOrder,
+);
+userRouter.get(
+  "/marketplace/orders/buying",
+  protectRoute,
+  marketplaceController.getBuyingOrders,
+);
+userRouter.get(
+  "/marketplace/orders/selling",
+  protectRoute,
+  marketplaceController.getSellingOrders,
+);
+userRouter.get(
+  "/marketplace/orders/:orderId",
+  protectRoute,
+  marketplaceController.getMarketplaceOrder,
+);
+userRouter.patch(
+  "/marketplace/orders/:orderId/status",
+  protectRoute,
+  marketplaceController.updateMarketplaceOrderStatus,
+);
+userRouter.post(
+  "/marketplace/orders/:orderId/cancel",
+  protectRoute,
+  marketplaceController.cancelMarketplaceOrder,
+);
+
+// Live delivery.
+userRouter.post(
+  "/marketplace/orders/:orderId/tracking/start",
+  protectRoute,
+  marketplaceController.startMarketplaceDelivery,
+);
+userRouter.post(
+  "/marketplace/orders/:orderId/tracking/reached",
+  protectRoute,
+  marketplaceController.markMarketplaceOrderReached,
+);
+
+// Payments.
+userRouter.post(
+  "/marketplace/orders/:orderId/payment/create",
+  protectRoute,
+  paymentController.createOnlinePayment,
+);
+userRouter.post(
+  "/marketplace/orders/:orderId/payment/verify",
+  protectRoute,
+  paymentController.verifyOnlinePayment,
+);
+userRouter.post(
+  "/marketplace/orders/:orderId/payment/cash",
+  protectRoute,
+  marketplaceController.collectCashPayment,
+);
+userRouter.post(
+  "/marketplace/orders/:orderId/payment/upi",
+  protectRoute,
+  marketplaceController.createDoorstepUpiPayment,
+);
+
+// Existing device check endpoint.
 userRouter.post(
   "/devices/check",
   protectRoute,

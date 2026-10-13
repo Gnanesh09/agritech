@@ -26,10 +26,15 @@ const TAB_CONFIG: Record<string, any> = {
     IconLibrary: FontAwesome6, // Using FontAwesome6 here
     iconName: "server", // You can change this to any FA6 icon
   },
-  notifications: {
-    label: "Alerts",
+  // notifications: {
+  //   label: "Alerts",
+  //   IconLibrary: Feather,
+  //   iconName: "bell",
+  // },
+  market: {
+    label: "Market",
     IconLibrary: Feather,
-    iconName: "bell",
+    iconName: "shopping-bag",
   },
   profile: {
     label: "Profile",
@@ -272,7 +277,8 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Home" }} />
       <Tabs.Screen name="devices" options={{ title: "Devices" }} />
-      <Tabs.Screen name="notifications" options={{ title: "Alerts" }} />
+      {/* <Tabs.Screen name="notifications" options={{ title: "Alerts" }} /> */}
+      <Tabs.Screen name="market" options={{ title: "Market" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
       <Tabs.Screen name="coco" options={{ title: "CocoAi" }} />
     </Tabs>

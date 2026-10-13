@@ -16,6 +16,7 @@
     "@types/node": "^26.1.2",
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.4",
+    "@types/ws": "^8.18.2",
     "prisma": "7.9.1"
   },
   "peerDependencies": {
@@ -30,6 +31,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "8.4.0",
     "nodemailer": "^9.0.3",
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "ws": "^8.22.0"
   }
 }
