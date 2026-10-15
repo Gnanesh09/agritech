@@ -15,7 +15,7 @@ import { router } from "expo-router";
 
 import { apiRequest } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
-import AppText from "@/components/ui/Apptesxt";
+import AppText from "@/components/ui/AppText";
 
 type User = {
   id: string;
