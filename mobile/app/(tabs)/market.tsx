@@ -756,68 +756,107 @@ function ListingCard({
   return (
     <Pressable
       onPress={onPress}
-      className="w-full min-h-[126px] bg-[#171916] rounded-[17px] border border-[#30352D] overflow-hidden mb-[11px] p-[9px] flex-row gap-[11px]"
-      style={({ pressed }) => (pressed ? { opacity: 0.88 } : undefined)}
+      className="mb-3 w-full flex-row gap-3 overflow-hidden rounded-2xl border border-[#30352D] bg-[#171916] p-2.5"
+      style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
     >
-      <View className="w-[100px] h-[108px] rounded-[13px] overflow-hidden bg-[#20221E] relative shrink-0">
+      {/* Product image */}
+      <View className="relative h-[112px] w-[104px] shrink-0 overflow-hidden rounded-xl bg-[#20221E]">
         {listing.imageUrl ? (
           <Image
             source={{ uri: listing.imageUrl }}
-            className="w-full h-full object-cover"
+            resizeMode="cover"
+            className="h-full w-full"
           />
         ) : (
           <View className="flex-1 items-center justify-center bg-[#202A19]">
-            <Ionicons name="leaf-outline" size={34} color={C.green} />
+            <Ionicons name="leaf-outline" size={32} color={C.green} />
+            <Text className="mt-1 text-[9px] font-medium text-[#A2A79E]">
+              Fresh produce
+            </Text>
           </View>
         )}
+
         {discount > 0 && (
-          <View className="absolute left-[9px] top-[9px] bg-[#C8FF67] rounded-[7px] px-[7px] py-[4px]">
-            <Text className="text-[#080907] text-[9px] font-black">
+          <View className="absolute left-1.5 top-1.5 rounded-md bg-[#C8FF67] px-2 py-1">
+            <Text className="text-[9px] font-extrabold text-[#080907]">
               {discount}% OFF
             </Text>
           </View>
         )}
       </View>
-      <View className="flex-1 min-w-[0px] py-[2px] pr-[2px]">
-        <View className="flex-row items-center justify-between gap-[8px]">
+
+      {/* Product details */}
+      <View className="min-w-0 flex-1 justify-between py-0.5">
+        <View className="gap-1.5">
+          {/* Product name and distance */}
+          <View className="flex-row items-start justify-between gap-2">
+            <Text
+              className="flex-1 text-[15px] font-bold leading-5 text-[#F6F7F4]"
+              numberOfLines={1}
+            >
+              {listing.cropName}
+            </Text>
+
+            <View className="shrink-0 flex-row items-center gap-1 rounded-md bg-[#202A19] px-1.5 py-1">
+              <Feather name="map-pin" size={10} color={C.green} />
+              <Text className="text-[10px] font-semibold text-[#C8FF67]">
+                {fmtKm(listing.distanceKm)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Seller */}
+          <View className="flex-row items-center gap-1">
+            <Feather name="user" size={11} color={C.muted} />
+            <Text className="text-[11px] text-[#A2A79E]">
+              Sold by{" "}
+              <Text className="font-semibold text-[#D8DBD3]">
+                {listing.seller?.username ?? "Local grower"}
+              </Text>
+            </Text>
+          </View>
+
+          {/* Product description */}
           <Text
-            className="text-[#F6F7F4] text-[13.5px] font-extrabold flex-1"
-            numberOfLines={1}
+            className="text-[11px] leading-[16px] text-[#A2A79E]"
+            numberOfLines={2}
           >
-            {listing.cropName}
-          </Text>
-          <Text className="text-[#0C0D0B] text-[10.5px] font-extrabold">
-            {fmtKm(listing.distanceKm)}
+            {listing.description?.trim() ||
+              `${listing.packSizeValue} ${listing.packSizeUnit} pack · ${listing.quantityAvailable} available`}
           </Text>
         </View>
-        <Text
-          className="max-w-[74px] text-right text-[#A2A79E] text-[9.5px] font-bold"
-          numberOfLines={1}
-        >
-          Sold by{" "}
-          <Text className="text-[#C8FF67] italic">
-            {listing.seller?.username ?? "local grower"}
-          </Text>
-        </Text>
-        <Text
-          className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[3px]"
-          numberOfLines={2}
-        >
-          {listing.description?.trim() ||
-            `${listing.packSizeValue} ${listing.packSizeUnit} pack · ${listing.quantityAvailable} available`}
-        </Text>
-        <View
-          className="flex-row items-center justify-between gap-[8px]"
-          style={{ marginTop: "auto", paddingTop: 7 }}
-        >
-          <Text className="text-[#F6F7F4] text-[17px] font-black">
-            {money(listing.price)}
-          </Text>
-          <Text className="text-[#C8FF67] text-[10px] font-bold">
-            {listing.harvestType === "UPCOMING"
-              ? fmtDate(listing.expectedHarvestDate)
-              : "Harvest details ›"}
-          </Text>
+
+        {/* Price and harvest information */}
+        <View className="mt-2 flex-row items-end justify-between gap-2 border-t border-[#30352D] pt-2">
+          <View className="min-w-0 flex-1">
+            <View className="flex-row flex-wrap items-baseline gap-x-1.5">
+              <Text className="text-[17px] font-extrabold text-[#F6F7F4]">
+                {money(listing.price)}
+              </Text>
+
+              {discount > 0 && (
+                <Text className="text-[10px] text-[#A2A79E] line-through">
+                  {money(listing.originalPrice)}
+                </Text>
+              )}
+            </View>
+
+            <Text className="mt-0.5 text-[10px] text-[#A2A79E]">
+              per {listing.packSizeValue} {listing.packSizeUnit}
+            </Text>
+          </View>
+
+          <View className="max-w-[125px] flex-row items-center gap-1 pb-0.5">
+            <Text
+              className="flex-shrink text-right text-[10px] font-semibold leading-[14px] text-[#C8FF67]"
+              numberOfLines={2}
+            >
+              {listing.harvestType === "UPCOMING"
+                ? `Ready ${fmtDate(listing.expectedHarvestDate)}`
+                : "View harvest details"}
+            </Text>
+            <Feather name="chevron-right" size={13} color={C.green} />
+          </View>
         </View>
       </View>
     </Pressable>
@@ -1798,7 +1837,6 @@ export default function MarketplaceScreen() {
 
             {/* Five primary actions. MAP/LIST highlight changes; the row itself stays fixed. */}
             <MarketplaceActionBar
-              colors={C}
               active={viewMode}
               onMaps={() => setViewMode("MAP")}
               onList={() => setViewMode("LIST")}
@@ -1876,7 +1914,7 @@ export default function MarketplaceScreen() {
                   />
                 }
                 ListHeaderComponent={
-                  <View className="pt-[14px] pb-[12px]">
+                  <View className="pt-[50px] pb-[12px]">
                     <View className="flex-row items-center justify-between gap-[12px]">
                       <View className="flex-1">
                         <Text className="text-[#F6F7F4] text-[17px] font-black">

@@ -1,14 +1,34 @@
 import React, { useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View, Alert, useWindowDimensions } from "react-native";
+import {
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { addToCart, useSelectedListing } from "../../../lib/marketplace-store";
 import { MARKETPLACE_COLORS as C } from "../../../theme/marketplace-colors";
 
-const money = (value: number) => `₹${Math.round(Number(value || 0)).toLocaleString("en-IN")}`;
+const money = (value: number) =>
+  `₹${Math.round(Number(value || 0)).toLocaleString("en-IN")}`;
 
-// UI sections: product hero, seller summary, harvest details, quantity stepper, and sticky add-to-cart bar.
+const formatHarvestDate = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+};
+
 export default function MarketplaceProductScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -17,80 +37,365 @@ export default function MarketplaceProductScreen() {
   const routeId = Array.isArray(params.id) ? params.id[0] : params.id;
   const listing = useSelectedListing();
   const product = listing?.id === routeId ? listing : null;
-  const [quantity, setQuantity] = useState(Math.max(1, Number(product?.minOrderQuantity ?? 1)));
-  const total = useMemo(() => Number(product?.price ?? 0) * quantity, [product?.price, quantity]);
+
+  const [quantity, setQuantity] = useState(
+    Math.max(1, Number(product?.minOrderQuantity ?? 1)),
+  );
+
+  const total = useMemo(
+    () => Number(product?.price ?? 0) * quantity,
+    [product?.price, quantity],
+  );
 
   if (!product) {
     return (
-      <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
+      <View
+        className="flex-1 bg-[#0C0D0B] px-5"
+        style={{ paddingTop: insets.top + 12 }}
+      >
         <StatusBar barStyle="light-content" backgroundColor={C.bg} />
-        <Pressable onPress={() => router.back()} style={styles.backFallback}><Feather name="arrow-left" size={20} color={C.ink} /></Pressable>
-        <View style={styles.missing}><Ionicons name="leaf-outline" size={31} color={C.green} /><Text style={styles.missingTitle}>Product unavailable</Text><Text style={styles.missingText}>Go back to Maps or List and open the product again.</Text><Pressable onPress={() => router.replace("/(tabs)/market" as any)} style={styles.primary}><Text style={styles.primaryText}>Back to marketplace</Text></Pressable></View>
+
+        <Pressable
+          onPress={() => router.back()}
+          className="h-11 w-11 items-center justify-center rounded-2xl border border-[#30352D] bg-[#171916]"
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Feather name="arrow-left" size={20} color={C.ink} />
+        </Pressable>
+
+        <View className="flex-1 items-center justify-center gap-3 px-5">
+          <View className="h-16 w-16 items-center justify-center rounded-3xl border border-[#30352D] bg-[#202A19]">
+            <Ionicons name="leaf-outline" size={30} color="#C8FF67" />
+          </View>
+          <Text className="text-center text-xl font-bold text-[#F6F7F4]">
+            Product unavailable
+          </Text>
+          <Text className="max-w-[280px] text-center text-sm leading-6 text-[#A2A79E]">
+            Go back to the marketplace and open this product again.
+          </Text>
+          <Pressable
+            onPress={() => router.replace("/(tabs)/market" as any)}
+            className="mt-2 rounded-2xl bg-[#C8FF67] px-5 py-3.5"
+          >
+            <Text className="font-bold text-[#0C0D0B]">
+              Back to marketplace
+            </Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
 
-  const maxQuantity = Math.max(Number(product.minOrderQuantity ?? 1), Math.min(Number(product.maxOrderQuantity ?? product.quantityAvailable ?? 9999), Number(product.quantityAvailable ?? 9999)));
+  const minQuantity = Math.max(1, Number(product.minOrderQuantity ?? 1));
+  const availableQuantity = Math.max(
+    0,
+    Number(product.quantityAvailable ?? 9999),
+  );
+  const maxQuantity = Math.max(
+    minQuantity,
+    Math.min(
+      Number(product.maxOrderQuantity ?? availableQuantity ?? 9999),
+      availableQuantity || 9999,
+    ),
+  );
+  const discount = Math.max(
+    0,
+    Math.round(Number(product.discountPercent ?? 0)),
+  );
+  const harvestDate = formatHarvestDate(product.expectedHarvestDate);
+  const heroHeight = Math.min(360, Math.max(260, height * 0.36));
+
   const add = () => {
     addToCart(product, quantity);
-    Alert.alert("Added to cart", `${product.cropName} has been added to your cart.`, [
-      { text: "Continue browsing", onPress: () => router.back() },
-      { text: "View cart", onPress: () => router.push("/market/cart" as any) },
-    ]);
+    Alert.alert(
+      "Added to cart",
+      `${product.cropName} has been added to your cart.`,
+      [
+        { text: "Continue browsing", onPress: () => router.back() },
+        {
+          text: "View cart",
+          onPress: () => router.push("/market/cart" as any),
+        },
+      ],
+    );
   };
 
   return (
-    <View style={styles.screen}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <ScrollView contentContainerStyle={{ paddingBottom: 118 }} showsVerticalScrollIndicator={false}>
-        <View style={[styles.hero, { height: Math.min(340, Math.max(245, height * 0.34)) }]}>
-          {product.imageUrl ? <Image source={{ uri: product.imageUrl }} style={styles.heroImage} resizeMode="cover" /> : <View style={styles.heroFallback}><Ionicons name="leaf-outline" size={64} color={C.green} /></View>}
-          <View style={[styles.heroTop, { top: insets.top + 9 }]}>
-            <Pressable onPress={() => router.back()} style={styles.heroIcon}><Feather name="arrow-left" size={20} color={C.ink} /></Pressable>
-            <Pressable onPress={() => router.push("/market/cart" as any)} style={styles.heroIcon}><Feather name="shopping-bag" size={19} color={C.ink} /></Pressable>
+    <View className="flex-1 bg-[#0C0D0B]">
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 128 }}
+      >
+        {/* Product image and floating navigation */}
+        <View
+          className="relative w-full overflow-hidden bg-[#141A15]"
+          style={{ height: heroHeight }}
+        >
+          {product.imageUrl ? (
+            <Image
+              source={{ uri: product.imageUrl }}
+              className="h-full w-full"
+              resizeMode="cover"
+            />
+          ) : (
+            <View className="flex-1 items-center justify-center bg-[#141E18]">
+              <View className="h-24 w-24 items-center justify-center rounded-[32px] border border-[#2E4938] bg-[#1A2B20]">
+                <Ionicons name="leaf-outline" size={52} color={C.green} />
+              </View>
+              <Text className="mt-4 text-xs font-medium text-[#A2A79E]">
+                Fresh local produce
+              </Text>
+            </View>
+          )}
+
+          {/* Gentle tint keeps controls readable over bright product photos. */}
+          <View
+            pointerEvents="none"
+            className="absolute inset-0 bg-[#080907]/15"
+          />
+
+          <View
+            className="absolute left-4 right-4 flex-row items-center justify-between"
+            style={{ top: insets.top + 10 }}
+          >
+            <Pressable
+              onPress={() => router.back()}
+              className="h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#080907]/80"
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <Feather name="arrow-left" size={20} color="#FFFFFF" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push("/market/cart" as any)}
+              className="h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#080907]/80"
+              accessibilityRole="button"
+              accessibilityLabel="Open cart"
+            >
+              <Feather name="shopping-bag" size={19} color="#FFFFFF" />
+            </Pressable>
           </View>
-          {product.harvestType === "UPCOMING" && <View style={styles.harvestTag}><Text style={styles.harvestTagText}>UPCOMING HARVEST</Text></View>}
+
+          {product.harvestType === "UPCOMING" && (
+            <View className="absolute bottom-12 left-4 flex-row items-center gap-1.5 rounded-xl border border-[#718F38] bg-[#202A19] px-3 py-2">
+              <Feather name="calendar" size={12} color="#C8FF67" />
+              <Text className="text-[10px] font-extrabold tracking-[0.8px] text-[#C8FF67]">
+                UPCOMING HARVEST
+              </Text>
+            </View>
+          )}
         </View>
 
-        <View style={styles.productCard}>
-          <View style={styles.titleRow}>
-            <View style={{ flex: 1 }}><Text style={styles.productName}>{product.cropName}</Text><Text style={styles.packText}>Net quantity: {product.packSizeValue} {product.packSizeUnit}, pack of 1</Text></View>
-            <View style={styles.priceChip}><Text style={styles.priceText}>{money(product.price)}</Text></View>
+        {/* Main product summary */}
+        <View className="z-10 mx-3.5 -mt-8 rounded-[24px] border border-[#30352D] bg-[#171916] p-4">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="min-w-0 flex-1">
+              <Text
+                className="text-[22px] font-extrabold leading-7 text-[#F6F7F4]"
+                numberOfLines={2}
+              >
+                {product.cropName}
+              </Text>
+              <Text className="mt-1.5 text-xs leading-5 text-[#A2A79E]">
+                Pack of 1 · {product.packSizeValue} {product.packSizeUnit}
+              </Text>
+            </View>
+
+            <View className="items-end gap-1">
+              <View className="rounded-xl  bg-[#08a329] px-3 py-2">
+                <Text className="text-base text-2xl font-extrabold text-[#ffffff]">
+                  {money(product.price)}
+                </Text>
+              </View>
+              {discount > 0 && (
+                <Text className="text-[10px] font-bold text-[#C8FF67]">
+                  {discount}% off
+                </Text>
+              )}
+            </View>
           </View>
-          <View style={styles.sellerRow}><View style={styles.sellerAvatar}><Ionicons name="leaf" size={16} color={C.green} /></View><View style={{ flex: 1 }}><Text style={styles.sellerName}>{product.seller?.username ?? "Local grower"}</Text><Text style={styles.sellerSub}>Nearby independent grower</Text></View><Text style={styles.distance}>{product.distanceKm == null ? "Nearby" : `${Number(product.distanceKm).toFixed(1)} km`}</Text></View>
+
+          {discount > 0 &&
+            Number(product.originalPrice) > Number(product.price) && (
+              <View className="mt-2 flex-row items-center gap-2">
+                <Text className="text-xs text-[#8A9189] line-through">
+                  {money(Number(product.originalPrice))}
+                </Text>
+                <Text className="text-[11px] font-semibold text-[#C8FF67]">
+                  You save{" "}
+                  {money(Number(product.originalPrice) - Number(product.price))}
+                </Text>
+              </View>
+            )}
+
+          {/* Seller information */}
+          <View className="mt-4 flex-row items-center gap-3 border-t border-[#30352D] pt-4">
+            <View className="h-11 w-11 items-center justify-center rounded-2xl border border-[#2E4938] bg-[#202A19]">
+              <Ionicons name="leaf" size={19} color={C.green} />
+            </View>
+
+            <View className="min-w-0 flex-1">
+              <Text
+                className="text-sm font-bold text-[#F6F7F4]"
+                numberOfLines={1}
+              >
+                {product.seller?.username ?? "Local grower"}
+              </Text>
+              <Text className="mt-1 text-[11px] text-[#A2A79E]">
+                Independent local grower
+              </Text>
+            </View>
+
+            <View className="flex-row items-center gap-1.5 rounded-full border border-[#30352D] bg-[#202A19] px-2.5 py-2">
+              <Feather name="map-pin" size={12} color="#C8FF67" />
+              <Text className="text-[11px] font-bold text-[#C8FF67]">
+                {product.distanceKm == null
+                  ? "Nearby"
+                  : `${Number(product.distanceKm).toFixed(1)} km`}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.detailsSection}>
-          <Text style={styles.sectionTitle}>Product details</Text>
-          {!!product.description && <Text style={styles.description}>{product.description}</Text>}
-          <View style={styles.detailGrid}>
-            <View style={styles.detailItem}><Feather name="package" size={16} color={C.green} /><Text style={styles.detailLabel}>Pack size</Text><Text style={styles.detailValue}>{product.packSizeValue} {product.packSizeUnit}</Text></View>
-            <View style={styles.detailItem}><Feather name="layers" size={16} color={C.green} /><Text style={styles.detailLabel}>Availability</Text><Text style={styles.detailValue}>{product.quantityAvailable} packs</Text></View>
-            <View style={styles.detailItem}><Feather name="truck" size={16} color={C.green} /><Text style={styles.detailLabel}>Delivery</Text><Text style={styles.detailValue}>{product.sellerDelivery ? "Available" : "Pickup"}</Text></View>
+        {/* Product information */}
+        <View className="px-4 pb-3 pt-7">
+          <Text className="text-lg font-bold text-[#F6F7F4]">
+            Product details
+          </Text>
+          {!!product.description && (
+            <Text className="mt-2 text-[13px] leading-[21px] text-[#A2A79E]">
+              {product.description}
+            </Text>
+          )}
+
+          <View className="mt-4 flex-row gap-2">
+            <View className="min-w-0 flex-1 rounded-2xl border border-[#30352D] bg-[#171916] px-3 py-3.5">
+              <View className="mb-3 h-9 w-9 items-center justify-center rounded-xl bg-[#202A19]">
+                <Feather name="package" size={17} color="#C8FF67" />
+              </View>
+              <Text className="text-[11px] text-[#A2A79E]">Pack size</Text>
+              <Text
+                className="mt-1 text-[13px] font-bold text-[#F6F7F4]"
+                numberOfLines={2}
+              >
+                {product.packSizeValue} {product.packSizeUnit}
+              </Text>
+            </View>
+
+            <View className="min-w-0 flex-1 rounded-2xl border border-[#30352D] bg-[#171916] px-3 py-3.5">
+              <View className="mb-3 h-9 w-9 items-center justify-center rounded-xl bg-[#202A19]">
+                <Feather name="layers" size={17} color="#C8FF67" />
+              </View>
+              <Text className="text-[11px] text-[#A2A79E]">Available</Text>
+              <Text
+                className="mt-1 text-[13px] font-bold text-[#F6F7F4]"
+                numberOfLines={2}
+              >
+                {product.quantityAvailable} packs
+              </Text>
+            </View>
+
+            <View className="min-w-0 flex-1 rounded-2xl border border-[#30352D] bg-[#171916] px-3 py-3.5">
+              <View className="mb-3 h-9 w-9 items-center justify-center rounded-xl bg-[#202A19]">
+                <Feather name="truck" size={17} color="#C8FF67" />
+              </View>
+              <Text className="text-[11px] text-[#A2A79E]">Fulfilment</Text>
+              <Text
+                className="mt-1 text-[13px] font-bold text-[#F6F7F4]"
+                numberOfLines={2}
+              >
+                {product.sellerDelivery ? "Delivery" : "Pickup"}
+              </Text>
+            </View>
           </View>
-          <View style={styles.harvestInfo}><View style={styles.harvestInfoIcon}><Ionicons name="leaf-outline" size={19} color={C.green} /></View><View style={{ flex: 1 }}><Text style={styles.harvestInfoTitle}>{product.harvestType === "UPCOMING" ? "Upcoming harvest" : "Freshly listed harvest"}</Text><Text style={styles.harvestInfoText}>{product.harvestType === "UPCOMING" && product.expectedHarvestDate ? `Expected ${new Date(product.expectedHarvestDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : "Local produce from a nearby grower."}</Text></View></View>
+
+          {/* Harvest status */}
+          <View className="mt-3.5 flex-row items-center gap-3 rounded-2xl border border-[#30352D] bg-[#171916] p-3.5">
+            <View className="h-10 w-10 items-center justify-center rounded-xl bg-[#202A19]">
+              <Ionicons name="leaf-outline" size={20} color="#C8FF67" />
+            </View>
+
+            <View className="min-w-0 flex-1">
+              <Text className="text-sm font-bold text-[#F6F7F4]">
+                {product.harvestType === "UPCOMING"
+                  ? "Upcoming harvest"
+                  : "Freshly listed harvest"}
+              </Text>
+              <Text className="mt-1 text-xs leading-[18px] text-[#A2A79E]">
+                {product.harvestType === "UPCOMING" && harvestDate
+                  ? `Expected to be ready ${harvestDate}`
+                  : "Local produce listed by a nearby grower."}
+              </Text>
+            </View>
+
+            <View className="h-2 w-2 rounded-full bg-[#C8FF67]" />
+          </View>
         </View>
       </ScrollView>
 
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <View style={styles.quantityBox}>
-          <Pressable onPress={() => setQuantity((v) => Math.max(Number(product.minOrderQuantity ?? 1), v - 1))} style={styles.quantityButton}><Feather name="minus" size={15} color={C.ink} /></Pressable>
-          <Text style={styles.quantityValue}>{quantity}</Text>
-          <Pressable onPress={() => setQuantity((v) => Math.min(maxQuantity, v + 1))} style={styles.quantityButton}><Feather name="plus" size={15} color={C.ink} /></Pressable>
+      {/* Sticky purchase bar */}
+      <View
+        className="flex-row items-center gap-3 border-t border-[#30352D] bg-[#0C0D0B] px-4 pt-3"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+      >
+        <View className="h-[50px] flex-row items-center rounded-2xl border border-[#30352D] bg-[#171916]">
+          <Pressable
+            onPress={() =>
+              setQuantity((value) => Math.max(minQuantity, value - 1))
+            }
+            disabled={quantity <= minQuantity}
+            className="h-[48px] w-9 items-center justify-center"
+            accessibilityRole="button"
+            accessibilityLabel="Decrease quantity"
+          >
+            <Feather
+              name="minus"
+              size={15}
+              color={quantity <= minQuantity ? "#555B53" : C.ink}
+            />
+          </Pressable>
+
+          <Text className="min-w-[22px] text-center text-sm font-extrabold text-[#F6F7F4]">
+            {quantity}
+          </Text>
+
+          <Pressable
+            onPress={() =>
+              setQuantity((value) => Math.min(maxQuantity, value + 1))
+            }
+            disabled={quantity >= maxQuantity}
+            className="h-[48px] w-9 items-center justify-center"
+            accessibilityRole="button"
+            accessibilityLabel="Increase quantity"
+          >
+            <Feather
+              name="plus"
+              size={15}
+              color={quantity >= maxQuantity ? "#555B53" : C.ink}
+            />
+          </Pressable>
         </View>
-        <Pressable style={styles.addButton} onPress={add}><Text style={styles.addButtonText}>Add to cart · {money(total)}</Text><Feather name="arrow-right" size={17} color={C.bg} /></Pressable>
+
+        <Pressable
+          onPress={add}
+          className="min-h-[50px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-[#C8FF67] px-4"
+          style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
+        >
+          <Feather name="shopping-bag" size={16} color="#0C0D0B" />
+          <Text className="text-[13px] font-extrabold text-[#0C0D0B]">
+            Add to cart · {money(total)}
+          </Text>
+          <Feather name="arrow-right" size={16} color="#0C0D0B" />
+        </Pressable>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg }, hero: { width: "100%", backgroundColor: "#172012", position: "relative" }, heroImage: { width: "100%", height: "100%" }, heroFallback: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#172012" },
-  heroTop: { position: "absolute", left: 15, right: 15, flexDirection: "row", justifyContent: "space-between" }, heroIcon: { height: 41, width: 41, borderRadius: 14, backgroundColor: "rgba(9,12,7,0.78)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }, harvestTag: { position: "absolute", bottom: 60, left: 16, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: C.green }, harvestTagText: { color: C.bg, fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
-  productCard: { marginHorizontal: 14, marginTop: -43, borderRadius: 18, backgroundColor: C.card, padding: 14, borderWidth: 1, borderColor: C.line, zIndex: 2 }, titleRow: { flexDirection: "row", alignItems: "center", gap: 10 }, productName: { color: C.ink, fontSize: 17, fontWeight: "900" }, packText: { color: C.muted, fontSize: 9.5, marginTop: 4 }, priceChip: { backgroundColor: "#246F1C", borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8 }, priceText: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
-  sellerRow: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.line }, sellerAvatar: { width: 32, height: 32, borderRadius: 11, backgroundColor: C.soft, alignItems: "center", justifyContent: "center" }, sellerName: { color: C.ink, fontSize: 10.5, fontWeight: "800" }, sellerSub: { color: C.muted, fontSize: 9, marginTop: 2 }, distance: { color: C.green, fontSize: 10, fontWeight: "800" },
-  detailsSection: { paddingHorizontal: 17, paddingTop: 26 }, sectionTitle: { color: C.ink, fontSize: 14, fontWeight: "900", marginBottom: 12 }, description: { color: C.muted, fontSize: 11, lineHeight: 17, marginBottom: 15 }, detailGrid: { flexDirection: "row", gap: 8 }, detailItem: { flex: 1, borderRadius: 13, backgroundColor: C.card, borderWidth: 1, borderColor: C.line, padding: 10, minHeight: 91, gap: 6 }, detailLabel: { color: C.muted, fontSize: 9 }, detailValue: { color: C.ink, fontSize: 10.5, fontWeight: "800" },
-  harvestInfo: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 13, padding: 13, borderRadius: 14, backgroundColor: C.card, borderWidth: 1, borderColor: C.line }, harvestInfoIcon: { height: 35, width: 35, borderRadius: 11, backgroundColor: C.soft, alignItems: "center", justifyContent: "center" }, harvestInfoTitle: { color: C.ink, fontSize: 10.5, fontWeight: "800" }, harvestInfoText: { color: C.muted, fontSize: 9.5, marginTop: 3 },
-  bottomBar: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.bg }, quantityBox: { height: 47, flexDirection: "row", alignItems: "center", borderRadius: 13, borderWidth: 1, borderColor: C.line, backgroundColor: C.card }, quantityButton: { height: 45, width: 32, alignItems: "center", justifyContent: "center" }, quantityValue: { color: C.ink, minWidth: 19, textAlign: "center", fontSize: 12, fontWeight: "900" }, addButton: { flex: 1, minHeight: 48, borderRadius: 14, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: C.green }, addButtonText: { color: C.bg, fontSize: 11.5, fontWeight: "900" },
-  backFallback: { marginLeft: 16, width: 42, height: 42, borderRadius: 14, backgroundColor: C.card, alignItems: "center", justifyContent: "center" }, missing: { flex: 1, alignItems: "center", justifyContent: "center", padding: 30, gap: 10 }, missingTitle: { color: C.ink, fontSize: 19, fontWeight: "900" }, missingText: { color: C.muted, fontSize: 12, textAlign: "center", lineHeight: 18 }, primary: { backgroundColor: C.green, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 13, marginTop: 7 }, primaryText: { color: C.bg, fontSize: 11, fontWeight: "900" },
-});

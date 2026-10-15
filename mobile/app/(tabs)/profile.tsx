@@ -15,6 +15,7 @@ import { router } from "expo-router";
 
 import { apiRequest } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
+import AppText from "@/components/ui/Apptesxt";
 
 type User = {
   id: string;
@@ -267,9 +268,9 @@ export default function ProfileScreen() {
                 onPress={() => setSheet("terms")}
                 className="flex-row items-center justify-between px-5 py-[19px] active:bg-zinc-900"
               >
-                <Text className="text-[17px] text-white">
+                <AppText className="text-[17px] text-white">
                   Terms & Conditions
-                </Text>
+                </AppText>
 
                 <Text className="text-[28px] font-light text-zinc-600">›</Text>
               </Pressable>
