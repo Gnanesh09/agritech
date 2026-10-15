@@ -23,6 +23,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect, useRouter } from "expo-router";
+import MarketplaceActionBar from "../../components/marketplace/MarketplaceActionBar";
+import { MapsView } from "../market/mapsview";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  getSelectedLocation,
+  setSelectedListing as setSharedSelectedListing,
+} from "../../lib/marketplace-store";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
@@ -49,37 +57,85 @@ const IMAGEKIT_AUTH_ENDPOINT =
 const IMAGEKIT_UPLOAD_URL = "https://upload.imagekit.io/api/v1/files/upload";
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? "";
 
+// ================================================================
+// MARKETPLACE THEME — edit this one object to restyle this screen.
+// Zomato/Swiggy-inspired dark surfaces, clear typography, one bright
+// produce accent, and restrained orange/red status colors.
+// MapsView, action buttons, and product pins receive this same palette.
+// ================================================================
 const C = {
-  bg: "#090C07",
-  card: "#171C13",
-  ink: "#F2F4EC",
-  muted: "#9AA38F",
-  line: "#2B3325",
-  green: "#B7F34B",
-  greenDark: "#B7F34B",
-  greenSoft: "#26351B",
-  lime: "#B7F34B",
-  orange: "#FFB65C",
-  red: "#FF7373",
+  // Base backgrounds and surfaces
+  bg: "#0C0D0B",
+  black: "#080907",
+  card: "#171916",
+  cardAlt: "#20221E",
+  soft: "#202A19",
+  line: "#30352D",
+  lineStrong: "#3B4334",
+
+  // Text hierarchy
+  ink: "#F6F7F4",
+  white: "#FFFFFF",
+  muted: "#A2A79E",
+  mutedOnLight: "#50594A", // Secondary copy shown on the light product-pin surface
+
+  // Brand / action accent (keeps your configured lime-green identity)
+  primary: "#C8FF67",
+  primaryDark1: "#0C0D0B",
+  green: "#C8FF67",
+  lime: "#C8FF67",
+  greenDark: "#0C0D0B",
+  greenSoft: "rgba(200, 255, 103, 0.14)",
+  primaryBorder: "#718F38",
+
+  // Small semantic accents for offers, warnings, and statuses
+  accent: "#F59E0B",
+  orange: "#F59E0B",
+  accentSoft: "#382A18",
+  accentBorder: "#F5DCB0",
+  red: "#FF6B6B",
+  danger: "#FF6B6B",
+  dangerSoft: "#301B1B",
+  dangerBorder: "#F0C8C8",
   blue: "#86B3FF",
-  white: "#F5F7EF",
-  black: "#090C07",
+  blueSoft: "#1E2A3A",
+  success: "#C8FF67",
+  successBorder: "#CBEAD2",
+  toast: "#202A22",
 };
 
-// Google Maps style is applied by react-native-maps where the native provider supports it.
+// Utility for native map overlays; color values themselves stay in C above.
+const withAlpha = (hex: string, alpha: number) => {
+  const raw = String(hex || "#000000").replace("#", "");
+  const full =
+    raw.length === 3
+      ? raw
+          .split("")
+          .map((part) => part + part)
+          .join("")
+      : raw;
+  const value = Number.parseInt(full, 16);
+  if (!Number.isFinite(value)) return `rgba(0, 0, 0, ${alpha})`;
+  const red = (value >> 16) & 255;
+  const green = (value >> 8) & 255;
+  const blue = value & 255;
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+};
+
+// SECTION: Native Google Maps styling. These are map-renderer colors, not NativeWind view classes.
 const DARK_MAP_STYLE = [
-  { elementType: "geometry", stylers: [{ color: "#151A12" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#89947D" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#151A12" }] },
+  { elementType: "geometry", stylers: [{ color: C.bg }] },
+  { elementType: "labels.text.fill", stylers: [{ color: C.muted }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: C.bg }] },
   {
     featureType: "administrative",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#293223" }],
+    stylers: [{ color: C.line }],
   },
   {
     featureType: "poi",
     elementType: "geometry",
-    stylers: [{ color: "#1B2417" }],
+    stylers: [{ color: C.card }],
   },
   {
     featureType: "poi",
@@ -89,33 +145,33 @@ const DARK_MAP_STYLE = [
   {
     featureType: "poi.park",
     elementType: "geometry.fill",
-    stylers: [{ color: "#203019" }],
+    stylers: [{ color: C.soft }],
   },
   {
     featureType: "road",
     elementType: "geometry",
-    stylers: [{ color: "#2A3223" }],
+    stylers: [{ color: C.line }],
   },
   {
     featureType: "road",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#10140D" }],
+    stylers: [{ color: C.bg }],
   },
   {
     featureType: "road.highway",
     elementType: "geometry",
-    stylers: [{ color: "#56632E" }],
+    stylers: [{ color: C.card }],
   },
   {
     featureType: "road.highway",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#222A18" }],
+    stylers: [{ color: C.bg }],
   },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
   {
     featureType: "water",
     elementType: "geometry.fill",
-    stylers: [{ color: "#111A18" }],
+    stylers: [{ color: C.bg }],
   },
 ];
 
@@ -585,7 +641,11 @@ function IconButton({
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.iconButton, active && styles.iconButtonActive]}
+      className={
+        active
+          ? "w-[39px] h-[39px] rounded-[14px] border items-center justify-center bg-[rgba(200,255,103,0.14)] border-[#3B4334]"
+          : "w-[39px] h-[39px] rounded-[14px] bg-[#171916] border border-[#30352D] items-center justify-center"
+      }
     >
       <Feather name={name} size={19} color={active ? C.greenDark : C.ink} />
     </Pressable>
@@ -599,16 +659,20 @@ function Pill({
   children: React.ReactNode;
   tone?: "soft" | "green" | "orange" | "red" | "blue";
 }) {
-  const map = {
-    soft: styles.pillSoft,
-    green: styles.pillGreen,
-    orange: styles.pillOrange,
-    red: styles.pillRed,
-    blue: styles.pillBlue,
+  const toneClasses = {
+    soft: "bg-[#20221E] px-[6.5px] py-[4px] rounded-[6px] flex-row items-center gap-[3px]",
+    green:
+      "bg-[rgba(200,255,103,0.14)] px-[6.5px] py-[4px] rounded-[6px] flex-row items-center gap-[3px]",
+    orange:
+      "bg-[#382A18] px-[6.5px] py-[4px] rounded-[6px] flex-row items-center gap-[3px]",
+    red: "bg-[#301B1B] px-[6.5px] py-[4px] rounded-[6px] flex-row items-center gap-[3px]",
+    blue: "bg-[#1E2A3A] px-[6.5px] py-[4px] rounded-[6px] flex-row items-center gap-[3px]",
   } as const;
   return (
-    <View style={map[tone]}>
-      <Text style={styles.pillText}>{children}</Text>
+    <View className={toneClasses[tone]}>
+      <Text className="text-[#F6F7F4] text-[9px] font-extrabold">
+        {children}
+      </Text>
     </View>
   );
 }
@@ -623,21 +687,23 @@ function Segmented({
   onChange: (value: any) => void;
 }) {
   return (
-    <View style={styles.segmented}>
+    <View className="flex-row bg-[#20221E] rounded-[14px] p-[3px] mt-[13px]">
       {options.map((option) => (
         <Pressable
           key={option.value}
           onPress={() => onChange(option.value)}
-          style={[
-            styles.segment,
-            value === option.value && styles.segmentActive,
-          ]}
+          className={
+            value === option.value
+              ? "flex-1 rounded-[11px] items-center py-[8px] bg-[#171916]"
+              : "flex-1 rounded-[11px] items-center py-[8px]"
+          }
         >
           <Text
-            style={[
-              styles.segmentText,
-              value === option.value && styles.segmentTextActive,
-            ]}
+            className={
+              value === option.value
+                ? "font-bold text-[12px] text-[#F6F7F4]"
+                : "text-[#A2A79E] font-bold text-[12px]"
+            }
           >
             {option.label}
           </Text>
@@ -659,17 +725,19 @@ function QuantityStepper({
   max?: number;
 }) {
   return (
-    <View style={styles.stepper}>
+    <View className="flex-row bg-[#171916] rounded-[14px] border border-[#30352D] p-[4px] items-center">
       <Pressable
         onPress={() => onChange(Math.max(min, value - 1))}
-        style={styles.stepButton}
+        className="w-[32px] h-[32px] rounded-[10px] bg-[#171916] items-center justify-center"
       >
         <Feather name="minus" size={18} color={C.ink} />
       </Pressable>
-      <Text style={styles.stepValue}>{value}</Text>
+      <Text className="w-[42px] text-center text-[12.5px] font-black text-[#F6F7F4]">
+        {value}
+      </Text>
       <Pressable
         onPress={() => onChange(Math.min(max, value + 1))}
-        style={styles.stepButton}
+        className="w-[32px] h-[32px] rounded-[10px] bg-[#171916] items-center justify-center"
       >
         <Feather name="plus" size={18} color={C.ink} />
       </Pressable>
@@ -688,71 +756,68 @@ function ListingCard({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.listingCard,
-        pressed && { transform: [{ scale: 0.985 }] },
-      ]}
+      className="w-full min-h-[126px] bg-[#171916] rounded-[17px] border border-[#30352D] overflow-hidden mb-[11px] p-[9px] flex-row gap-[11px]"
+      style={({ pressed }) => (pressed ? { opacity: 0.88 } : undefined)}
     >
-      <View style={styles.imageWrap}>
+      <View className="w-[100px] h-[108px] rounded-[13px] overflow-hidden bg-[#20221E] relative shrink-0">
         {listing.imageUrl ? (
           <Image
             source={{ uri: listing.imageUrl }}
-            style={styles.productImage}
+            className="w-full h-full object-cover"
           />
         ) : (
-          <View style={styles.productPlaceholder}>
-            <Ionicons name="leaf-outline" size={40} color={C.green} />
+          <View className="flex-1 items-center justify-center bg-[#202A19]">
+            <Ionicons name="leaf-outline" size={34} color={C.green} />
           </View>
         )}
         {discount > 0 && (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountBadgeText}>{discount}% OFF</Text>
-          </View>
-        )}
-        {listing.harvestType === "UPCOMING" && (
-          <View style={styles.harvestBadge}>
-            <Text style={styles.harvestBadgeText}>Upcoming harvest</Text>
+          <View className="absolute left-[9px] top-[9px] bg-[#C8FF67] rounded-[7px] px-[7px] py-[4px]">
+            <Text className="text-[#080907] text-[9px] font-black">
+              {discount}% OFF
+            </Text>
           </View>
         )}
       </View>
-      <View style={styles.cardBody}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.listingTitle} numberOfLines={1}>
+      <View className="flex-1 min-w-[0px] py-[2px] pr-[2px]">
+        <View className="flex-row items-center justify-between gap-[8px]">
+          <Text
+            className="text-[#F6F7F4] text-[13.5px] font-extrabold flex-1"
+            numberOfLines={1}
+          >
             {listing.cropName}
           </Text>
-          <Text style={styles.distanceText}>{fmtKm(listing.distanceKm)}</Text>
-        </View>
-        <Text style={styles.subtle}>
-          {listing.packSizeValue} {listing.packSizeUnit} pack •{" "}
-          {listing.quantityAvailable} available
-        </Text>
-        <View style={[styles.rowBetween, { marginTop: 10 }]}>
-          <View style={styles.rowGap}>
-            <Text style={styles.priceText}>{money(listing.price)}</Text>
-            {discount > 0 && (
-              <Text style={styles.oldPrice}>
-                {money(listing.originalPrice)}
-              </Text>
-            )}
-          </View>
-          <Text style={styles.sellerText}>
-            {listing.seller?.username ?? "Local seller"}
+          <Text className="text-[#0C0D0B] text-[10.5px] font-extrabold">
+            {fmtKm(listing.distanceKm)}
           </Text>
         </View>
-        <View style={styles.metaRow}>
-          {listing.sellerDelivery && (
-            <Pill tone="green">
-              <Feather name="truck" size={10} color={C.greenDark} /> Delivery
-            </Pill>
-          )}
-          {listing.customerPickup && (
-            <Pill tone="blue">
-              <Feather name="map-pin" size={10} color={C.blue} /> Pickup
-            </Pill>
-          )}
-          {listing.harvestType === "UPCOMING" && (
-            <Pill tone="orange">{fmtDate(listing.expectedHarvestDate)}</Pill>
-          )}
+        <Text
+          className="max-w-[74px] text-right text-[#A2A79E] text-[9.5px] font-bold"
+          numberOfLines={1}
+        >
+          Sold by{" "}
+          <Text className="text-[#C8FF67] italic">
+            {listing.seller?.username ?? "local grower"}
+          </Text>
+        </Text>
+        <Text
+          className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[3px]"
+          numberOfLines={2}
+        >
+          {listing.description?.trim() ||
+            `${listing.packSizeValue} ${listing.packSizeUnit} pack · ${listing.quantityAvailable} available`}
+        </Text>
+        <View
+          className="flex-row items-center justify-between gap-[8px]"
+          style={{ marginTop: "auto", paddingTop: 7 }}
+        >
+          <Text className="text-[#F6F7F4] text-[17px] font-black">
+            {money(listing.price)}
+          </Text>
+          <Text className="text-[#C8FF67] text-[10px] font-bold">
+            {listing.harvestType === "UPCOMING"
+              ? fmtDate(listing.expectedHarvestDate)
+              : "Harvest details ›"}
+          </Text>
         </View>
       </View>
     </Pressable>
@@ -773,15 +838,24 @@ function EmptyState({
   onPress?: () => void;
 }) {
   return (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyIcon}>
+    <View className="items-center justify-center px-[28px] py-[48px]">
+      <View className="w-[58px] h-[58px] rounded-[20px] bg-[rgba(200,255,103,0.14)] items-center justify-center mb-[13px]">
         <Ionicons name={icon} size={27} color={C.green} />
       </View>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyBody}>{body}</Text>
+      <Text className="text-[#F6F7F4] text-[17px] font-extrabold text-center">
+        {title}
+      </Text>
+      <Text className="text-[#A2A79E] text-[11.5px] leading-[17px] mt-[6px] text-center max-w-[320px]">
+        {body}
+      </Text>
       {action && onPress && (
-        <Pressable onPress={onPress} style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>{action}</Text>
+        <Pressable
+          onPress={onPress}
+          className="mt-[16px] px-[14px] py-[10px] rounded-[12px] border border-[#30352D] bg-[#171916]"
+        >
+          <Text className="text-[#F6F7F4] font-extrabold text-[11px]">
+            {action}
+          </Text>
         </Pressable>
       )}
     </View>
@@ -800,7 +874,7 @@ function BottomSheet({
   title: string;
   onClose: () => void;
   children: React.ReactNode;
-  height?: number | string;
+  height?: number | `${number}%` | "auto";
   hideHeader?: boolean;
 }) {
   const sizeStyle =
@@ -816,18 +890,24 @@ function BottomSheet({
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.modalBackdrop}>
-        <Pressable style={styles.backdropTouchable} onPress={onClose} />
+      <View className="flex-1 bg-[rgba(7,12,8,0.48)] justify-end">
+        <Pressable className="flex-1" onPress={onClose} />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={[styles.bottomSheet, sizeStyle]}
+          className="bg-[#0C0D0B] rounded-tl-[28px] rounded-tr-[28px] overflow-hidden border border-[#30352D]"
+          style={sizeStyle}
         >
           {!hideHeader && (
             <>
-              <View style={styles.sheetHandle} />
-              <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>{title}</Text>
-                <Pressable onPress={onClose} style={styles.closeButton}>
+              <View className="w-[40px] h-[4px] rounded-full bg-[#3B4334] self-center mt-[9px]" />
+              <View className="flex-row items-center justify-between px-[18px] pt-[10px] pb-[11px]">
+                <Text className="text-[#F6F7F4] text-[17px] font-black">
+                  {title}
+                </Text>
+                <Pressable
+                  onPress={onClose}
+                  className="w-[38px] h-[38px] rounded-[13px] bg-[#171916] border border-[#30352D] items-center justify-center"
+                >
                   <Feather name="x" size={19} color={C.ink} />
                 </Pressable>
               </View>
@@ -911,7 +991,13 @@ function MarketplaceMap({
   }, [region]);
 
   return (
-    <View style={[styles.mapContainer, fullScreen && styles.mapContainerFull]}>
+    <View
+      className={
+        fullScreen
+          ? "overflow-hidden flex-1 w-full rounded-none mb-[0px] border-0 border-[transparent] bg-[#080907] h-full"
+          : "h-[345px] rounded-[20px] overflow-hidden mb-[16px] border border-[#30352D] bg-[#0C0D0B]"
+      }
+    >
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
@@ -927,8 +1013,8 @@ function MarketplaceMap({
             longitude: center.longitude,
           }}
           radius={radiusKm * 1000}
-          fillColor="rgba(183, 243, 75, 0.08)"
-          strokeColor="rgba(183, 243, 75, 0.42)"
+          fillColor={withAlpha(C.primary, 0.08)}
+          strokeColor={withAlpha(C.primary, 0.42)}
           strokeWidth={1}
         />
 
@@ -950,8 +1036,8 @@ function MarketplaceMap({
             }}
             anchor={{ x: 0.5, y: 0.5 }}
           >
-            <View style={styles.userDotOuter}>
-              <View style={styles.userDotInner} />
+            <View className="w-[25px] h-[25px] rounded-full bg-[rgba(183,243,75,0.18)] items-center justify-center">
+              <View className="w-[10px] h-[10px] rounded-full bg-[#C8FF67] border-[2px] border-[#FFFFFF]" />
             </View>
           </Marker>
         )}
@@ -973,26 +1059,33 @@ function MarketplaceMap({
               anchor={{ x: 0.5, y: 1 }}
             >
               <View
+                className={
+                  isSelected
+                    ? "min-w-[112px] max-w-[158px] min-h-[48px] p-[5px] rounded-[13px] border flex-row items-center gap-[8px] bg-[#C8FF67] border-[#C8FF67]"
+                    : "min-w-[112px] max-w-[158px] min-h-[48px] p-[5px] rounded-[13px] bg-[#171916] border border-[#718F38] flex-row items-center gap-[8px]"
+                }
                 style={[
-                  styles.mapPricePin,
-                  isSelected && styles.mapPricePinSelected,
+                  nativeStyles.mapPricePin,
+                  isSelected && nativeStyles.mapPricePinSelected,
                 ]}
               >
-                <View style={styles.mapPricePinCopy}>
+                <View className="flex-1 min-w-[0px] pl-[3px]">
                   <Text
                     numberOfLines={1}
-                    style={[
-                      styles.mapPriceCrop,
-                      isSelected && styles.mapPriceCropSelected,
-                    ]}
+                    className={
+                      isSelected
+                        ? "text-[9.5px] font-bold mb-[2px] text-[#080907]"
+                        : "text-[#A2A79E] text-[9.5px] font-bold mb-[2px]"
+                    }
                   >
                     {listing.cropName}
                   </Text>
                   <Text
-                    style={[
-                      styles.mapPriceText,
-                      isSelected && styles.mapPriceTextSelected,
-                    ]}
+                    className={
+                      isSelected
+                        ? "text-[12px] font-black text-[#080907]"
+                        : "text-[#C8FF67] text-[12px] font-black"
+                    }
                   >
                     {money(listing.price)}
                   </Text>
@@ -1000,10 +1093,10 @@ function MarketplaceMap({
                 {listing.imageUrl ? (
                   <Image
                     source={{ uri: listing.imageUrl }}
-                    style={styles.mapPriceThumb}
+                    className="w-[34px] h-[34px] rounded-[9px] bg-[rgba(200,255,103,0.14)]"
                   />
                 ) : (
-                  <View style={styles.mapPriceThumbFallback}>
+                  <View className="w-[34px] h-[34px] rounded-[9px] bg-[#202A19] items-center justify-center">
                     <Ionicons
                       name="leaf-outline"
                       size={16}
@@ -1018,9 +1111,14 @@ function MarketplaceMap({
       </MapView>
 
       {!fullScreen && (
-        <View style={styles.mapTopChip}>
+        <View
+          className="absolute top-[12px] left-[12px] bg-[#171916] rounded-[12px] px-[10px] py-[7px] flex-row items-center gap-[5px]"
+          style={nativeStyles.mapTopChip}
+        >
           <Feather name="map-pin" size={13} color={C.greenDark} />
-          <Text style={styles.mapTopChipText}>Within {radiusKm} km</Text>
+          <Text className="text-[#F6F7F4] text-[10.5px] font-extrabold">
+            Within {radiusKm} km
+          </Text>
         </View>
       )}
     </View>
@@ -1029,6 +1127,7 @@ function MarketplaceMap({
 
 export default function MarketplaceScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<Mode>("BUYER");
   const [viewMode, setViewMode] = useState<ViewMode>("MAP");
@@ -1163,6 +1262,25 @@ export default function MarketplaceScreen() {
     void refreshAll();
   }, [authLoading, user?.id]);
 
+  // When returning from the dedicated location route, use its selected address
+  // as the marketplace centre and refresh nearby inventory.
+  useFocusEffect(
+    useCallback(() => {
+      const picked = getSelectedLocation();
+      if (!picked) return;
+      const next = {
+        latitude: Number(picked.latitude),
+        longitude: Number(picked.longitude),
+      };
+      setCoords(next);
+      void loadBuyerListingsRef(next, radiusKm, search, sort).catch((e) =>
+        setError(
+          e instanceof Error ? e.message : "Unable to refresh listings.",
+        ),
+      );
+    }, [loadBuyerListingsRef, radiusKm, search, sort]),
+  );
+
   useEffect(() => {
     if (!coords || authLoading || !user) return;
     const timer = setTimeout(
@@ -1181,10 +1299,17 @@ export default function MarketplaceScreen() {
     locations.find((location) => location.isDefault) ?? locations[0] ?? null;
   const selectedLocation = selectedOrder?.buyerLocation ?? defaultBuyerLocation;
 
-  const openListing = useCallback(async (listing: Listing) => {
-    setSelectedListing(listing);
-    setSheet("LISTING");
-  }, []);
+  const openListing = useCallback(
+    async (listing: Listing) => {
+      setSelectedListing(listing);
+      setSharedSelectedListing(listing);
+      router.push({
+        pathname: "/market/product/[id]",
+        params: { id: listing.id },
+      } as any);
+    },
+    [router],
+  );
 
   const openOrder = useCallback(async (order: MarketplaceOrder) => {
     try {
@@ -1577,89 +1702,82 @@ export default function MarketplaceScreen() {
 
   if (authLoading || initialLoading) {
     return (
-      <View style={styles.centered}>
+      <View className="flex-1 bg-[#0C0D0B] items-center justify-center p-[28px]">
         <ActivityIndicator size="large" color={C.green} />
-        <Text style={styles.loadingText}>Opening marketplace…</Text>
+        <Text className="mt-[12px] text-[#A2A79E] text-[13px]">
+          Opening marketplace…
+        </Text>
       </View>
     );
   }
 
   if (!user) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyTitle}>Sign in to use the marketplace.</Text>
+      <View className="flex-1 bg-[#0C0D0B] items-center justify-center p-[28px]">
+        <Text className="text-[#F6F7F4] text-[17px] font-extrabold text-center">
+          Sign in to use the marketplace.
+        </Text>
       </View>
     );
   }
 
   const activeOrders = mode === "BUYER" ? buyingOrders : sellingOrders;
-  const mapCenter = coords ??
-    defaultBuyerLocation ?? { latitude: 12.9716, longitude: 77.5946 };
-  const featured = listings.slice(0, 6);
+  const sharedLocation = getSelectedLocation();
+  const mapCenter = sharedLocation
+    ? {
+        latitude: Number(sharedLocation.latitude),
+        longitude: Number(sharedLocation.longitude),
+      }
+    : defaultBuyerLocation
+      ? {
+          latitude: Number(defaultBuyerLocation.latitude),
+          longitude: Number(defaultBuyerLocation.longitude),
+        }
+      : (coords ?? { latitude: 12.9716, longitude: 77.5946 });
 
+  // RENDER FLOW: the buyer header stays mounted. Only the canvas below it changes between MAP and LIST.
   return (
-    <View style={styles.screen}>
+    <View className="flex-1 bg-[#0C0D0B]">
       <StatusBar
         style="light"
-        translucent={mode === "BUYER" && viewMode === "MAP"}
-        backgroundColor={
-          mode === "BUYER" && viewMode === "MAP" ? "transparent" : C.bg
-        }
+        translucent={mode === "BUYER"}
+        backgroundColor={mode === "BUYER" ? "transparent" : C.bg}
       />
 
-      {!(mode === "BUYER" && viewMode === "MAP") && (
-        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-          <View style={styles.headerTop}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.eyebrow}>LOCAL HARVEST MARKET</Text>
-              <Text style={styles.headerTitle}>
-                {mode === "BUYER" ? "Fresh around you" : "Sell your harvest"}
-              </Text>
-            </View>
-            <View style={styles.headerActions}>
-              <IconButton
-                name="map-pin"
-                active={!!defaultBuyerLocation}
-                onPress={() => setSheet("LOCATION")}
-              />
-              <IconButton
-                name="shopping-bag"
-                onPress={() => setSheet("ORDERS")}
-              />
-            </View>
-          </View>
+      {mode === "BUYER" ? (
+        <>
+          {/* FIXED MARKETPLACE HEADER: these controls never scroll away or get replaced. */}
+          <View
+            className="relative z-0 gap-3 border-b border-[#30352D] bg-transparent px-4 pb-20"
+            style={{ paddingTop: insets.top + 8 }}
+          >
+            <LinearGradient
+              // 1. Starts solid #094BDB, then fades into deeper midnight blues
+              colors={["#094BDB", "#094BDB", "#04256E", "#010A1C"]}
 
-          <Segmented
-            value={mode}
-            options={[
-              { value: "BUYER", label: "Buy" },
-              { value: "SELLER", label: "Sell" },
-            ]}
-            onChange={setMode}
-          />
-        </View>
-      )}
+              // 2. Holds the solid color until 30% down the screen
+              locations={[0, 0.3, 0.7, 1]}
 
-      {mode === "BUYER" && viewMode === "MAP" ? (
-        <View style={styles.mapFullScreen}>
-          <MarketplaceMap
-            fullScreen
-            center={mapCenter}
-            radiusKm={radiusKm}
-            listings={listings}
-            selectedListingId={selectedListing?.id}
-            onSelectListing={(listing) => setSelectedListing(listing)}
-          />
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+              pointerEvents="none"
+            />
 
-          <View style={[styles.mapFloatingHeader, { top: insets.top + 9 }]}>
-            <View style={styles.mapSearchBar}>
-              <Feather name="search" size={18} color={C.muted} />
+            {/* Rest of your content goes here */}
+
+            {/* Search stays shared between map and list. */}
+            <View
+              className="min-h-[54px] pl-[16px] pr-[7px] flex-row items-center gap-[9px] bg-[#171916] border border-[#30352D] rounded-[20px] mb-4"
+              style={nativeStyles.mapSearchBar}
+            >
+              <Feather name="search" size={19} color={C.primary} />
               <TextInput
                 value={search}
                 onChangeText={setSearch}
                 placeholder="Search fresh harvests"
                 placeholderTextColor={C.muted}
-                style={styles.mapSearchInput}
+                className="flex-1 min-w-[0px] text-[#F6F7F4] text-[14px] py-[0px]"
                 returnKeyType="search"
               />
               {search.length > 0 && (
@@ -1667,311 +1785,149 @@ export default function MarketplaceScreen() {
                   <Feather name="x-circle" size={17} color={C.muted} />
                 </Pressable>
               )}
-              <View style={styles.mapSearchDivider} />
+              <View className="h-[24px] w-[1px] bg-[#30352D]" />
               <Pressable
+                onPress={() => router.push("/market/location" as any)}
                 accessibilityRole="button"
                 accessibilityLabel="Choose delivery location"
-                onPress={() => setSheet("LOCATION")}
-                style={styles.mapSearchIconButton}
+                className="w-[40px] h-[40px] rounded-[14px] bg-[#202A19] items-center justify-center"
               >
-                <Feather name="map-pin" size={17} color={C.green} />
+                <Feather name="map-pin" size={18} color={C.primary} />
               </Pressable>
             </View>
 
-            <View style={styles.mapControlRow}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.mapRangeScroll}
-              >
-                {[2, 5, 10, 25].map((value) => (
+            {/* Five primary actions. MAP/LIST highlight changes; the row itself stays fixed. */}
+            <MarketplaceActionBar
+              colors={C}
+              active={viewMode}
+              onMaps={() => setViewMode("MAP")}
+              onList={() => setViewMode("LIST")}
+              onSell={() => router.push("/market/sell" as any)}
+              onLocation={() => router.push("/market/location" as any)}
+              onCart={() => router.push("/market/cart" as any)}
+            />
+
+            {/* Shared radius filters and product count. They appear identically in both modes. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerClassName="gap-[8px] pr-[2px] mt-[16px]"
+            >
+              {[2, 5, 10, 25].map((value) => {
+                const active = radiusKm === value;
+                return (
                   <Pressable
                     key={value}
                     onPress={() => setRadiusKm(value)}
-                    style={[
-                      styles.mapRangeChip,
-                      radiusKm === value && styles.mapRangeChipActive,
-                    ]}
+                    className={
+                      active
+                        ? "h-[34px] min-w-[58px] px-[13px] rounded-full items-center justify-center border bg-[#C8FF67] border-[#C8FF67]"
+                        : "h-[34px] min-w-[58px] px-[13px] rounded-full items-center justify-center bg-[#171916] border border-[#30352D]"
+                    }
+                    style={({ pressed }) =>
+                      pressed ? nativeStyles.marketHeaderPressed : undefined
+                    }
                   >
                     <Text
-                      style={[
-                        styles.mapRangeText,
-                        radiusKm === value && styles.mapRangeTextActive,
-                      ]}
+                      className={
+                        active
+                          ? "text-[11px] font-extrabold text-[#080907]"
+                          : "text-[#F6F7F4] text-[11px] font-extrabold"
+                      }
                     >
                       {value} km
                     </Text>
                   </Pressable>
-                ))}
-              </ScrollView>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setViewMode("LIST")}
-                style={styles.mapListButton}
-              >
-                <Feather name="list" size={16} color={C.black} />
-                <Text style={styles.mapListButtonText}>List</Text>
-              </Pressable>
-            </View>
+                );
+              })}
+              <View className="h-[34px] min-w-[58px] px-[13px] rounded-full items-center justify-center bg-[#171916] border border-[#30352D]">
+                <Text className="text-[#F6F7F4] text-[11px] font-extrabold">
+                  {listings.length} nearby
+                </Text>
+              </View>
+            </ScrollView>
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Center map on my location"
-            onPress={() => void recenterMapOnGps()}
-            style={[
-              styles.mapLocateButton,
-              { bottom: Math.max(insets.bottom, 12) + 104 },
-            ]}
-          >
-            <Feather name="crosshair" size={20} color={C.ink} />
-          </Pressable>
-
-          <View
-            style={[
-              styles.mapBottomPanel,
-              { bottom: Math.max(insets.bottom, 10) + 12 },
-            ]}
-          >
-            {selectedListing ? (
-              <>
-                <View style={styles.mapPreviewImage}>
-                  {selectedListing.imageUrl ? (
-                    <Image
-                      source={{ uri: selectedListing.imageUrl }}
-                      style={styles.mapPreviewImageFill}
-                    />
-                  ) : (
-                    <Ionicons name="leaf-outline" size={22} color={C.green} />
-                  )}
-                </View>
-                <View style={styles.mapBottomCopy}>
-                  <Text style={styles.mapBottomTitle} numberOfLines={1}>
-                    {selectedListing.cropName}
-                  </Text>
-                  <Text style={styles.mapSelectedPrice}>
-                    {money(selectedListing.price)}
-                    <Text style={styles.mapBottomSubtitle}>
-                      {" "}
-                      · {fmtKm(selectedListing.distanceKm)} away
-                    </Text>
-                  </Text>
-                  <Text style={styles.mapBottomSubtitle} numberOfLines={1}>
-                    {selectedListing.seller?.username ?? "Local grower"} ·{" "}
-                    {selectedListing.packSizeValue}{" "}
-                    {selectedListing.packSizeUnit}
-                  </Text>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => void openListing(selectedListing)}
-                  style={styles.mapExploreButton}
-                >
-                  <Text style={styles.mapExploreText}>View</Text>
-                  <Feather name="arrow-up-right" size={17} color={C.black} />
-                </Pressable>
-              </>
+          {/* CONTENT CANVAS: this is the only area swapped when MAP or LIST is selected. */}
+          <View className="relative z-10 -mt-12 flex-1 min-h-0 overflow-hidden rounded-t-[35px] bg-[#080907]">
+            {viewMode === "MAP" ? (
+              <MapsView
+                colors={C}
+                center={mapCenter}
+                radiusKm={radiusKm}
+                listings={listings}
+                onRecenter={() => void recenterMapOnGps()}
+                onOpenListing={(listing) =>
+                  void openListing(listing as Listing)
+                }
+              />
             ) : (
-              <>
-                <View style={styles.mapBottomCopy}>
-                  <Text style={styles.mapBottomTitle}>
-                    {listings.length} fresh{" "}
-                    {listings.length === 1 ? "harvest" : "harvests"} nearby
-                  </Text>
-                  <Text style={styles.mapBottomSubtitle} numberOfLines={1}>
-                    {defaultBuyerLocation?.label ??
-                      "Explore growers around you"}{" "}
-                    · within {radiusKm} km
-                  </Text>
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setViewMode("LIST")}
-                  style={styles.mapExploreButton}
-                >
-                  <Text style={styles.mapExploreText}>Explore</Text>
-                  <Feather name="arrow-up-right" size={17} color={C.black} />
-                </Pressable>
-              </>
+              <FlatList
+                className="flex-1 bg-[#0C0D0B]"
+                data={listings}
+                keyExtractor={(item) => item.id}
+                numColumns={1}
+                contentContainerClassName="px-[15px] pb-[30px] grow"
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={refreshAll}
+                    tintColor={C.green}
+                  />
+                }
+                ListHeaderComponent={
+                  <View className="pt-[14px] pb-[12px]">
+                    <View className="flex-row items-center justify-between gap-[12px]">
+                      <View className="flex-1">
+                        <Text className="text-[#F6F7F4] text-[17px] font-black">
+                          Fresh near you
+                        </Text>
+                        <Text className="text-[#A2A79E] text-[10.5px]">
+                          {listings.length} products · within {radiusKm} km
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() =>
+                          setSort(
+                            sort === "PRICE_ASC" ? "PRICE_DESC" : "PRICE_ASC",
+                          )
+                        }
+                        className="h-[34px] min-w-[58px] px-[13px] rounded-full items-center justify-center bg-[#171916] border border-[#30352D]"
+                        style={({ pressed }) =>
+                          pressed ? nativeStyles.marketHeaderPressed : undefined
+                        }
+                      >
+                        <Feather name="chevrons-down" size={13} color={C.ink} />
+                        <Text className="text-[#F6F7F4] text-[11px] font-extrabold">
+                          {sort === "PRICE_DESC" ? "Price: high" : "Price: low"}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <ListingCard
+                    listing={item}
+                    onPress={() => void openListing(item)}
+                  />
+                )}
+                ListEmptyComponent={
+                  <EmptyState
+                    icon="leaf-outline"
+                    title="Nothing nearby yet"
+                    body="Increase your search radius or try a different crop."
+                    action="Try 25 km"
+                    onPress={() => setRadiusKm(25)}
+                  />
+                }
+                ListFooterComponent={<View className="h-[34px]" />}
+              />
             )}
           </View>
-        </View>
-      ) : mode === "BUYER" ? (
-        <FlatList
-          data={featured}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.columnGap}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={refreshAll}
-              tintColor={C.green}
-            />
-          }
-          ListHeaderComponent={
-            <View>
-              <View style={styles.searchBar}>
-                <Feather name="search" size={18} color={C.muted} />
-                <TextInput
-                  value={search}
-                  onChangeText={setSearch}
-                  placeholder="Search spinach, lettuce, tomatoes…"
-                  placeholderTextColor="#98A39C"
-                  style={styles.searchInput}
-                  returnKeyType="search"
-                />
-                {search.length > 0 && (
-                  <Pressable onPress={() => setSearch("")}>
-                    <Feather name="x-circle" size={17} color={C.muted} />
-                  </Pressable>
-                )}
-              </View>
-
-              <View style={styles.contextRow}>
-                <Pressable
-                  onPress={() => setSheet("LOCATION")}
-                  style={styles.locationContext}
-                >
-                  <View style={styles.locationIcon}>
-                    <Feather name="navigation" size={14} color={C.greenDark} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.contextLabel}>Delivering to</Text>
-                    <Text style={styles.contextValue} numberOfLines={1}>
-                      {defaultBuyerLocation?.label ?? "Set your location"}
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={17} color={C.muted} />
-                </Pressable>
-                <View style={styles.viewToggle}>
-                  <IconButton
-                    name="list"
-                    active={viewMode === "LIST"}
-                    onPress={() => setViewMode("LIST")}
-                  />
-                  <IconButton
-                    name="map"
-                    active={viewMode === "MAP"}
-                    onPress={() => setViewMode("MAP")}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.discoveryHeader}>
-                <View>
-                  <Text style={styles.sectionTitle}>Near you</Text>
-                  <Text style={styles.sectionSub}>
-                    {listings.length} fresh listings in {radiusKm} km
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => setSheet("LOCATION")}
-                  style={styles.filterButton}
-                >
-                  <Feather name="sliders" size={15} color={C.ink} />
-                  <Text style={styles.filterText}>Range</Text>
-                </Pressable>
-              </View>
-
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipScroll}
-              >
-                {[2, 5, 10, 25].map((value) => (
-                  <Pressable
-                    key={value}
-                    onPress={() => setRadiusKm(value)}
-                    style={[
-                      styles.rangeChip,
-                      radiusKm === value && styles.rangeChipActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.rangeChipText,
-                        radiusKm === value && styles.rangeChipTextActive,
-                      ]}
-                    >
-                      {value} km
-                    </Text>
-                  </Pressable>
-                ))}
-                <Pressable
-                  onPress={() =>
-                    setSort(sort === "PRICE_ASC" ? "PRICE_DESC" : "PRICE_ASC")
-                  }
-                  style={styles.rangeChip}
-                >
-                  <Feather name="chevrons-down" size={13} color={C.ink} />
-                  <Text style={styles.rangeChipText}>
-                    {sort === "PRICE_DESC" ? "High price" : "Price"}
-                  </Text>
-                </Pressable>
-              </ScrollView>
-
-              {viewMode === "MAP" && (
-                <MarketplaceMap
-                  center={mapCenter}
-                  radiusKm={radiusKm}
-                  listings={listings}
-                  selectedListingId={selectedListing?.id}
-                  onSelectListing={openListing}
-                />
-              )}
-
-              {!defaultBuyerLocation && (
-                <View style={styles.locationNotice}>
-                  <View style={styles.noticeIcon}>
-                    <Feather name="map-pin" size={16} color={C.greenDark} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.noticeTitle}>
-                      Add your delivery location
-                    </Text>
-                    <Text style={styles.noticeBody}>
-                      We use precise coordinates to show sellers inside your
-                      radius and calculate road distance.
-                    </Text>
-                  </View>
-                  <Pressable onPress={() => setSheet("LOCATION")}>
-                    <Text style={styles.noticeAction}>Add</Text>
-                  </Pressable>
-                </View>
-              )}
-
-              {listings.length === 0 && viewMode === "LIST" && (
-                <EmptyState
-                  icon="leaf-outline"
-                  title="Nothing nearby yet"
-                  body="Increase your range or try a different crop. Seller locations are filtered on the backend before we show results."
-                  action="Try 25 km"
-                  onPress={() => setRadiusKm(25)}
-                />
-              )}
-
-              {featured.length > 0 && (
-                <Text
-                  style={[
-                    styles.sectionTitle,
-                    { marginTop: 8, marginBottom: 11 },
-                  ]}
-                >
-                  Browse fresh harvests
-                </Text>
-              )}
-            </View>
-          }
-          renderItem={({ item }) => (
-            <ListingCard listing={item} onPress={() => openListing(item)} />
-          )}
-          ListFooterComponent={<View style={{ height: 120 }} />}
-        />
+        </>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.sellerContent}
+          contentContainerClassName="px-[14px] pt-[3px] pb-[50px]"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -1980,42 +1936,48 @@ export default function MarketplaceScreen() {
             />
           }
         >
-          <View style={styles.sellerHero}>
-            <View style={styles.sellerHeroIcon}>
+          <View className="bg-[rgba(200,255,103,0.14)] border border-[#CBEAD2] rounded-[20px] p-[14px] flex-row items-center gap-[10px]">
+            <View className="w-[45px] h-[45px] rounded-[15px] bg-[#171916] items-center justify-center">
               <Ionicons name="basket-outline" size={25} color={C.greenDark} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sellerHeroTitle}>
+            <View className="flex-1">
+              <Text className="text-[#0C0D0B] text-[14px] font-black">
                 Turn your grow records into sales
               </Text>
-              <Text style={styles.sellerHeroBody}>
+              <Text className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[2px]">
                 Harvested and upcoming crops are already linked to your account.
               </Text>
             </View>
             <Pressable
               onPress={() => setSheet("SELLER_LISTING")}
-              style={styles.primaryRoundButton}
+              className="w-[37px] h-[37px] rounded-[13px] bg-[#C8FF67] items-center justify-center"
             >
               <Feather name="plus" size={18} color={C.black} />
             </Pressable>
           </View>
 
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{crops.length}</Text>
-              <Text style={styles.statLabel}>Sellable crops</Text>
+          <View className="flex-row gap-[9px] my-[14px]">
+            <View className="flex-1 bg-[#171916] border border-[#30352D] rounded-[16px] p-[11px]">
+              <Text className="text-[#F6F7F4] text-[19px] font-black">
+                {crops.length}
+              </Text>
+              <Text className="text-[#A2A79E] text-[9.5px] font-bold mt-[2px]">
+                Sellable crops
+              </Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
+            <View className="flex-1 bg-[#171916] border border-[#30352D] rounded-[16px] p-[11px]">
+              <Text className="text-[#F6F7F4] text-[19px] font-black">
                 {
                   myListings.filter((listing) => listing.status === "ACTIVE")
                     .length
                 }
               </Text>
-              <Text style={styles.statLabel}>Live listings</Text>
+              <Text className="text-[#A2A79E] text-[9.5px] font-bold mt-[2px]">
+                Live listings
+              </Text>
             </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>
+            <View className="flex-1 bg-[#171916] border border-[#30352D] rounded-[16px] p-[11px]">
+              <Text className="text-[#F6F7F4] text-[19px] font-black">
                 {
                   sellingOrders.filter(
                     (order) =>
@@ -2023,14 +1985,18 @@ export default function MarketplaceScreen() {
                   ).length
                 }
               </Text>
-              <Text style={styles.statLabel}>Open orders</Text>
+              <Text className="text-[#A2A79E] text-[9.5px] font-bold mt-[2px]">
+                Open orders
+              </Text>
             </View>
           </View>
 
-          <View style={styles.discoveryHeader}>
+          <View className="flex-row items-center justify-between mb-[9px]">
             <View>
-              <Text style={styles.sectionTitle}>Your sellable crops</Text>
-              <Text style={styles.sectionSub}>
+              <Text className="text-[#F6F7F4] text-[18px] font-extrabold">
+                Your sellable crops
+              </Text>
+              <Text className="text-[#A2A79E] text-[11.5px] mt-[2px]">
                 Pick a crop to create or update its listing
               </Text>
             </View>
@@ -2054,14 +2020,16 @@ export default function MarketplaceScreen() {
                   );
                   setSheet("SELLER_LISTING");
                 }}
-                style={styles.cropRow}
+                className="bg-[#171916] border border-[#30352D] rounded-[16px] p-[11px] flex-row items-center gap-[10px] mb-[8px]"
               >
-                <View style={styles.cropIcon}>
+                <View className="w-[40px] h-[40px] rounded-[13px] bg-[rgba(200,255,103,0.14)] items-center justify-center">
                   <Ionicons name="leaf-outline" size={21} color={C.green} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cropName}>{crop.cropName}</Text>
-                  <Text style={styles.cropMeta}>
+                <View className="flex-1">
+                  <Text className="text-[#F6F7F4] text-[12.5px] font-extrabold">
+                    {crop.cropName}
+                  </Text>
+                  <Text className="text-[#A2A79E] text-[10px] mt-[3px]">
                     {crop.status} • {crop.tray?.name ?? "Tray"}{" "}
                     {crop.selling?.hasListing ? "• listed" : "• not listed"}
                   </Text>
@@ -2071,10 +2039,12 @@ export default function MarketplaceScreen() {
             ))
           )}
 
-          <View style={styles.discoveryHeader}>
+          <View className="flex-row items-center justify-between mb-[9px]">
             <View>
-              <Text style={styles.sectionTitle}>Live & past listings</Text>
-              <Text style={styles.sectionSub}>
+              <Text className="text-[#F6F7F4] text-[18px] font-extrabold">
+                Live & past listings
+              </Text>
+              <Text className="text-[#A2A79E] text-[11.5px] mt-[2px]">
                 Pause, edit or remove without losing the crop record
               </Text>
             </View>
@@ -2089,56 +2059,67 @@ export default function MarketplaceScreen() {
             />
           ) : (
             myListings.map((listing) => (
-              <View key={listing.id} style={styles.sellerListingCard}>
-                <View style={styles.sellerListingImage}>
+              <View
+                key={listing.id}
+                className="bg-[#171916] rounded-[17px] border border-[#30352D] p-[11px] flex-row gap-[10px] mb-[9px]"
+              >
+                <View className="w-[61px] h-[61px] rounded-[14px] overflow-hidden bg-[#202A19] items-center justify-center">
                   {listing.imageUrl ? (
                     <Image
                       source={{ uri: listing.imageUrl }}
-                      style={styles.sellerListingThumb}
+                      className="w-full h-full"
                     />
                   ) : (
                     <Ionicons name="leaf-outline" size={26} color={C.green} />
                   )}
                 </View>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.rowBetween}>
-                    <Text style={styles.listingTitle}>{listing.cropName}</Text>
+                <View className="flex-1">
+                  <View className="flex-row items-center justify-between gap-[8px]">
+                    <Text className="text-[#F6F7F4] text-[13.5px] font-extrabold flex-1">
+                      {listing.cropName}
+                    </Text>
                     <Pill
                       tone={listing.status === "ACTIVE" ? "green" : "orange"}
                     >
                       {listing.status}
                     </Pill>
                   </View>
-                  <Text style={styles.subtle}>
+                  <Text className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[3px]">
                     {money(listing.price)} / {listing.packSizeValue}
                     {listing.packSizeUnit} • {listing.quantityAvailable} packs •{" "}
                     {listing.orderCount ?? 0} orders
                   </Text>
-                  <Text style={styles.sellerAddress} numberOfLines={1}>
+                  <Text
+                    className="text-[#A2A79E] text-[9.5px] mt-[3px]"
+                    numberOfLines={1}
+                  >
                     {listing.sellerLocation?.label ??
                       listing.sellerLocation?.address ??
                       "Location not set"}
                   </Text>
-                  <View style={styles.actionRow}>
+                  <View className="flex-row gap-[7px] mt-[9px]">
                     <Pressable
                       onPress={() => {
                         setSelectedListing(listing);
                         setSheet("SELLER_LISTING");
                       }}
-                      style={styles.smallAction}
+                      className="flex-row items-center gap-[5px] bg-[#171916] border border-[#30352D] rounded-[9px] px-[9px] py-[6px]"
                     >
                       <Feather name="edit-2" size={13} color={C.ink} />
-                      <Text style={styles.smallActionText}>Edit</Text>
+                      <Text className="text-[#F6F7F4] text-[9.5px] font-extrabold">
+                        Edit
+                      </Text>
                     </Pressable>
                     <Pressable
                       onPress={() => removeListing(listing.id)}
-                      style={[
-                        styles.smallAction,
-                        { backgroundColor: "#351E1E" },
-                      ]}
+                      className="flex-row items-center gap-[5px] bg-[#171916] border border-[#30352D] rounded-[9px] px-[9px] py-[6px]"
+                      style={{ backgroundColor: C.dangerSoft }}
                     >
                       <Feather name="trash-2" size={13} color={C.red} />
-                      <Text style={[styles.smallActionText, { color: C.red }]}>
+                      <Text
+                        className="text-[#F6F7F4] text-[9.5px] font-extrabold"
+                        style={{ color: C.red }}
+                      >
                         Remove
                       </Text>
                     </Pressable>
@@ -2147,10 +2128,11 @@ export default function MarketplaceScreen() {
               </View>
             ))
           )}
-          <View style={{ height: 120 }} />
+          <View className="h-[120px]" />
         </ScrollView>
       )}
 
+      {/* SECTION: Marketplace sheets — listing, checkout, location, orders and payment flows. */}
       <BottomSheet
         visible={sheet === "LISTING" && !!selectedListing}
         title={selectedListing?.cropName ?? "Listing"}
@@ -2288,9 +2270,16 @@ export default function MarketplaceScreen() {
       </BottomSheet>
 
       {!!error && (
-        <Pressable onPress={() => setError(null)} style={styles.errorToast}>
+        <Pressable
+          onPress={() => setError(null)}
+          className="absolute left-[14px] right-[14px] bottom-[16px] rounded-[14px] bg-[#202A22] px-[12px] py-[10px] flex-row items-center gap-[8px]"
+          style={nativeStyles.errorToast}
+        >
           <Feather name="alert-circle" size={15} color={C.white} />
-          <Text style={styles.errorToastText} numberOfLines={2}>
+          <Text
+            className="text-[#FFFFFF] text-[10.5px] leading-[15px] flex-1"
+            numberOfLines={2}
+          >
             {error}
           </Text>
           <Feather name="x" size={15} color={C.white} />
@@ -2298,7 +2287,7 @@ export default function MarketplaceScreen() {
       )}
 
       {busy && (
-        <View style={styles.globalBusy}>
+        <View className="absolute top-[0px] bottom-[0px] left-[0px] right-[0px] bg-[rgba(21,32,26,0.15)] items-center justify-center">
           <ActivityIndicator color={C.white} />
         </View>
       )}
@@ -2376,61 +2365,74 @@ function BuyerListingSheet({
 
   return (
     <ScrollView
-      contentContainerStyle={styles.sheetScroll}
+      contentContainerClassName="px-[17px] pb-[20px]"
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.detailHeroImage}>
+      <View className="h-[230px] bg-[#202A19] rounded-[21px] items-center justify-center overflow-hidden">
         {listing.imageUrl ? (
-          <Image
-            source={{ uri: listing.imageUrl }}
-            style={styles.detailImage}
-          />
+          <Image source={{ uri: listing.imageUrl }} className="w-full h-full" />
         ) : (
           <Ionicons name="leaf-outline" size={52} color={C.green} />
         )}
       </View>
 
-      <View style={styles.detailTitleRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.detailTitle}>{listing.cropName}</Text>
-          <Text style={styles.detailSubtitle}>
+      <View className="flex-row items-start mt-[13px] gap-[12px]">
+        <View className="flex-1">
+          <Text className="text-[#F6F7F4] text-[22px] font-black">
+            {listing.cropName}
+          </Text>
+          <Text className="text-[#A2A79E] text-[11px] leading-[16px] mt-[3px]">
             {listing.packSizeValue} {listing.packSizeUnit} •{" "}
             {listing.quantityAvailable} available • by{" "}
             {listing.seller?.username ?? "Local grower"}
           </Text>
         </View>
-        <Text style={styles.detailPrice}>{money(listing.price)}</Text>
+        <Text className="text-[#F6F7F4] text-[21px] font-black">
+          {money(listing.price)}
+        </Text>
       </View>
 
       {listing.description ? (
-        <Text style={styles.detailDescription}>{listing.description}</Text>
+        <Text className="text-[#A2A79E] text-[11.5px] leading-[17px] mt-[9px]">
+          {listing.description}
+        </Text>
       ) : null}
-      <View style={styles.metaGrid}>
-        <View style={styles.metaBox}>
+      <View className="flex-row gap-[8px] mt-[14px]">
+        <View className="flex-1 bg-[#171916] border border-[#30352D] rounded-[15px] p-[10px]">
           <Feather name="package" size={15} color={C.green} />
-          <Text style={styles.metaBoxLabel}>Pack</Text>
-          <Text style={styles.metaBoxValue}>
+          <Text className="text-[#A2A79E] text-[9px] font-bold mt-[5px]">
+            Pack
+          </Text>
+          <Text className="text-[#F6F7F4] text-[12.5px] font-black mt-[2px]">
             {listing.packSizeValue}
             {listing.packSizeUnit}
           </Text>
         </View>
-        <View style={styles.metaBox}>
+        <View className="flex-1 bg-[#171916] border border-[#30352D] rounded-[15px] p-[10px]">
           <Feather name="percent" size={15} color={C.orange} />
-          <Text style={styles.metaBoxLabel}>Save</Text>
-          <Text style={styles.metaBoxValue}>
+          <Text className="text-[#A2A79E] text-[9px] font-bold mt-[5px]">
+            Save
+          </Text>
+          <Text className="text-[#F6F7F4] text-[12.5px] font-black mt-[2px]">
             {Math.round(num(listing.discountPercent))}%
           </Text>
         </View>
-        <View style={styles.metaBox}>
+        <View className="flex-1 bg-[#171916] border border-[#30352D] rounded-[15px] p-[10px]">
           <Feather name="navigation" size={15} color={C.blue} />
-          <Text style={styles.metaBoxLabel}>Distance</Text>
-          <Text style={styles.metaBoxValue}>{fmtKm(listing.distanceKm)}</Text>
+          <Text className="text-[#A2A79E] text-[9px] font-bold mt-[5px]">
+            Distance
+          </Text>
+          <Text className="text-[#F6F7F4] text-[12.5px] font-black mt-[2px]">
+            {fmtKm(listing.distanceKm)}
+          </Text>
         </View>
       </View>
 
-      <Text style={styles.formLabel}>Quantity</Text>
-      <View style={styles.rowBetween}>
-        <Text style={styles.subtle}>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        Quantity
+      </Text>
+      <View className="flex-row items-center justify-between gap-[8px]">
+        <Text className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[3px]">
           Minimum {listing.minOrderQuantity}
           {listing.maxOrderQuantity
             ? ` • Maximum ${listing.maxOrderQuantity}`
@@ -2447,8 +2449,10 @@ function BuyerListingSheet({
         />
       </View>
 
-      <Text style={styles.formLabel}>Choose how you receive it</Text>
-      <View style={styles.optionCardRow}>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        Choose how you receive it
+      </Text>
+      <View className="flex-row gap-[8px]">
         {canDelivery && (
           <OptionCard
             icon="truck"
@@ -2473,41 +2477,52 @@ function BuyerListingSheet({
         )}
       </View>
 
-      <View style={styles.locationCard}>
-        <View style={styles.locationIcon}>
+      <View className="bg-[#171916] border border-[#30352D] rounded-[15px] mt-[12px] p-[10px] flex-row items-center gap-[8px]">
+        <View className="w-[30px] h-[30px] rounded-[10px] bg-[rgba(200,255,103,0.14)] items-center justify-center mr-[9px]">
           <Feather name="map-pin" size={15} color={C.greenDark} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.contextLabel}>Your location</Text>
-          <Text style={styles.contextValue}>
+        <View className="flex-1">
+          <Text className="text-[#A2A79E] text-[10px] font-bold uppercase tracking-[0.7px]">
+            Your location
+          </Text>
+          <Text className="text-[#F6F7F4] text-[12.5px] font-extrabold mt-[2px]">
             {location?.label ?? "No location selected"}
           </Text>
-          <Text style={styles.subtle} numberOfLines={1}>
+          <Text
+            className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[3px]"
+            numberOfLines={1}
+          >
             {location?.address ?? "Add a precise delivery/pickup point"}
           </Text>
         </View>
         <Pressable onPress={onAddLocation}>
-          <Text style={styles.editText}>{location ? "Change" : "Add"}</Text>
+          <Text className="text-[#0C0D0B] text-[10.5px] font-black">
+            {location ? "Change" : "Add"}
+          </Text>
         </Pressable>
       </View>
 
       {location && routeLoading ? (
-        <View style={styles.routeHint}>
+        <View className="mt-[9px] bg-[rgba(200,255,103,0.14)] rounded-[12px] px-[11px] py-[8px] flex-row items-center gap-[7px]">
           <ActivityIndicator size="small" color={C.green} />
-          <Text style={styles.routeHintText}>Checking road distance…</Text>
+          <Text className="text-[#0C0D0B] text-[10.5px] font-extrabold">
+            Checking road distance…
+          </Text>
         </View>
       ) : route ? (
-        <View style={styles.routeHint}>
+        <View className="mt-[9px] bg-[rgba(200,255,103,0.14)] rounded-[12px] px-[11px] py-[8px] flex-row items-center gap-[7px]">
           <Feather name="navigation" size={14} color={C.green} />
-          <Text style={styles.routeHintText}>
+          <Text className="text-[#0C0D0B] text-[10.5px] font-extrabold">
             {route.distanceKm.toFixed(1)} km by road • about{" "}
             {route.durationMinutes} min
           </Text>
         </View>
       ) : null}
 
-      <Text style={styles.formLabel}>Payment</Text>
-      <View style={styles.optionCardRow}>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        Payment
+      </Text>
+      <View className="flex-row gap-[8px]">
         <OptionCard
           icon="credit-card"
           title="Online"
@@ -2524,29 +2539,45 @@ function BuyerListingSheet({
         />
       </View>
 
-      <View style={styles.billCard}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.billLabel}>Subtotal</Text>
-          <Text style={styles.billValue}>{money(subtotal)}</Text>
+      <View className="bg-[#171916] border border-[#30352D] rounded-[17px] p-[13px] mt-[14px]">
+        <View className="flex-row items-center justify-between gap-[8px]">
+          <Text className="text-[#A2A79E] text-[10.5px] font-bold">
+            Subtotal
+          </Text>
+          <Text className="text-[#F6F7F4] text-[10.5px] font-extrabold">
+            {money(subtotal)}
+          </Text>
         </View>
         {num(listing.discountPercent) > 0 && (
-          <View style={styles.rowBetween}>
-            <Text style={[styles.billLabel, { color: C.green }]}>Discount</Text>
-            <Text style={[styles.billValue, { color: C.green }]}>
+          <View className="flex-row items-center justify-between gap-[8px]">
+            <Text
+              className="text-[#A2A79E] text-[10.5px] font-bold"
+              style={{ color: C.green }}
+            >
+              Discount
+            </Text>
+            <Text
+              className="text-[#F6F7F4] text-[10.5px] font-extrabold"
+              style={{ color: C.green }}
+            >
               −{money(num(listing.originalPrice - listing.price) * quantity)}
             </Text>
           </View>
         )}
-        <View style={styles.rowBetween}>
-          <Text style={styles.billLabel}>Delivery</Text>
-          <Text style={styles.billValue}>
+        <View className="flex-row items-center justify-between gap-[8px]">
+          <Text className="text-[#A2A79E] text-[10.5px] font-bold">
+            Delivery
+          </Text>
+          <Text className="text-[#F6F7F4] text-[10.5px] font-extrabold">
             {deliveryFee ? money(deliveryFee) : "FREE"}
           </Text>
         </View>
-        <View style={styles.billDivider} />
-        <View style={styles.rowBetween}>
-          <Text style={styles.billTotalLabel}>Total</Text>
-          <Text style={styles.billTotal}>{money(total)}</Text>
+        <View className="h-[1px] bg-[#30352D] my-[10px]" />
+        <View className="flex-row items-center justify-between gap-[8px]">
+          <Text className="text-[#F6F7F4] text-[13px] font-black">Total</Text>
+          <Text className="text-[#0C0D0B] text-[19px] font-black">
+            {money(total)}
+          </Text>
         </View>
       </View>
 
@@ -2564,16 +2595,17 @@ function BuyerListingSheet({
             paymentMethod,
           });
         }}
-        style={[styles.primaryButton, !location && { opacity: 0.6 }]}
+        className="min-h-[50px] mt-[13px] rounded-[16px] bg-[#C8FF67] px-[16px] flex-row items-center justify-center gap-[8px]"
+        style={!location ? { opacity: 0.6 } : undefined}
       >
-        <Text style={styles.primaryButtonText}>
+        <Text className="text-[#080907] text-[12.5px] font-black">
           {paymentMethod === "ONLINE"
             ? `Pay ${money(total)}`
             : `Place COD order • ${money(total)}`}
         </Text>
         <Feather name="arrow-right" size={18} color={C.white} />
       </Pressable>
-      <Text style={styles.termsText}>
+      <Text className="text-[#A2A79E] text-[9.5px] leading-[14px] text-center mt-[9px] px-[12px]">
         Your precise coordinates are used by the marketplace backend to enforce
         the seller’s delivery radius and calculate road distance.
       </Text>
@@ -2626,13 +2658,15 @@ function OptionCard({
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.optionCard, selected && styles.optionCardSelected]}
+      className={
+        selected
+          ? "flex-1 min-h-[67px] border rounded-[15px] p-[10px] flex-row items-center gap-[8px] border-[#CBEAD2] bg-[#171916]"
+          : "flex-1 min-h-[67px] bg-[#171916] border border-[#30352D] rounded-[15px] p-[10px] flex-row items-center gap-[8px]"
+      }
     >
       <View
-        style={[
-          styles.optionIcon,
-          selected && { backgroundColor: C.greenSoft },
-        ]}
+        className="w-[31px] h-[31px] rounded-[10px] bg-[#20221E] items-center justify-center"
+        style={selected ? { backgroundColor: C.greenSoft } : undefined}
       >
         <Feather
           name={icon}
@@ -2640,14 +2674,25 @@ function OptionCard({
           color={selected ? C.greenDark : C.muted}
         />
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.optionTitle, selected && { color: C.greenDark }]}>
+      <View className="flex-1">
+        <Text
+          className="text-[#F6F7F4] text-[10.5px] font-black"
+          style={selected ? { color: C.greenDark } : undefined}
+        >
           {title}
         </Text>
-        <Text style={styles.optionSubtitle}>{subtitle}</Text>
+        <Text className="text-[#A2A79E] text-[8.8px] mt-[2px]">{subtitle}</Text>
       </View>
-      <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
-        {selected && <View style={styles.radioInner} />}
+      <View
+        className={
+          selected
+            ? "w-[17px] h-[17px] rounded-full border-[1.5px] items-center justify-center border-[#C8FF67]"
+            : "w-[17px] h-[17px] rounded-full border-[1.5px] border-[#A2A79E] items-center justify-center"
+        }
+      >
+        {selected && (
+          <View className="w-[9px] h-[9px] rounded-full bg-[#C8FF67]" />
+        )}
       </View>
     </Pressable>
   );
@@ -2773,15 +2818,15 @@ function LocationPicker({
   };
 
   return (
-    <View style={styles.mapPickerRoot}>
-      <View style={styles.mapPickerSearchWrap}>
+    <View className="flex-1 bg-[#0C0D0B]">
+      <View className="mx-[14px] mb-[8px] bg-[#171916] border border-[#30352D] rounded-[15px] min-h-[47px] px-[12px] flex-row items-center gap-[8px]">
         <Feather name="search" size={17} color={C.muted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search address, area or landmark"
-          placeholderTextColor="#98A39C"
-          style={styles.mapPickerSearchInput}
+          placeholderTextColor={C.muted}
+          className="flex-1 text-[#F6F7F4] text-[12px] font-bold py-[0px]"
           autoCorrect={false}
           returnKeyType="search"
         />
@@ -2789,7 +2834,7 @@ function LocationPicker({
       </View>
 
       {results.length > 0 && (
-        <View style={styles.mapPickerResults}>
+        <View className="mx-[14px] bg-[#171916] border border-[#30352D] rounded-[15px] overflow-hidden mb-[8px]">
           {results.map((feature) => {
             const title =
               feature?.properties?.name_preferred ??
@@ -2802,17 +2847,20 @@ function LocationPicker({
               <Pressable
                 key={String(feature.id)}
                 onPress={() => chooseFeature(feature)}
-                style={styles.mapPickerResultRow}
+                className="flex-row items-center gap-[9px] px-[11px] py-[10px] border-b border-b-[#30352D]"
               >
-                <View style={styles.mapPickerResultIcon}>
+                <View className="w-[30px] h-[30px] rounded-[10px] bg-[rgba(200,255,103,0.14)] items-center justify-center">
                   <Feather name="map-pin" size={14} color={C.greenDark} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.mapPickerResultTitle} numberOfLines={1}>
+                <View className="flex-1">
+                  <Text
+                    className="text-[#F6F7F4] text-[11px] font-black"
+                    numberOfLines={1}
+                  >
                     {title}
                   </Text>
                   <Text
-                    style={styles.mapPickerResultSubtitle}
+                    className="text-[#A2A79E] text-[9.5px] leading-[13px] mt-[2px]"
                     numberOfLines={2}
                   >
                     {subtitle}
@@ -2824,7 +2872,7 @@ function LocationPicker({
         </View>
       )}
 
-      <View style={styles.mapPickerMapWrap}>
+      <View className="flex-1 min-h-[300px] mx-[14px] rounded-[18px] overflow-hidden border border-[#30352D] bg-[#20221E]">
         <MapView
           ref={mapRef}
           style={StyleSheet.absoluteFillObject}
@@ -2860,26 +2908,32 @@ function LocationPicker({
             }}
             tracksViewChanges={false}
           >
-            <View style={styles.pickerMarkerOuter}>
-              <View style={styles.pickerMarkerInner} />
+            <View className="w-[32px] h-[32px] rounded-[16px] bg-[rgba(15,122,58,0.18)] items-center justify-center">
+              <View className="w-[12px] h-[12px] rounded-[6px] bg-[#C8FF67] border-[2px] border-[#FFFFFF]" />
             </View>
           </Marker>
         </MapView>
 
-        <View pointerEvents="none" style={styles.mapPickerHint}>
+        <View
+          pointerEvents="none"
+          className="absolute left-[12px] right-[12px] top-[12px] self-center bg-[rgba(23,28,19,0.96)] rounded-[11px] px-[10px] py-[7px] flex-row items-center justify-center gap-[5px]"
+        >
           <Feather name="move" size={13} color={C.greenDark} />
-          <Text style={styles.mapPickerHintText}>
+          <Text className="text-[#F6F7F4] text-[9.5px] font-extrabold">
             Search above or tap anywhere on the map
           </Text>
         </View>
       </View>
 
-      <View style={styles.mapPickerFooter}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.mapPickerSelectedLabel}>
+      <View className="m-[14px] mt-[10px] bg-[#171916] rounded-[17px] border border-[#30352D] p-[11px] flex-row items-center gap-[10px]">
+        <View className="flex-1">
+          <Text className="text-[#F6F7F4] text-[11px] font-black">
             {picked?.label ?? "Selected point"}
           </Text>
-          <Text style={styles.mapPickerSelectedAddress} numberOfLines={2}>
+          <Text
+            className="text-[#A2A79E] text-[9.5px] leading-[13px] mt-[2px]"
+            numberOfLines={2}
+          >
             {picked?.address ??
               `${center.latitude.toFixed(6)}, ${center.longitude.toFixed(6)}`}
           </Text>
@@ -2887,12 +2941,14 @@ function LocationPicker({
         <Pressable
           disabled={saving}
           onPress={confirm}
-          style={[styles.primaryButton, styles.mapPickerConfirmButton]}
+          className="rounded-[16px] bg-[#C8FF67] flex-row items-center justify-center gap-[8px] min-w-[128px] min-h-[42px] px-[11px]"
         >
           {saving ? (
             <ActivityIndicator color={C.white} />
           ) : (
-            <Text style={styles.primaryButtonText}>Use this location</Text>
+            <Text className="text-[#080907] text-[12.5px] font-black">
+              Use this location
+            </Text>
           )}
         </Pressable>
       </View>
@@ -2987,8 +3043,8 @@ function LocationSheet({
 
   if (pickerOpen) {
     return (
-      <View style={styles.locationPickerScreen}>
-        <View style={styles.locationManagerHeader}>
+      <View className="flex-1 bg-[#0C0D0B]">
+        <View className="min-h-[72px] px-[16px] pt-[7px] pb-[9px] flex-row items-center border-b border-b-[#30352D]">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Back to saved locations"
@@ -2996,15 +3052,15 @@ function LocationSheet({
               setPickerOpen(false);
               setEditing(null);
             }}
-            style={styles.locationHeaderButton}
+            className="w-[40px] h-[40px] rounded-[14px] bg-[#171916] border border-[#30352D] items-center justify-center"
           >
             <Feather name="arrow-left" size={19} color={C.ink} />
           </Pressable>
-          <View style={{ flex: 1, marginHorizontal: 12 }}>
-            <Text style={styles.locationManagerTitle}>
+          <View className="flex-1 mx-[12px]">
+            <Text className="text-[#F6F7F4] text-[16px] font-black">
               {editing ? "Update location" : "Pick a location"}
             </Text>
-            <Text style={styles.locationManagerSubtitle}>
+            <Text className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[3px]">
               Search an address or move the pin
             </Text>
           </View>
@@ -3012,7 +3068,7 @@ function LocationSheet({
             accessibilityRole="button"
             accessibilityLabel="Close location picker"
             onPress={onClose}
-            style={styles.locationHeaderButton}
+            className="w-[40px] h-[40px] rounded-[14px] bg-[#171916] border border-[#30352D] items-center justify-center"
           >
             <Feather name="x" size={19} color={C.ink} />
           </Pressable>
@@ -3031,11 +3087,13 @@ function LocationSheet({
   }
 
   return (
-    <View style={styles.locationSheetRoot}>
-      <View style={styles.locationManagerHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.locationManagerTitle}>Your locations</Text>
-          <Text style={styles.locationManagerSubtitle}>
+    <View className="flex-1 bg-[#0C0D0B]">
+      <View className="min-h-[72px] px-[16px] pt-[7px] pb-[9px] flex-row items-center border-b border-b-[#30352D]">
+        <View className="flex-1">
+          <Text className="text-[#F6F7F4] text-[16px] font-black">
+            Your locations
+          </Text>
+          <Text className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[3px]">
             Set where you buy, grow or collect fresh produce
           </Text>
         </View>
@@ -3043,46 +3101,49 @@ function LocationSheet({
           accessibilityRole="button"
           accessibilityLabel="Close locations"
           onPress={onClose}
-          style={styles.locationHeaderButton}
+          className="w-[40px] h-[40px] rounded-[14px] bg-[#171916] border border-[#30352D] items-center justify-center"
         >
           <Feather name="x" size={19} color={C.ink} />
         </Pressable>
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.sheetScroll}
+        contentContainerClassName="px-[17px] pb-[20px]"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.locationHero}>
-          <View style={styles.locationHeroIcon}>
+        <View className="bg-[rgba(200,255,103,0.14)] rounded-[18px] p-[12px] flex-row items-center gap-[10px]">
+          <View className="w-[41px] h-[41px] rounded-[13px] bg-[#171916] items-center justify-center">
             <Feather name="crosshair" size={22} color={C.greenDark} />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.locationHeroTitle}>
+          <View className="flex-1">
+            <Text className="text-[#0C0D0B] text-[13.5px] font-black">
               Precise marketplace location
             </Text>
-            <Text style={styles.locationHeroBody}>
+            <Text className="text-[#A2A79E] text-[10px] leading-[15px] mt-[2px]">
               Nearby harvests are based on your selected location.
             </Text>
           </View>
         </View>
 
-        <View style={styles.locationActionRow}>
+        <View className="flex-row gap-[8px] mt-[12px]">
           <Pressable
             onPress={onUseGps}
             disabled={busy || saving}
-            style={[
-              styles.locationAction,
-              (busy || saving) && styles.disabledAction,
-            ]}
+            className={
+              busy || saving
+                ? "flex-1 bg-[#171916] border border-[#30352D] rounded-[15px] py-[11px] items-center justify-center flex-row gap-[7px] opacity-[0.55]"
+                : "flex-1 bg-[#171916] border border-[#30352D] rounded-[15px] py-[11px] items-center justify-center flex-row gap-[7px]"
+            }
           >
             {busy ? (
               <ActivityIndicator color={C.green} size="small" />
             ) : (
               <Feather name="navigation" size={16} color={C.greenDark} />
             )}
-            <Text style={styles.locationActionText}>Use current GPS</Text>
+            <Text className="text-[#F6F7F4] text-[10.5px] font-black">
+              Use current GPS
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => {
@@ -3090,13 +3151,16 @@ function LocationSheet({
               setPickerOpen(true);
             }}
             disabled={busy || saving}
-            style={[
-              styles.locationAction,
-              (busy || saving) && styles.disabledAction,
-            ]}
+            className={
+              busy || saving
+                ? "flex-1 bg-[#171916] border border-[#30352D] rounded-[15px] py-[11px] items-center justify-center flex-row gap-[7px] opacity-[0.55]"
+                : "flex-1 bg-[#171916] border border-[#30352D] rounded-[15px] py-[11px] items-center justify-center flex-row gap-[7px]"
+            }
           >
             <Feather name="map-pin" size={16} color={C.greenDark} />
-            <Text style={styles.locationActionText}>Choose on map</Text>
+            <Text className="text-[#F6F7F4] text-[10.5px] font-black">
+              Choose on map
+            </Text>
           </Pressable>
         </View>
 
@@ -3113,42 +3177,50 @@ function LocationSheet({
           />
         ) : (
           locations.map((location) => (
-            <View key={location.id} style={styles.savedLocationCard}>
-              <View style={styles.savedLocationPin}>
+            <View
+              key={location.id}
+              className="bg-[#171916] border border-[#30352D] rounded-[17px] p-[12px] mt-[9px] flex-row gap-[9px]"
+            >
+              <View className="w-[34px] h-[34px] rounded-[11px] bg-[rgba(200,255,103,0.14)] items-center justify-center">
                 <Feather name="map-pin" size={17} color={C.greenDark} />
               </View>
-              <View style={{ flex: 1 }}>
-                <View style={styles.rowBetween}>
-                  <Text style={styles.savedLocationLabel}>
+              <View className="flex-1">
+                <View className="flex-row items-center justify-between gap-[8px]">
+                  <Text className="text-[#F6F7F4] text-[12px] font-black">
                     {location.label}
                   </Text>
                   {location.isDefault && <Pill tone="green">Default</Pill>}
                 </View>
-                <Text style={styles.savedLocationAddress}>
+                <Text className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[3px]">
                   {location.address}
                 </Text>
-                <Text style={styles.coordsText}>
+                <Text className="text-[#A2A79E] text-[8.8px] mt-[3px]">
                   {location.latitude.toFixed(6)},{" "}
                   {location.longitude.toFixed(6)}
                   {location.mapplsPin ? ` • ${location.mapplsPin}` : ""}
                 </Text>
-                <View style={styles.actionRow}>
+                <View className="flex-row gap-[7px] mt-[9px]">
                   <Pressable
                     onPress={() => {
                       setEditing(location);
                       setPickerOpen(true);
                     }}
-                    style={styles.smallAction}
+                    className="flex-row items-center gap-[5px] bg-[#171916] border border-[#30352D] rounded-[9px] px-[9px] py-[6px]"
                   >
                     <Feather name="edit-2" size={13} color={C.ink} />
-                    <Text style={styles.smallActionText}>Edit</Text>
+                    <Text className="text-[#F6F7F4] text-[9.5px] font-extrabold">
+                      Edit
+                    </Text>
                   </Pressable>
                   <Pressable
                     onPress={() => deleteLocation(location)}
-                    style={styles.smallAction}
+                    className="flex-row items-center gap-[5px] bg-[#171916] border border-[#30352D] rounded-[9px] px-[9px] py-[6px]"
                   >
                     <Feather name="trash-2" size={13} color={C.red} />
-                    <Text style={[styles.smallActionText, { color: C.red }]}>
+                    <Text
+                      className="text-[#F6F7F4] text-[9.5px] font-extrabold"
+                      style={{ color: C.red }}
+                    >
                       Remove
                     </Text>
                   </Pressable>
@@ -3157,7 +3229,7 @@ function LocationSheet({
             </View>
           ))
         )}
-        <View style={{ height: 28 }} />
+        <View className="h-[28px]" />
       </ScrollView>
     </View>
   );
@@ -3351,38 +3423,41 @@ function SellerListingSheet({
 
   return (
     <ScrollView
-      contentContainerStyle={styles.sheetScroll}
+      contentContainerClassName="px-[17px] pb-[20px]"
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.formIntro}>
-        <View style={styles.formIntroIcon}>
+      <View className="bg-[#171916] border border-[#30352D] rounded-[17px] p-[12px] flex-row gap-[9px] items-center">
+        <View className="w-[40px] h-[40px] rounded-[13px] bg-[rgba(200,255,103,0.14)] items-center justify-center">
           <Ionicons name="leaf-outline" size={22} color={C.greenDark} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.formIntroTitle}>
+        <View className="flex-1">
+          <Text className="text-[#F6F7F4] text-[12.5px] font-black">
             Build one clean product card
           </Text>
-          <Text style={styles.formIntroBody}>
+          <Text className="text-[#A2A79E] text-[9.5px] leading-[14px] mt-[2px]">
             Price is per pack. The backend calculates the final price and
             protects the inventory during checkout.
           </Text>
         </View>
       </View>
 
-      <Text style={styles.formLabel}>1. Crop</Text>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        1. Crop
+      </Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chipScroll}
+        contentContainerClassName="gap-[8px] pb-[12px]"
       >
         {crops.map((crop) => (
           <Pressable
             key={crop.id}
             onPress={() => setCropId(crop.id)}
-            style={[
-              styles.cropChip,
-              cropId === crop.id && styles.cropChipActive,
-            ]}
+            className={
+              cropId === crop.id
+                ? "rounded-[12px] border px-[10px] py-[8px] flex-row items-center gap-[5px] bg-[rgba(200,255,103,0.14)] border-[#3B4334]"
+                : "rounded-[12px] bg-[#171916] border border-[#30352D] px-[10px] py-[8px] flex-row items-center gap-[5px]"
+            }
           >
             <Ionicons
               name="leaf-outline"
@@ -3390,10 +3465,11 @@ function SellerListingSheet({
               color={cropId === crop.id ? C.greenDark : C.muted}
             />
             <Text
-              style={[
-                styles.cropChipText,
-                cropId === crop.id && styles.cropChipTextActive,
-              ]}
+              className={
+                cropId === crop.id
+                  ? "text-[10.5px] font-extrabold text-[#0C0D0B]"
+                  : "text-[#A2A79E] text-[10.5px] font-extrabold"
+              }
             >
               {crop.cropName}
             </Text>
@@ -3401,9 +3477,11 @@ function SellerListingSheet({
         ))}
       </ScrollView>
       {selectedCrop && (
-        <View style={styles.cropContext}>
-          <Text style={styles.cropContextTitle}>{selectedCrop.cropName}</Text>
-          <Text style={styles.cropContextBody}>
+        <View className="mt-[9px] bg-[#202A19] rounded-[13px] p-[10px]">
+          <Text className="text-[#0C0D0B] text-[11.5px] font-black">
+            {selectedCrop.cropName}
+          </Text>
+          <Text className="text-[#A2A79E] text-[9.5px] leading-[14px] mt-[2px]">
             {selectedCrop.status} • Expected harvest{" "}
             {fmtDate(selectedCrop.expectedHarvestDate)} •{" "}
             {selectedCrop.rack?.name ?? "Rack"} /{" "}
@@ -3412,8 +3490,10 @@ function SellerListingSheet({
         </View>
       )}
 
-      <Text style={styles.formLabel}>2. Harvest state</Text>
-      <View style={styles.optionCardRow}>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        2. Harvest state
+      </Text>
+      <View className="flex-row gap-[8px]">
         <OptionCard
           icon="sunrise"
           title="Harvested"
@@ -3434,8 +3514,10 @@ function SellerListingSheet({
         />
       </View>
 
-      <Text style={styles.formLabel}>3. Pack & inventory</Text>
-      <View style={styles.formGrid}>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        3. Pack & inventory
+      </Text>
+      <View className="flex-row gap-[8px] mb-[8px]">
         <Field
           label="Pack size"
           value={packSizeValue}
@@ -3449,7 +3531,7 @@ function SellerListingSheet({
           onChange={setPackUnit as any}
         />
       </View>
-      <View style={styles.formGrid}>
+      <View className="flex-row gap-[8px] mb-[8px]">
         <Field
           label="Available packs"
           value={quantity}
@@ -3470,8 +3552,10 @@ function SellerListingSheet({
         />
       </View>
 
-      <Text style={styles.formLabel}>4. Price</Text>
-      <View style={styles.formGrid}>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        4. Price
+      </Text>
+      <View className="flex-row gap-[8px] mb-[8px]">
         <Field
           label="Base price / pack"
           value={basePrice}
@@ -3487,32 +3571,47 @@ function SellerListingSheet({
           suffix="%"
         />
       </View>
-      <View style={styles.previewPrice}>
+      <View className="mt-[4px] rounded-[15px] p-[12px] bg-[rgba(200,255,103,0.14)] flex-row justify-between items-center">
         <View>
-          <Text style={styles.previewPriceLabel}>Buyer pays</Text>
-          <Text style={styles.previewPriceValue}>{money(finalPrice)}</Text>
+          <Text className="text-[#A2A79E] text-[9.5px] font-bold">
+            Buyer pays
+          </Text>
+          <Text className="text-[#0C0D0B] text-[20px] font-black mt-[1px]">
+            {money(finalPrice)}
+          </Text>
         </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text style={styles.previewPriceLabel}>You save them</Text>
-          <Text style={styles.previewSave}>{num(discount).toFixed(0)}%</Text>
+        <View className="items-end">
+          <Text className="text-[#A2A79E] text-[9.5px] font-bold">
+            You save them
+          </Text>
+          <Text className="text-[#0C0D0B] text-[17px] font-black mt-[1px]">
+            {num(discount).toFixed(0)}%
+          </Text>
         </View>
       </View>
 
-      <Text style={styles.formLabel}>5. Photos & description</Text>
-      <Pressable onPress={pickImage} style={styles.imagePickerCard}>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        5. Photos & description
+      </Text>
+      <Pressable
+        onPress={pickImage}
+        className="h-[185px] bg-[#20221E] rounded-[18px] border border-[#30352D] border-dashed overflow-hidden relative"
+      >
         {image ? (
-          <Image source={{ uri: image.uri }} style={styles.uploadPreview} />
+          <Image source={{ uri: image.uri }} className="w-full h-full" />
         ) : (
-          <View style={styles.uploadPlaceholder}>
+          <View className="flex-1 items-center justify-center">
             <Feather name="camera" size={23} color={C.green} />
-            <Text style={styles.uploadTitle}>Add crop photo</Text>
-            <Text style={styles.uploadBody}>
+            <Text className="text-[#F6F7F4] text-[12.5px] font-black mt-[7px]">
+              Add crop photo
+            </Text>
+            <Text className="text-[#A2A79E] text-[10px] mt-[3px]">
               Clear, natural-light photo works best
             </Text>
           </View>
         )}
         {image && (
-          <View style={styles.imageEditBadge}>
+          <View className="absolute right-[10px] top-[10px] w-[29px] h-[29px] rounded-[10px] bg-[rgba(21,32,26,0.72)] items-center justify-center">
             <Feather name="edit-2" size={12} color={C.white} />
           </View>
         )}
@@ -3520,14 +3619,16 @@ function SellerListingSheet({
       {image && !image.uploaded && (
         <Pressable
           onPress={() => void uploadImage()}
-          style={styles.uploadButton}
+          className="mt-[8px] bg-[#171916] border border-[#CBEAD2] rounded-[12px] py-[9px] flex-row items-center justify-center gap-[7px]"
         >
           {uploadingImage ? (
             <ActivityIndicator color={C.greenDark} />
           ) : (
             <>
               <Feather name="upload-cloud" size={15} color={C.greenDark} />
-              <Text style={styles.uploadButtonText}>Upload to ImageKit</Text>
+              <Text className="text-[#0C0D0B] text-[10.5px] font-black">
+                Upload to ImageKit
+              </Text>
             </>
           )}
         </Pressable>
@@ -3536,42 +3637,45 @@ function SellerListingSheet({
         value={description}
         onChangeText={setDescription}
         placeholder="Describe freshness, growing method, expected harvest notes, etc."
-        placeholderTextColor="#96A19A"
+        placeholderTextColor={C.muted}
         multiline
-        style={styles.textArea}
+        className="min-h-[92px] mt-[8px] bg-[#171916] border border-[#30352D] rounded-[14px] px-[11px] pt-[10px] text-[#F6F7F4] text-[11px] leading-[16px] align-top"
       />
 
-      <Text style={styles.formLabel}>6. Seller location</Text>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        6. Seller location
+      </Text>
       {locations.length === 0 ? (
-        <View style={styles.warningCard}>
+        <View className="bg-[#382A18] border border-[#F5DCB0] rounded-[15px] p-[11px] flex-row items-center gap-[8px]">
           <Feather name="map-pin" size={16} color={C.orange} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.warningTitle}>
+          <View className="flex-1">
+            <Text className="text-[#F6F7F4] text-[10.5px] font-black">
               You need a precise seller location
             </Text>
-            <Text style={styles.warningBody}>
+            <Text className="text-[#A2A79E] text-[9px] leading-[13px] mt-[2px]">
               This location is stored with the listing and is also used for
               radius-based buyer discovery.
             </Text>
           </View>
           <Pressable onPress={onAddLocation}>
-            <Text style={styles.noticeAction}>Add</Text>
+            <Text className="text-[#0C0D0B] text-[11.5px] font-black">Add</Text>
           </Pressable>
         </View>
       ) : (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipScroll}
+          contentContainerClassName="gap-[8px] pb-[12px]"
         >
           {locations.map((location) => (
             <Pressable
               key={location.id}
               onPress={() => setSellerLocationId(location.id)}
-              style={[
-                styles.locationChip,
-                sellerLocationId === location.id && styles.locationChipActive,
-              ]}
+              className={
+                sellerLocationId === location.id
+                  ? "border rounded-[14px] px-[10px] py-[8px] min-w-[170px] flex-row items-center gap-[6px] bg-[rgba(200,255,103,0.14)] border-[#3B4334]"
+                  : "bg-[#171916] border border-[#30352D] rounded-[14px] px-[10px] py-[8px] min-w-[170px] flex-row items-center gap-[6px]"
+              }
             >
               <Feather
                 name="map-pin"
@@ -3580,14 +3684,19 @@ function SellerListingSheet({
               />
               <View>
                 <Text
-                  style={[
-                    styles.locationChipTitle,
-                    sellerLocationId === location.id && { color: C.greenDark },
-                  ]}
+                  className="text-[#F6F7F4] text-[10.5px] font-black"
+                  style={
+                    sellerLocationId === location.id
+                      ? { color: C.greenDark }
+                      : undefined
+                  }
                 >
                   {location.label}
                 </Text>
-                <Text style={styles.locationChipSub} numberOfLines={1}>
+                <Text
+                  className="text-[#A2A79E] text-[8.5px] mt-[2px] max-w-[126px]"
+                  numberOfLines={1}
+                >
                   {location.address}
                 </Text>
               </View>
@@ -3596,8 +3705,10 @@ function SellerListingSheet({
         </ScrollView>
       )}
 
-      <Text style={styles.formLabel}>7. Fulfillment</Text>
-      <View style={styles.optionCardRow}>
+      <Text className="text-[#F6F7F4] text-[11.5px] font-black mt-[17px] mb-[8px]">
+        7. Fulfillment
+      </Text>
+      <View className="flex-row gap-[8px]">
         <OptionCard
           icon="truck"
           title="Seller delivery"
@@ -3614,7 +3725,7 @@ function SellerListingSheet({
         />
       </View>
       {sellerDelivery && (
-        <View style={styles.formGrid}>
+        <View className="flex-row gap-[8px] mb-[8px]">
           <Field
             label="Delivery radius"
             value={deliveryRadius}
@@ -3631,7 +3742,7 @@ function SellerListingSheet({
           />
         </View>
       )}
-      <Text style={styles.termsText}>
+      <Text className="text-[#A2A79E] text-[9.5px] leading-[14px] text-center mt-[9px] px-[12px]">
         At least one fulfillment mode is required. Seller delivery is available
         only within the radius you publish. The backend validates the
         buyer-to-seller coordinates again during checkout.
@@ -3640,17 +3751,17 @@ function SellerListingSheet({
       <Pressable
         disabled={busy || uploadingImage || !sellerLocationId}
         onPress={submit}
-        style={[
-          styles.primaryButton,
-          (!sellerLocationId || uploadingImage) && { opacity: 0.6 },
-        ]}
+        className="min-h-[50px] mt-[13px] rounded-[16px] bg-[#C8FF67] px-[16px] flex-row items-center justify-center gap-[8px]"
+        style={
+          !sellerLocationId || uploadingImage ? { opacity: 0.6 } : undefined
+        }
       >
-        <Text style={styles.primaryButtonText}>
+        <Text className="text-[#080907] text-[12.5px] font-black">
           {existing ? "Save listing changes" : "Publish to marketplace"}
         </Text>
         <Feather name="arrow-up-right" size={18} color={C.white} />
       </Pressable>
-      <View style={{ height: 120 }} />
+      <View className="h-[120px]" />
     </ScrollView>
   );
 }
@@ -3671,18 +3782,28 @@ function Field({
   suffix?: string;
 }) {
   return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.inputRow}>
-        {prefix && <Text style={styles.inputAffix}>{prefix}</Text>}
+    <View className="flex-1 bg-[#171916] border border-[#30352D] rounded-[14px] px-[10px] pt-[7px] pb-[4px]">
+      <Text className="text-[#A2A79E] text-[8.8px] font-extrabold">
+        {label}
+      </Text>
+      <View className="flex-row items-center">
+        {prefix && (
+          <Text className="text-[#F6F7F4] text-[12px] font-extrabold">
+            {prefix}
+          </Text>
+        )}
         <TextInput
           value={value}
           onChangeText={onChangeText}
           keyboardType={keyboardType}
-          placeholderTextColor="#96A19A"
-          style={styles.textInput}
+          placeholderTextColor={C.muted}
+          className="flex-1 h-[32px] text-[#F6F7F4] text-[12px] font-extrabold py-[0px]"
         />
-        {suffix && <Text style={styles.inputAffix}>{suffix}</Text>}
+        {suffix && (
+          <Text className="text-[#F6F7F4] text-[12px] font-extrabold">
+            {suffix}
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -3700,24 +3821,28 @@ function SelectLike({
   onChange: (value: string) => void;
 }) {
   return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.selectWrap}>
+    <View className="flex-1 bg-[#171916] border border-[#30352D] rounded-[14px] px-[10px] pt-[7px] pb-[4px]">
+      <Text className="text-[#A2A79E] text-[8.8px] font-extrabold">
+        {label}
+      </Text>
+      <View className="py-[5px]">
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {options.map((option) => (
             <Pressable
               key={option}
               onPress={() => onChange(option)}
-              style={[
-                styles.unitOption,
-                value === option && styles.unitOptionActive,
-              ]}
+              className={
+                value === option
+                  ? "px-[9px] py-[7px] rounded-[9px] mr-[5px] bg-[#C8FF67]"
+                  : "px-[9px] py-[7px] rounded-[9px] bg-[#20221E] mr-[5px]"
+              }
             >
               <Text
-                style={[
-                  styles.unitOptionText,
-                  value === option && styles.unitOptionTextActive,
-                ]}
+                className={
+                  value === option
+                    ? "text-[9.5px] font-extrabold text-[#FFFFFF]"
+                    : "text-[#A2A79E] text-[9.5px] font-extrabold"
+                }
               >
                 {option}
               </Text>
@@ -3756,40 +3881,49 @@ function OrdersSheet({
     <FlatList
       data={orders}
       keyExtractor={(item) => item.id}
-      contentContainerStyle={styles.sheetScroll}
+      contentContainerClassName="px-[17px] pb-[20px]"
       renderItem={({ item }) => {
         const open = !["COMPLETED", "CANCELLED"].includes(item.status);
         return (
-          <Pressable onPress={() => onOpen(item)} style={styles.orderCard}>
-            <View style={styles.orderIcon}>
+          <Pressable
+            onPress={() => onOpen(item)}
+            className="bg-[#171916] border border-[#30352D] rounded-[17px] p-[11px] flex-row items-center gap-[10px] mb-[9px]"
+          >
+            <View className="w-[40px] h-[40px] rounded-[13px] bg-[#202A19] items-center justify-center">
               {item.fulfillmentType === "SELLER_DELIVERY" ? (
                 <Feather name="truck" size={18} color={C.green} />
               ) : (
                 <Feather name="map-pin" size={18} color={C.blue} />
               )}
             </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.orderCrop}>{item.cropName}</Text>
+            <View className="flex-1">
+              <View className="flex-row items-center justify-between gap-[8px]">
+                <Text className="text-[#F6F7F4] text-[12.5px] font-black">
+                  {item.cropName}
+                </Text>
                 <Pill tone={item.paymentStatus === "PAID" ? "green" : "orange"}>
                   {item.paymentStatus}
                 </Pill>
               </View>
-              <Text style={styles.orderNumber}>{item.orderNumber}</Text>
-              <Text style={styles.subtle}>
+              <Text className="text-[#A2A79E] text-[9.5px] mt-[2px] font-bold">
+                {item.orderNumber}
+              </Text>
+              <Text className="text-[#A2A79E] text-[10.5px] leading-[15px] mt-[3px]">
                 {item.quantity} × {item.packSizeValue}
                 {item.packSizeUnit} • {money(item.totalAmount)} • {item.status}
               </Text>
               {item.fulfillmentType === "SELLER_DELIVERY" &&
                 item.tracking?.isActive && (
-                  <Text style={styles.liveText}>● Live delivery tracking</Text>
+                  <Text className="text-[#0C0D0B] text-[9px] font-black mt-[5px]">
+                    ● Live delivery tracking
+                  </Text>
                 )}
             </View>
             <Feather name="chevron-right" size={17} color={C.muted} />
           </Pressable>
         );
       }}
-      ListFooterComponent={<View style={{ height: 80 }} />}
+      ListFooterComponent={<View className="h-[80px]" />}
     />
   );
 }
@@ -3847,39 +3981,43 @@ function OrderDetailSheet({
 
   return (
     <ScrollView
-      contentContainerStyle={styles.sheetScroll}
+      contentContainerClassName="px-[17px] pb-[20px]"
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.orderStatusHero}>
-        <View style={styles.orderStatusIcon}>
+      <View className="bg-[#171916] border border-[#30352D] rounded-[18px] p-[12px] flex-row items-center gap-[10px]">
+        <View className="w-[45px] h-[45px] rounded-[14px] bg-[rgba(200,255,103,0.14)] items-center justify-center">
           {order.paymentStatus === "PAID" ? (
             <Feather name="check" size={23} color={C.greenDark} />
           ) : (
             <Feather name="clock" size={23} color={C.orange} />
           )}
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.detailTitle}>{order.cropName}</Text>
-          <Text style={styles.detailSubtitle}>
+        <View className="flex-1">
+          <Text className="text-[#F6F7F4] text-[22px] font-black">
+            {order.cropName}
+          </Text>
+          <Text className="text-[#A2A79E] text-[11px] leading-[16px] mt-[3px]">
             {order.status.replaceAll("_", " ")} • {fmtDate(order.createdAt)} at{" "}
             {fmtTime(order.createdAt)}
           </Text>
         </View>
-        <Text style={styles.detailPrice}>{money(order.totalAmount)}</Text>
+        <Text className="text-[#F6F7F4] text-[21px] font-black">
+          {money(order.totalAmount)}
+        </Text>
       </View>
 
       {order.fulfillmentType === "SELLER_DELIVERY" && (
-        <View style={{ marginBottom: 14 }}>
-          <View style={styles.trackingBanner}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.trackingBannerTitle}>
+        <View className="mb-[14px]">
+          <View className="mt-[10px] rounded-[17px] bg-[rgba(200,255,103,0.14)] border border-[#CBEAD2] p-[12px] flex-row items-center gap-[10px]">
+            <View className="flex-1">
+              <Text className="text-[#0C0D0B] text-[12px] font-black">
                 {order.status === "OUT_FOR_DELIVERY"
                   ? "Your order is moving"
                   : order.status === "REACHED"
                     ? "Seller has reached the handover area"
                     : "Delivery route is ready"}
               </Text>
-              <Text style={styles.trackingBannerBody}>
+              <Text className="text-[#A2A79E] text-[10px] mt-[2px]">
                 {order.tracking?.distanceRemainingKm != null
                   ? `${fmtKm(order.tracking.distanceRemainingKm)} remaining`
                   : order.routeDistanceKm != null
@@ -3890,8 +4028,8 @@ function OrderDetailSheet({
                   : ""}
               </Text>
             </View>
-            <View style={styles.liveDot}>
-              <View style={styles.liveDotInner} />
+            <View className="w-[25px] h-[25px] rounded-full bg-[rgba(15,122,58,0.13)] items-center justify-center">
+              <View className="w-[9px] h-[9px] rounded-full bg-[#C8FF67]" />
             </View>
           </View>
           <MarketplaceMap
@@ -3910,48 +4048,62 @@ function OrderDetailSheet({
             selectedListingId={null}
           />
           {order.buyerLocation && (
-            <View style={styles.routeEndpoints}>
+            <View className="mt-[10px] bg-[#171916] border border-[#30352D] rounded-[16px] p-[12px]">
               <Endpoint
                 title={buyerIsViewer ? "You" : "Customer"}
                 location={order.buyerLocation}
               />
-              <View style={styles.endpointLine} />
+              <View className="w-[1px] h-[15px] ml-[4.5px] bg-[#30352D] my-[4px]" />
               <Endpoint title={"Seller"} location={order.sellerLocation} />
             </View>
           )}
         </View>
       )}
 
-      <View style={styles.billCard}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.billLabel}>Unit price</Text>
-          <Text style={styles.billValue}>
+      <View className="bg-[#171916] border border-[#30352D] rounded-[17px] p-[13px] mt-[14px]">
+        <View className="flex-row items-center justify-between gap-[8px]">
+          <Text className="text-[#A2A79E] text-[10.5px] font-bold">
+            Unit price
+          </Text>
+          <Text className="text-[#F6F7F4] text-[10.5px] font-extrabold">
             {money(order.unitPrice)} × {order.quantity}
           </Text>
         </View>
         {num(order.discountAmount) > 0 && (
-          <View style={styles.rowBetween}>
-            <Text style={[styles.billLabel, { color: C.green }]}>Discount</Text>
-            <Text style={[styles.billValue, { color: C.green }]}>
+          <View className="flex-row items-center justify-between gap-[8px]">
+            <Text
+              className="text-[#A2A79E] text-[10.5px] font-bold"
+              style={{ color: C.green }}
+            >
+              Discount
+            </Text>
+            <Text
+              className="text-[#F6F7F4] text-[10.5px] font-extrabold"
+              style={{ color: C.green }}
+            >
               −{money(order.discountAmount)}
             </Text>
           </View>
         )}
-        <View style={styles.rowBetween}>
-          <Text style={styles.billLabel}>Delivery</Text>
-          <Text style={styles.billValue}>
+        <View className="flex-row items-center justify-between gap-[8px]">
+          <Text className="text-[#A2A79E] text-[10.5px] font-bold">
+            Delivery
+          </Text>
+          <Text className="text-[#F6F7F4] text-[10.5px] font-extrabold">
             {order.deliveryFee ? money(order.deliveryFee) : "FREE"}
           </Text>
         </View>
-        <View style={styles.billDivider} />
-        <View style={styles.rowBetween}>
-          <Text style={styles.billTotalLabel}>Total</Text>
-          <Text style={styles.billTotal}>{money(order.totalAmount)}</Text>
+        <View className="h-[1px] bg-[#30352D] my-[10px]" />
+        <View className="flex-row items-center justify-between gap-[8px]">
+          <Text className="text-[#F6F7F4] text-[13px] font-black">Total</Text>
+          <Text className="text-[#0C0D0B] text-[19px] font-black">
+            {money(order.totalAmount)}
+          </Text>
         </View>
       </View>
 
       {mode === "BUYER" && (
-        <View style={styles.timelineCard}>
+        <View className="bg-[#171916] border border-[#30352D] rounded-[17px] mt-[11px] p-[12px]">
           <TimelineStep
             done={order.status !== "PENDING_PAYMENT"}
             title="Order placed"
@@ -4003,16 +4155,18 @@ function OrderDetailSheet({
             <Pressable
               disabled={busy}
               onPress={() => onCancel(order)}
-              style={styles.cancelOrderButton}
+              className="mt-[2px] min-h-[42px] rounded-[13px] border border-[#F0C8C8] bg-[#301B1B] items-center justify-center"
             >
-              <Text style={styles.cancelOrderButtonText}>Cancel order</Text>
+              <Text className="text-[#FF6B6B] text-[10.5px] font-black">
+                Cancel order
+              </Text>
             </Pressable>
           )}
         </View>
       )}
 
       {mode === "SELLER" && (
-        <View style={styles.sellerActionsCard}>
+        <View className="bg-[#171916] border border-[#30352D] rounded-[17px] mt-[11px] p-[12px] gap-[8px]">
           {nextSellerAction && (
             <ActionButton
               title={
@@ -4055,7 +4209,7 @@ function OrderDetailSheet({
           {order.paymentMethod === "COD" &&
             order.paymentStatus !== "PAID" &&
             ["REACHED", "READY_FOR_PICKUP"].includes(order.status) && (
-              <View style={styles.optionCardRow}>
+              <View className="flex-row gap-[8px]">
                 <OptionCard
                   icon="dollar-sign"
                   title="Collect cash"
@@ -4073,9 +4227,9 @@ function OrderDetailSheet({
               </View>
             )}
           {order.paymentStatus === "PAID" && order.status !== "COMPLETED" && (
-            <View style={styles.successNotice}>
+            <View className="bg-[rgba(200,255,103,0.14)] rounded-[13px] p-[10px] flex-row gap-[7px] items-start">
               <Feather name="check-circle" size={16} color={C.greenDark} />
-              <Text style={styles.successNoticeText}>
+              <Text className="text-[#0C0D0B] text-[9.8px] leading-[14px] flex-1">
                 Payment is confirmed. Complete the handover flow to finish the
                 order.
               </Text>
@@ -4084,12 +4238,12 @@ function OrderDetailSheet({
         </View>
       )}
 
-      <View style={styles.locationSnapshot}>
+      <View className="mt-[11px] bg-[#171916] border border-[#30352D] rounded-[16px] p-[12px]">
         <Endpoint title="Buyer" location={order.buyerLocation} />
-        <View style={styles.endpointLine} />
+        <View className="w-[1px] h-[15px] ml-[4.5px] bg-[#30352D] my-[4px]" />
         <Endpoint title="Seller" location={order.sellerLocation} />
       </View>
-      <View style={{ height: 100 }} />
+      <View className="h-[100px]" />
     </ScrollView>
   );
 }
@@ -4102,15 +4256,15 @@ function Endpoint({
   location?: LocationRecord;
 }) {
   return (
-    <View style={styles.endpoint}>
-      <View style={styles.endpointDot} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.endpointTitle}>{title}</Text>
-        <Text style={styles.endpointAddress}>
+    <View className="flex-row items-start gap-[9px]">
+      <View className="w-[10px] h-[10px] rounded-full mt-[4px] bg-[#C8FF67]" />
+      <View className="flex-1">
+        <Text className="text-[#F6F7F4] text-[10.5px] font-black">{title}</Text>
+        <Text className="text-[#A2A79E] text-[9.5px] leading-[14px] mt-[2px]">
           {location?.address ?? "Location snapshot saved with order"}
         </Text>
         {location && (
-          <Text style={styles.coordsText}>
+          <Text className="text-[#A2A79E] text-[8.8px] mt-[3px]">
             {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
           </Text>
         )}
@@ -4129,13 +4283,19 @@ function TimelineStep({
   body: string;
 }) {
   return (
-    <View style={styles.timelineStep}>
-      <View style={[styles.timelineDot, done && styles.timelineDotDone]}>
+    <View className="flex-row items-start gap-[9px] pb-[12px]">
+      <View
+        className={
+          done
+            ? "w-[19px] h-[19px] rounded-full items-center justify-center bg-[#C8FF67]"
+            : "w-[19px] h-[19px] rounded-full bg-[#30352D] items-center justify-center"
+        }
+      >
         {done && <Feather name="check" size={10} color={C.white} />}
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.timelineTitle}>{title}</Text>
-        <Text style={styles.timelineBody}>{body}</Text>
+      <View className="flex-1">
+        <Text className="text-[#F6F7F4] text-[10.5px] font-black">{title}</Text>
+        <Text className="text-[#A2A79E] text-[9.5px] mt-[1px]">{body}</Text>
       </View>
     </View>
   );
@@ -4151,9 +4311,14 @@ function ActionButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.actionButton}>
+    <Pressable
+      onPress={onPress}
+      className="min-h-[45px] bg-[#C8FF67] rounded-[14px] px-[13px] flex-row items-center gap-[8px]"
+    >
       <Feather name={icon} size={17} color={C.white} />
-      <Text style={styles.actionButtonText}>{title}</Text>
+      <Text className="text-[#FFFFFF] text-[11.5px] font-black flex-1">
+        {title}
+      </Text>
       <Feather name="arrow-right" size={16} color={C.white} />
     </Pressable>
   );
@@ -4167,32 +4332,37 @@ function DoorstepPaymentSheet({
   shortUrl?: string | null;
 }) {
   return (
-    <View style={styles.paymentSheet}>
-      <View style={styles.paymentIcon}>
+    <View className="p-[18px] items-center">
+      <View className="w-[70px] h-[70px] rounded-[22px] bg-[rgba(200,255,103,0.14)] items-center justify-center">
         <Ionicons name="qr-code-outline" size={32} color={C.greenDark} />
       </View>
-      <Text style={styles.paymentTitle}>
+      <Text className="text-[#F6F7F4] text-[20px] font-black mt-[14px] text-center">
         Collect {money(order.totalAmount)} by UPI
       </Text>
-      <Text style={styles.paymentBody}>
+      <Text className="text-[#A2A79E] text-[11px] leading-[17px] text-center mt-[6px]">
         The backend created a Razorpay Payment Link. Open it on the customer’s
         phone or show the URL as a QR in your payment UI.
       </Text>
-      <View style={styles.paymentUrlCard}>
-        <Text style={styles.paymentUrl} numberOfLines={3}>
+      <View className="w-full bg-[#171916] border border-[#30352D] rounded-[15px] p-[12px] mt-[13px]">
+        <Text
+          className="text-[#F6F7F4] text-[10.5px] leading-[15px]"
+          numberOfLines={3}
+        >
           {shortUrl ?? "Payment link pending"}
         </Text>
       </View>
       {shortUrl && (
         <Pressable
           onPress={() => void Linking.openURL(shortUrl)}
-          style={styles.primaryButton}
+          className="min-h-[50px] mt-[13px] rounded-[16px] bg-[#C8FF67] px-[16px] flex-row items-center justify-center gap-[8px]"
         >
-          <Text style={styles.primaryButtonText}>Open UPI payment link</Text>
+          <Text className="text-[#080907] text-[12.5px] font-black">
+            Open UPI payment link
+          </Text>
           <Feather name="external-link" size={17} color={C.white} />
         </Pressable>
       )}
-      <Text style={styles.termsText}>
+      <Text className="text-[#A2A79E] text-[9.5px] leading-[14px] text-center mt-[9px] px-[12px]">
         The webhook on your backend is responsible for marking the order PAID.
         Do not mark doorstep UPI complete purely from the client.
       </Text>
@@ -4200,1557 +4370,42 @@ function DoorstepPaymentSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: C.bg },
-  mapExperience: { backgroundColor: C.black },
-  centered: {
-    flex: 1,
-    backgroundColor: C.bg,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 28,
+const nativeStyles: Record<string, any> = {
+  marketplaceFixedHeader: {
+    shadowColor: C.black,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 7,
   },
-  loadingText: { marginTop: 12, color: C.muted, fontSize: 13 },
-  header: {
-    paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 10,
-    backgroundColor: C.bg,
-  },
-  headerTop: { flexDirection: "row", alignItems: "center" },
-  headerActions: { flexDirection: "row", gap: 8 },
-  eyebrow: {
-    fontSize: 9,
-    letterSpacing: 1.8,
-    fontWeight: "800",
-    color: C.green,
-  },
-  headerTitle: {
-    marginTop: 4,
-    fontSize: 26,
-    lineHeight: 31,
-    fontWeight: "800",
-    color: C.ink,
-  },
-  iconButton: {
-    width: 39,
-    height: 39,
-    borderRadius: 14,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconButtonActive: { backgroundColor: C.greenSoft, borderColor: "#41532D" },
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: "#20271D",
-    borderRadius: 14,
-    padding: 3,
-    marginTop: 13,
-  },
-  segment: {
-    flex: 1,
-    borderRadius: 11,
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  segmentActive: { backgroundColor: C.card },
-  segmentText: { color: C.muted, fontWeight: "700", fontSize: 12 },
-  segmentTextActive: { color: C.ink },
-  listContent: { paddingHorizontal: 14, paddingBottom: 30 },
-  columnGap: { gap: 10 },
-  searchBar: {
-    height: 50,
-    borderRadius: 17,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    marginBottom: 10,
-  },
-  searchInput: { flex: 1, marginHorizontal: 10, color: C.ink, fontSize: 13.5 },
-  contextRow: { flexDirection: "row", gap: 10, marginBottom: 18 },
-  locationContext: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 16,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  locationIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: C.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 9,
-  },
-  contextLabel: {
-    color: C.muted,
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-  },
-  contextValue: {
-    color: C.ink,
-    fontSize: 12.5,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-  viewToggle: { flexDirection: "row", alignItems: "center", gap: 6 },
-  discoveryHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 9,
-  },
-  sectionTitle: { color: C.ink, fontSize: 18, fontWeight: "800" },
-  sectionSub: { color: C.muted, fontSize: 11.5, marginTop: 2 },
-  filterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 12,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-  },
-  filterText: { fontSize: 11.5, fontWeight: "800", color: C.ink },
-  chipScroll: { gap: 8, paddingBottom: 12 },
-  rangeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  rangeChipActive: { backgroundColor: C.green, borderColor: C.green },
-  rangeChipText: { fontSize: 11.5, fontWeight: "700", color: C.ink },
-  rangeChipTextActive: { color: C.white },
-  listingCard: {
-    width: "50%",
-    backgroundColor: C.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: C.line,
-    overflow: "hidden",
-    marginBottom: 11,
-  },
-  imageWrap: { height: 160, backgroundColor: "#20271D", position: "relative" },
-  productImage: { width: "100%", height: "100%" },
-  productPlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#1E2B19",
-  },
-  discountBadge: {
-    position: "absolute",
-    left: 9,
-    top: 9,
-    backgroundColor: C.green,
-    borderRadius: 7,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-  },
-  discountBadgeText: { color: C.black, fontSize: 9, fontWeight: "900" },
-  harvestBadge: {
-    position: "absolute",
-    right: 8,
-    top: 8,
-    backgroundColor: "#382A18",
-    borderRadius: 7,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-  },
-  harvestBadgeText: { color: C.orange, fontSize: 8.5, fontWeight: "800" },
-  cardBody: { padding: 11 },
-  rowBetween: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  rowGap: { flexDirection: "row", alignItems: "baseline", gap: 7 },
-  listingTitle: { color: C.ink, fontSize: 13.5, fontWeight: "800", flex: 1 },
-  distanceText: { color: C.greenDark, fontSize: 10.5, fontWeight: "800" },
-  subtle: { color: C.muted, fontSize: 10.5, lineHeight: 15, marginTop: 3 },
-  priceText: { color: C.ink, fontSize: 17, fontWeight: "900" },
-  oldPrice: {
-    color: "#9CA59F",
-    fontSize: 11,
-    textDecorationLine: "line-through",
-  },
-  sellerText: {
-    maxWidth: 74,
-    textAlign: "right",
-    color: C.muted,
-    fontSize: 9.5,
-    fontWeight: "700",
-  },
-  metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 8 },
-  pillSoft: {
-    backgroundColor: "#232A20",
-    paddingHorizontal: 6.5,
-    paddingVertical: 4,
-    borderRadius: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  pillGreen: {
-    backgroundColor: C.greenSoft,
-    paddingHorizontal: 6.5,
-    paddingVertical: 4,
-    borderRadius: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  pillOrange: {
-    backgroundColor: "#382818",
-    paddingHorizontal: 6.5,
-    paddingVertical: 4,
-    borderRadius: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  pillRed: {
-    backgroundColor: "#351E1E",
-    paddingHorizontal: 6.5,
-    paddingVertical: 4,
-    borderRadius: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  pillBlue: {
-    backgroundColor: "#1E2A3A",
-    paddingHorizontal: 6.5,
-    paddingVertical: 4,
-    borderRadius: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  pillText: { color: C.ink, fontSize: 9, fontWeight: "800" },
-  locationNotice: {
-    marginBottom: 14,
-    backgroundColor: C.greenSoft,
-    borderWidth: 1,
-    borderColor: "#CBEAD2",
-    borderRadius: 16,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-  },
-  noticeIcon: {
-    width: 31,
-    height: 31,
-    borderRadius: 10,
-    backgroundColor: C.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  noticeTitle: { color: C.ink, fontWeight: "800", fontSize: 12 },
-  noticeBody: { color: C.muted, fontSize: 10.5, lineHeight: 15, marginTop: 2 },
-  noticeAction: { color: C.greenDark, fontSize: 11.5, fontWeight: "900" },
-  mapContainer: {
-    height: 345,
-    borderRadius: 20,
-    overflow: "hidden",
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: "#151A12",
-  },
-  mapContainerFull: {
-    flex: 1,
-    height: undefined,
-    width: "100%",
-    borderRadius: 0,
-    marginBottom: 0,
-    borderWidth: 0,
-    borderColor: "transparent",
-    backgroundColor: C.black,
-  },
-  mapFullScreen: { flex: 1, backgroundColor: C.black },
-  mapFloatingHeader: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    gap: 11,
-  },
+  marketHeaderPressed: { transform: [{ scale: 0.97 }] },
   mapSearchBar: {
-    minHeight: 54,
-    paddingLeft: 16,
-    paddingRight: 7,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-    backgroundColor: "rgba(23,28,19,0.97)",
-    borderWidth: 1,
-    borderColor: "#323B2A",
-    borderRadius: 20,
-    shadowColor: "#000000",
+    shadowColor: C.black,
     shadowOpacity: 0.22,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 7 },
     elevation: 8,
   },
-  mapSearchInput: {
-    flex: 1,
-    minWidth: 0,
-    color: C.ink,
-    fontSize: 14,
-    paddingVertical: 0,
-  },
-  mapSearchDivider: { height: 24, width: 1, backgroundColor: C.line },
-  mapSearchIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: "#29351D",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapControlRow: { flexDirection: "row", alignItems: "center", gap: 9 },
-  mapRangeScroll: { gap: 8, paddingRight: 2 },
-  mapRangeChip: {
-    height: 34,
-    minWidth: 58,
-    paddingHorizontal: 13,
-    borderRadius: 99,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(23,28,19,0.96)",
-    borderWidth: 1,
-    borderColor: "#39432E",
-  },
-  mapRangeChipActive: { backgroundColor: C.green, borderColor: C.green },
-  mapRangeText: { color: C.ink, fontSize: 11, fontWeight: "800" },
-  mapRangeTextActive: { color: C.black },
-  mapListButton: {
-    minWidth: 72,
-    height: 38,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: C.green,
-  },
-  mapListButtonText: { color: C.black, fontSize: 11.5, fontWeight: "900" },
-  mapLocateButton: {
-    position: "absolute",
-    right: 16,
-    width: 46,
-    height: 46,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: "rgba(23,28,19,0.98)",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOpacity: 0.24,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 6,
-  },
-  mapBottomPanel: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    minHeight: 76,
-    padding: 12,
-    borderRadius: 22,
-    backgroundColor: "rgba(20,25,16,0.98)",
-    borderWidth: 1,
-    borderColor: "#343D2A",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    shadowColor: "#000000",
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 9,
-  },
-  mapBottomCopy: { flex: 1, minWidth: 0 },
-  mapBottomTitle: { color: C.ink, fontSize: 14, fontWeight: "900" },
-  mapBottomSubtitle: { color: C.muted, fontSize: 10.5, marginTop: 5 },
-  mapExploreButton: {
-    minHeight: 44,
-    paddingHorizontal: 13,
-    borderRadius: 15,
-    backgroundColor: C.green,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  mapExploreText: { color: C.black, fontSize: 11.5, fontWeight: "900" },
   mapTopChip: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    backgroundColor: C.card,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    shadowColor: "#000",
+    shadowColor: C.black,
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
     elevation: 2,
   },
-  mapTopChipText: { color: C.ink, fontSize: 10.5, fontWeight: "800" },
-  userDotOuter: {
-    width: 25,
-    height: 25,
-    borderRadius: 99,
-    backgroundColor: "rgba(183,243,75,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userDotInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 99,
-    backgroundColor: C.green,
-    borderWidth: 2,
-    borderColor: C.white,
-  },
   mapPricePin: {
-    minWidth: 112,
-    maxWidth: 158,
-    minHeight: 48,
-    padding: 5,
-    borderRadius: 13,
-    backgroundColor: "#171C13",
-    borderWidth: 1,
-    borderColor: "#718F38",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    shadowColor: "#000000",
+    shadowColor: C.black,
     shadowOpacity: 0.35,
     shadowRadius: 7,
     shadowOffset: { width: 0, height: 3 },
     elevation: 5,
   },
-  mapPricePinCopy: { flex: 1, minWidth: 0, paddingLeft: 3 },
-  mapPriceCrop: {
-    color: C.muted,
-    fontSize: 9.5,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  mapPriceCropSelected: { color: C.black },
-  mapPriceThumb: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    backgroundColor: C.greenSoft,
-  },
-  mapPriceThumbFallback: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    backgroundColor: "#29351D",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapPricePinSelected: {
-    backgroundColor: C.green,
-    borderColor: C.green,
-    transform: [{ scale: 1.04 }],
-  },
-  mapPriceText: { color: C.green, fontSize: 12, fontWeight: "900" },
-  mapPriceTextSelected: { color: C.black },
-  mapPreviewImage: {
-    width: 52,
-    height: 52,
-    borderRadius: 15,
-    overflow: "hidden",
-    backgroundColor: "#29351D",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapPreviewImageFill: { width: "100%", height: "100%" },
-  mapSelectedPrice: {
-    color: C.green,
-    fontSize: 14,
-    fontWeight: "900",
-    marginTop: 3,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-    paddingVertical: 48,
-  },
-  emptyIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
-    backgroundColor: C.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 13,
-  },
-  emptyTitle: {
-    color: C.ink,
-    fontSize: 17,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  emptyBody: {
-    color: C.muted,
-    fontSize: 11.5,
-    lineHeight: 17,
-    marginTop: 6,
-    textAlign: "center",
-    maxWidth: 320,
-  },
-  secondaryButton: {
-    marginTop: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: C.card,
-  },
-  secondaryButtonText: { color: C.ink, fontWeight: "800", fontSize: 11 },
-  sellerContent: { paddingHorizontal: 14, paddingTop: 3, paddingBottom: 50 },
-  sellerHero: {
-    backgroundColor: C.greenSoft,
-    borderWidth: 1,
-    borderColor: "#CAE9D1",
-    borderRadius: 20,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  sellerHeroIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 15,
-    backgroundColor: C.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sellerHeroTitle: { color: C.greenDark, fontSize: 14, fontWeight: "900" },
-  sellerHeroBody: {
-    color: C.muted,
-    fontSize: 10.5,
-    lineHeight: 15,
-    marginTop: 2,
-  },
-  primaryRoundButton: {
-    width: 37,
-    height: 37,
-    borderRadius: 13,
-    backgroundColor: C.green,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statsRow: { flexDirection: "row", gap: 9, marginVertical: 14 },
-  statCard: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 16,
-    padding: 11,
-  },
-  statNumber: { color: C.ink, fontSize: 19, fontWeight: "900" },
-  statLabel: { color: C.muted, fontSize: 9.5, fontWeight: "700", marginTop: 2 },
-  cropRow: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 16,
-    padding: 11,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 8,
-  },
-  cropIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: C.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cropName: { color: C.ink, fontSize: 12.5, fontWeight: "800" },
-  cropMeta: { color: C.muted, fontSize: 10, marginTop: 3 },
-  sellerListingCard: {
-    backgroundColor: C.card,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: C.line,
-    padding: 11,
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 9,
-  },
-  sellerListingImage: {
-    width: 61,
-    height: 61,
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: "#1D2918",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sellerListingThumb: { width: "100%", height: "100%" },
-  sellerAddress: { color: C.muted, fontSize: 9.5, marginTop: 3 },
-  actionRow: { flexDirection: "row", gap: 7, marginTop: 9 },
-  smallAction: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 9,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-  },
-  smallActionText: { color: C.ink, fontSize: 9.5, fontWeight: "800" },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(7,12,8,0.48)",
-    justifyContent: "flex-end",
-  },
-  backdropTouchable: { flex: 1 },
-  bottomSheet: {
-    backgroundColor: C.bg,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: C.line,
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 99,
-    backgroundColor: "#3A4334",
-    alignSelf: "center",
-    marginTop: 9,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 11,
-  },
-  sheetTitle: { color: C.ink, fontSize: 17, fontWeight: "900" },
-  closeButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sheetScroll: { paddingHorizontal: 17, paddingBottom: 20 },
-  detailHeroImage: {
-    height: 230,
-    backgroundColor: "#1D2918",
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  detailImage: { width: "100%", height: "100%" },
-  detailTitleRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 13,
-    gap: 12,
-  },
-  detailTitle: { color: C.ink, fontSize: 22, fontWeight: "900" },
-  detailSubtitle: {
-    color: C.muted,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 3,
-  },
-  detailPrice: { color: C.ink, fontSize: 21, fontWeight: "900" },
-  detailDescription: {
-    color: C.muted,
-    fontSize: 11.5,
-    lineHeight: 17,
-    marginTop: 9,
-  },
-  metaGrid: { flexDirection: "row", gap: 8, marginTop: 14 },
-  metaBox: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 15,
-    padding: 10,
-  },
-  metaBoxLabel: {
-    color: C.muted,
-    fontSize: 9,
-    fontWeight: "700",
-    marginTop: 5,
-  },
-  metaBoxValue: {
-    color: C.ink,
-    fontSize: 12.5,
-    fontWeight: "900",
-    marginTop: 2,
-  },
-  formLabel: {
-    color: C.ink,
-    fontSize: 11.5,
-    fontWeight: "900",
-    marginTop: 17,
-    marginBottom: 8,
-  },
-  stepper: {
-    flexDirection: "row",
-    backgroundColor: C.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.line,
-    padding: 4,
-    alignItems: "center",
-  },
-  stepButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: C.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepValue: {
-    width: 42,
-    textAlign: "center",
-    fontSize: 12.5,
-    fontWeight: "900",
-    color: C.ink,
-  },
-  optionCardRow: { flexDirection: "row", gap: 8 },
-  optionCard: {
-    flex: 1,
-    minHeight: 67,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 15,
-    padding: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  optionCardSelected: { borderColor: "#9CD3AA", backgroundColor: "#171C13" },
-  optionIcon: {
-    width: 31,
-    height: 31,
-    borderRadius: 10,
-    backgroundColor: "#20271D",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  optionTitle: { color: C.ink, fontSize: 10.5, fontWeight: "900" },
-  optionSubtitle: { color: C.muted, fontSize: 8.8, marginTop: 2 },
-  radioOuter: {
-    width: 17,
-    height: 17,
-    borderRadius: 99,
-    borderWidth: 1.5,
-    borderColor: "#B7C0BA",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioOuterSelected: { borderColor: C.green },
-  radioInner: {
-    width: 9,
-    height: 9,
-    borderRadius: 99,
-    backgroundColor: C.green,
-  },
-  locationCard: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 15,
-    marginTop: 12,
-    padding: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  editText: { color: C.greenDark, fontSize: 10.5, fontWeight: "900" },
-  routeHint: {
-    marginTop: 9,
-    backgroundColor: C.greenSoft,
-    borderRadius: 12,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-  },
-  routeHintText: { color: C.greenDark, fontSize: 10.5, fontWeight: "800" },
-  billCard: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 17,
-    padding: 13,
-    marginTop: 14,
-  },
-  billLabel: { color: C.muted, fontSize: 10.5, fontWeight: "700" },
-  billValue: { color: C.ink, fontSize: 10.5, fontWeight: "800" },
-  billDivider: { height: 1, backgroundColor: C.line, marginVertical: 10 },
-  billTotalLabel: { color: C.ink, fontSize: 13, fontWeight: "900" },
-  billTotal: { color: C.greenDark, fontSize: 19, fontWeight: "900" },
-  primaryButton: {
-    minHeight: 50,
-    marginTop: 13,
-    borderRadius: 16,
-    backgroundColor: C.green,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  primaryButtonText: { color: C.black, fontSize: 12.5, fontWeight: "900" },
-  termsText: {
-    color: C.muted,
-    fontSize: 9.5,
-    lineHeight: 14,
-    textAlign: "center",
-    marginTop: 9,
-    paddingHorizontal: 12,
-  },
-  locationHero: {
-    backgroundColor: C.greenSoft,
-    borderRadius: 18,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  locationHeroIcon: {
-    width: 41,
-    height: 41,
-    borderRadius: 13,
-    backgroundColor: C.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  locationHeroTitle: { color: C.greenDark, fontSize: 13.5, fontWeight: "900" },
-  locationHeroBody: {
-    color: C.muted,
-    fontSize: 10,
-    lineHeight: 15,
-    marginTop: 2,
-  },
-  locationActionRow: { flexDirection: "row", gap: 8, marginTop: 12 },
-  locationAction: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 15,
-    paddingVertical: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 7,
-  },
-  locationActionText: { color: C.ink, fontSize: 10.5, fontWeight: "900" },
-  savedLocationCard: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 17,
-    padding: 12,
-    marginTop: 9,
-    flexDirection: "row",
-    gap: 9,
-  },
-  savedLocationPin: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: C.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  savedLocationLabel: { color: C.ink, fontSize: 12, fontWeight: "900" },
-  savedLocationAddress: {
-    color: C.muted,
-    fontSize: 10.5,
-    lineHeight: 15,
-    marginTop: 3,
-  },
-  coordsText: { color: "#8A948D", fontSize: 8.8, marginTop: 3 },
-  pickerScreen: { flex: 1, backgroundColor: C.bg },
-  pickerHeader: {
-    height: 66,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  pickerSaving: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    bottom: 24,
-    backgroundColor: C.card,
-    borderRadius: 14,
-    padding: 11,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    borderWidth: 1,
-    borderColor: C.line,
-  },
-  locationSheetRoot: { flex: 1, backgroundColor: C.bg },
-  locationPickerScreen: { flex: 1, backgroundColor: C.bg },
-  locationManagerHeader: {
-    minHeight: 72,
-    paddingHorizontal: 16,
-    paddingTop: 7,
-    paddingBottom: 9,
-    flexDirection: "row",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: C.line,
-  },
-  locationManagerTitle: { color: C.ink, fontSize: 16, fontWeight: "900" },
-  locationManagerSubtitle: {
-    color: C.muted,
-    fontSize: 10.5,
-    lineHeight: 15,
-    marginTop: 3,
-  },
-  locationHeaderButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  disabledAction: { opacity: 0.55 },
-  mapPickerRoot: { flex: 1, backgroundColor: C.bg },
-  mapPickerSearchWrap: {
-    marginHorizontal: 14,
-    marginBottom: 8,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 15,
-    minHeight: 47,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  mapPickerSearchInput: {
-    flex: 1,
-    color: C.ink,
-    fontSize: 12,
-    fontWeight: "700",
-    paddingVertical: 0,
-  },
-  mapPickerResults: {
-    marginHorizontal: 14,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 15,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  mapPickerResultRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-    paddingHorizontal: 11,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: C.line,
-  },
-  mapPickerResultIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: C.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapPickerResultTitle: { color: C.ink, fontSize: 11, fontWeight: "900" },
-  mapPickerResultSubtitle: {
-    color: C.muted,
-    fontSize: 9.5,
-    lineHeight: 13,
-    marginTop: 2,
-  },
-  mapPickerMapWrap: {
-    flex: 1,
-    minHeight: 300,
-    marginHorizontal: 14,
-    borderRadius: 18,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: "#20271D",
-  },
-  mapPickerHint: {
-    position: "absolute",
-    left: 12,
-    right: 12,
-    top: 12,
-    alignSelf: "center",
-    backgroundColor: "rgba(23,28,19,0.96)",
-    borderRadius: 11,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
-  mapPickerHintText: { color: C.ink, fontSize: 9.5, fontWeight: "800" },
-  pickerMarkerOuter: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(15,122,58,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pickerMarkerInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: C.green,
-    borderWidth: 2,
-    borderColor: C.white,
-  },
-  mapPickerFooter: {
-    margin: 14,
-    marginTop: 10,
-    backgroundColor: C.card,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: C.line,
-    padding: 11,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  mapPickerSelectedLabel: { color: C.ink, fontSize: 11, fontWeight: "900" },
-  mapPickerSelectedAddress: {
-    color: C.muted,
-    fontSize: 9.5,
-    lineHeight: 13,
-    marginTop: 2,
-  },
-  mapPickerConfirmButton: {
-    minWidth: 128,
-    minHeight: 42,
-    marginTop: 0,
-    paddingHorizontal: 11,
-  },
-  formIntro: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 17,
-    padding: 12,
-    flexDirection: "row",
-    gap: 9,
-    alignItems: "center",
-  },
-  formIntroIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: C.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  formIntroTitle: { color: C.ink, fontSize: 12.5, fontWeight: "900" },
-  formIntroBody: {
-    color: C.muted,
-    fontSize: 9.5,
-    lineHeight: 14,
-    marginTop: 2,
-  },
-  cropChip: {
-    borderRadius: 12,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  cropChipActive: { backgroundColor: C.greenSoft, borderColor: "#41532D" },
-  cropChipText: { color: C.muted, fontSize: 10.5, fontWeight: "800" },
-  cropChipTextActive: { color: C.greenDark },
-  cropContext: {
-    marginTop: 9,
-    backgroundColor: "#1E2B19",
-    borderRadius: 13,
-    padding: 10,
-  },
-  cropContextTitle: { color: C.greenDark, fontSize: 11.5, fontWeight: "900" },
-  cropContextBody: {
-    color: C.muted,
-    fontSize: 9.5,
-    lineHeight: 14,
-    marginTop: 2,
-  },
-  formGrid: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  field: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingTop: 7,
-    paddingBottom: 4,
-  },
-  fieldLabel: { color: C.muted, fontSize: 8.8, fontWeight: "800" },
-  inputRow: { flexDirection: "row", alignItems: "center" },
-  inputAffix: { color: C.ink, fontSize: 12, fontWeight: "800" },
-  textInput: {
-    flex: 1,
-    height: 32,
-    color: C.ink,
-    fontSize: 12,
-    fontWeight: "800",
-    paddingVertical: 0,
-  },
-  selectWrap: { paddingVertical: 5 },
-  unitOption: {
-    paddingHorizontal: 9,
-    paddingVertical: 7,
-    borderRadius: 9,
-    backgroundColor: "#20271D",
-    marginRight: 5,
-  },
-  unitOptionActive: { backgroundColor: C.green },
-  unitOptionText: { color: C.muted, fontSize: 9.5, fontWeight: "800" },
-  unitOptionTextActive: { color: C.white },
-  previewPrice: {
-    marginTop: 4,
-    borderRadius: 15,
-    padding: 12,
-    backgroundColor: C.greenSoft,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  previewPriceLabel: { color: C.muted, fontSize: 9.5, fontWeight: "700" },
-  previewPriceValue: {
-    color: C.greenDark,
-    fontSize: 20,
-    fontWeight: "900",
-    marginTop: 1,
-  },
-  previewSave: {
-    color: C.greenDark,
-    fontSize: 17,
-    fontWeight: "900",
-    marginTop: 1,
-  },
-  imagePickerCard: {
-    height: 185,
-    backgroundColor: "#20271D",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderStyle: "dashed",
-    overflow: "hidden",
-    position: "relative",
-  },
-  uploadPreview: { width: "100%", height: "100%" },
-  uploadPlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  uploadTitle: {
-    color: C.ink,
-    fontSize: 12.5,
-    fontWeight: "900",
-    marginTop: 7,
-  },
-  uploadBody: { color: C.muted, fontSize: 10, marginTop: 3 },
-  imageEditBadge: {
-    position: "absolute",
-    right: 10,
-    top: 10,
-    width: 29,
-    height: 29,
-    borderRadius: 10,
-    backgroundColor: "rgba(21,32,26,0.72)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  uploadButton: {
-    marginTop: 8,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: "#B8D8BF",
-    borderRadius: 12,
-    paddingVertical: 9,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
-  uploadButtonText: { color: C.greenDark, fontSize: 10.5, fontWeight: "900" },
-  textArea: {
-    minHeight: 92,
-    marginTop: 8,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 14,
-    paddingHorizontal: 11,
-    paddingTop: 10,
-    color: C.ink,
-    fontSize: 11,
-    lineHeight: 16,
-    textAlignVertical: "top",
-  },
-  locationChip: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    minWidth: 170,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  locationChipActive: { backgroundColor: C.greenSoft, borderColor: "#41532D" },
-  locationChipTitle: { color: C.ink, fontSize: 10.5, fontWeight: "900" },
-  locationChipSub: {
-    color: C.muted,
-    fontSize: 8.5,
-    marginTop: 2,
-    maxWidth: 126,
-  },
-  warningCard: {
-    backgroundColor: "#382A18",
-    borderWidth: 1,
-    borderColor: "#F5DCB0",
-    borderRadius: 15,
-    padding: 11,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  warningTitle: { color: C.ink, fontSize: 10.5, fontWeight: "900" },
-  warningBody: { color: C.muted, fontSize: 9, lineHeight: 13, marginTop: 2 },
-  orderCard: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 17,
-    padding: 11,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 9,
-  },
-  orderIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: "#1E2B19",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  orderCrop: { color: C.ink, fontSize: 12.5, fontWeight: "900" },
-  orderNumber: {
-    color: C.muted,
-    fontSize: 9.5,
-    marginTop: 2,
-    fontWeight: "700",
-  },
-  liveText: {
-    color: C.greenDark,
-    fontSize: 9,
-    fontWeight: "900",
-    marginTop: 5,
-  },
-  orderStatusHero: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 18,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  orderStatusIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 14,
-    backgroundColor: C.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  trackingBanner: {
-    marginTop: 10,
-    borderRadius: 17,
-    backgroundColor: C.greenSoft,
-    borderWidth: 1,
-    borderColor: "#C7E6CE",
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  trackingBannerTitle: { color: C.greenDark, fontSize: 12, fontWeight: "900" },
-  trackingBannerBody: { color: C.muted, fontSize: 10, marginTop: 2 },
-  liveDot: {
-    width: 25,
-    height: 25,
-    borderRadius: 99,
-    backgroundColor: "rgba(15,122,58,0.13)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  liveDotInner: {
-    width: 9,
-    height: 9,
-    borderRadius: 99,
-    backgroundColor: C.green,
-  },
-  routeEndpoints: {
-    marginTop: 10,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 16,
-    padding: 12,
-  },
-  locationSnapshot: {
-    marginTop: 11,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 16,
-    padding: 12,
-  },
-  endpoint: { flexDirection: "row", alignItems: "flex-start", gap: 9 },
-  endpointDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 99,
-    marginTop: 4,
-    backgroundColor: C.green,
-  },
-  endpointLine: {
-    width: 1,
-    height: 15,
-    marginLeft: 4.5,
-    backgroundColor: C.line,
-    marginVertical: 4,
-  },
-  endpointTitle: { color: C.ink, fontSize: 10.5, fontWeight: "900" },
-  endpointAddress: {
-    color: C.muted,
-    fontSize: 9.5,
-    lineHeight: 14,
-    marginTop: 2,
-  },
-  timelineCard: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 17,
-    marginTop: 11,
-    padding: 12,
-  },
-  timelineStep: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 9,
-    paddingBottom: 12,
-  },
-  timelineDot: {
-    width: 19,
-    height: 19,
-    borderRadius: 99,
-    backgroundColor: C.line,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  timelineDotDone: { backgroundColor: C.green },
-  timelineTitle: { color: C.ink, fontSize: 10.5, fontWeight: "900" },
-  timelineBody: { color: C.muted, fontSize: 9.5, marginTop: 1 },
-  cancelOrderButton: {
-    marginTop: 2,
-    minHeight: 42,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: "#F0C8C8",
-    backgroundColor: "#301B1B",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelOrderButtonText: { color: C.red, fontSize: 10.5, fontWeight: "900" },
-  sellerActionsCard: {
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 17,
-    marginTop: 11,
-    padding: 12,
-    gap: 8,
-  },
-  actionButton: {
-    minHeight: 45,
-    backgroundColor: C.green,
-    borderRadius: 14,
-    paddingHorizontal: 13,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  actionButtonText: {
-    color: C.white,
-    fontSize: 11.5,
-    fontWeight: "900",
-    flex: 1,
-  },
-  successNotice: {
-    backgroundColor: C.greenSoft,
-    borderRadius: 13,
-    padding: 10,
-    flexDirection: "row",
-    gap: 7,
-    alignItems: "flex-start",
-  },
-  successNoticeText: {
-    color: C.greenDark,
-    fontSize: 9.8,
-    lineHeight: 14,
-    flex: 1,
-  },
-  paymentSheet: { padding: 18, alignItems: "center" },
-  paymentIcon: {
-    width: 70,
-    height: 70,
-    borderRadius: 22,
-    backgroundColor: C.greenSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  paymentTitle: {
-    color: C.ink,
-    fontSize: 20,
-    fontWeight: "900",
-    marginTop: 14,
-    textAlign: "center",
-  },
-  paymentBody: {
-    color: C.muted,
-    fontSize: 11,
-    lineHeight: 17,
-    textAlign: "center",
-    marginTop: 6,
-  },
-  paymentUrlCard: {
-    width: "100%",
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 15,
-    padding: 12,
-    marginTop: 13,
-  },
-  paymentUrl: { color: C.ink, fontSize: 10.5, lineHeight: 15 },
+  mapPricePinSelected: { transform: [{ scale: 1.04 }] },
   errorToast: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: 16,
-    borderRadius: 14,
-    backgroundColor: "#243028",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    shadowColor: "#000",
+    shadowColor: C.black,
     shadowOpacity: 0.17,
     shadowRadius: 15,
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
-  errorToastText: { color: C.white, fontSize: 10.5, lineHeight: 15, flex: 1 },
-  globalBusy: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(21,32,26,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+};
