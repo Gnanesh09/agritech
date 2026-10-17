@@ -12,7 +12,8 @@ export function makeMarketplaceOrderNumber() {
 
 export function toNumber(value: unknown, name: string) {
   const number = Number(value);
-  if (!Number.isFinite(number)) throw new Error(`${name} must be a valid number`);
+  if (!Number.isFinite(number))
+    throw new Error(`${name} must be a valid number`);
   return number;
 }
 
@@ -27,7 +28,10 @@ export function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-export function calculateFinalPrice(originalPrice: number, discountPercent: number) {
+export function calculateFinalPrice(
+  originalPrice: number,
+  discountPercent: number,
+) {
   if (discountPercent < 0 || discountPercent > 100) {
     throw new Error("discountPercent must be between 0 and 100");
   }
@@ -169,7 +173,9 @@ export function serializeOrder(order: any) {
           longitude: serializeDecimal(order.tracking.longitude),
           heading: serializeDecimal(order.tracking.heading),
           speedKmh: serializeDecimal(order.tracking.speedKmh),
-          distanceRemainingKm: serializeDecimal(order.tracking.distanceRemainingKm),
+          distanceRemainingKm: serializeDecimal(
+            order.tracking.distanceRemainingKm,
+          ),
           etaMinutes: order.tracking.etaMinutes,
           routeDistanceKm: serializeDecimal(order.tracking.routeDistanceKm),
           routeDurationMinutes: order.tracking.routeDurationMinutes,
@@ -211,8 +217,14 @@ export async function releaseInventoryForExpiredOrder(orderId: string) {
   const now = new Date();
 
   return prisma.$transaction(async (tx) => {
-    const order = await tx.marketplaceOrder.findUnique({ where: { id: orderId } });
-    if (!order || order.status !== "PENDING_PAYMENT" || !order.reservationExpiresAt) {
+    const order = await tx.marketplaceOrder.findUnique({
+      where: { id: orderId },
+    });
+    if (
+      !order ||
+      order.status !== "PENDING_PAYMENT" ||
+      !order.reservationExpiresAt
+    ) {
       return false;
     }
 
@@ -273,5 +285,8 @@ export async function cleanupExpiredReservations() {
 }
 
 export async function checkLocationDistance(a: any, b: any) {
-  return haversineDistanceKm(coordinatesFromLocation(a), coordinatesFromLocation(b));
+  return haversineDistanceKm(
+    coordinatesFromLocation(a),
+    coordinatesFromLocation(b),
+  );
 }

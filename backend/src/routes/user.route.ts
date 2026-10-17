@@ -5,7 +5,7 @@ import { protectRoute } from "../middleware/auth.middleware";
 import * as marketplaceController from "../controllers/marketplace.controller";
 import * as mapsController from "../controllers/maps.controller";
 import * as paymentController from "../controllers/payment.controller";
-
+import * as imagekitController from "../controllers/imagekit.controller";
 const userRouter = Router();
 
 // Profile
@@ -338,6 +338,13 @@ userRouter.post(
   "/devices/check",
   protectRoute,
   userController.checkDeviceAvailability,
+);
+
+// image kit auth connector
+userRouter.get(
+  "/imagekit/auth",
+  protectRoute,
+  imagekitController.getImageKitAuth,
 );
 
 export default userRouter;
