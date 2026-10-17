@@ -2928,7 +2928,7 @@ export default function MarketplaceSellScreen() {
             )}
             <View className="mt-2 rounded-[13px] border border-[#E1E8E2] bg-white p-3">
               <View className="flex-row items-start gap-2">
-                <Feather name="shield-check" size={14} color="#7A877D" />
+                <Feather name="shield" size={14} color="#7A877D" />
                 <AppText className="min-w-0 flex-1 text-[10px] leading-4 text-[#7A877D]">
                   Crops, stock, listing status, order counts and locations come
                   from your marketplace API. The server validates each change.

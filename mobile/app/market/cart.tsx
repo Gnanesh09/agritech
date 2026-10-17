@@ -1120,7 +1120,7 @@ export default function MarketplaceCartScreen() {
 
                 <View className="mt-3 flex-row items-start justify-between gap-2 border-t border-[#29362B] pt-3">
                   <View className="min-w-0 flex-1 flex-row items-start gap-1.5">
-                    <Feather name="shield-check" size={14} color="#A0ADA1" />
+                    <Feather name="shield" size={14} color="#A0ADA1" />
                     <AppText className="flex-1 text-[9px] leading-3 text-[#B4BEB3]">
                       Secure{`\n`}checkout
                     </AppText>

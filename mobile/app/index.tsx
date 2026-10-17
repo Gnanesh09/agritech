@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-
+import BrandSplash from "@/components/BrandSplash";
 import {
   Animated,
   Dimensions,
@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 
+import LottieView from "lottie-react-native";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +24,15 @@ const { width, height } = Dimensions.get("window");
 
 const INTRO_DURATION = 3500;
 const OUTER_GAP = 12;
+
+const COLORS = {
+  background: "#070A08",
+  surface: "#101510",
+  accent: "#06C261",
+  accentLight: "#9DFFB5",
+  text: "#FFFFFF",
+  buttonText: "#071009",
+};
 
 const slides = [
   {
@@ -41,56 +51,101 @@ const slides = [
 
 export default function RootIndex() {
   const insets = useSafeAreaInsets();
-
   const { user, loading: authLoading } = useAuth();
 
+  const [showIntro, setShowIntro] = useState(true);
+  const [introFinished, setIntroFinished] = useState(false);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
-
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  const flatListRef = useRef<FlatList>(null);
-
+  const flatListRef = useRef<FlatList<(typeof slides)[number]>>(null);
   const progress = useRef(new Animated.Value(0)).current;
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const hasDecidedEntry = useRef(false);
+  const hasFinishedIntro = useRef(false);
+  const isFinishingOnboarding = useRef(false);
+
+  // --------------------------------------------------
+  // INTRO ANIMATION
+  // --------------------------------------------------
+
+  const finishIntro = useCallback(() => {
+    if (hasFinishedIntro.current) return;
+
+    hasFinishedIntro.current = true;
+    setShowIntro(false);
+    setIntroFinished(true);
+  }, []);
 
   // --------------------------------------------------
   // ENTRY DECISION
   // --------------------------------------------------
 
   useEffect(() => {
-    async function decideEntry() {
-      if (authLoading) {
-        return;
-      }
-
-      if (user) {
-        router.replace("/(tabs)");
-        return;
-      }
-
-      const seen = await hasSeenOnboarding();
-
-      if (seen) {
-        router.replace("/(auth)/login");
-        return;
-      }
-
-      setShowOnboarding(true);
-      setCheckingOnboarding(false);
+    if (authLoading || !introFinished || hasDecidedEntry.current) {
+      return;
     }
 
-    decideEntry();
-  }, [authLoading, user]);
+    let cancelled = false;
+
+    async function decideEntry() {
+      try {
+        if (user) {
+          if (cancelled) return;
+
+          hasDecidedEntry.current = true;
+          router.replace("/(tabs)");
+          return;
+        }
+
+        const seen = await hasSeenOnboarding();
+
+        if (cancelled) return;
+
+        hasDecidedEntry.current = true;
+
+        if (seen) {
+          router.replace("/(auth)/login");
+          return;
+        }
+
+        setShowOnboarding(true);
+        setCheckingOnboarding(false);
+      } catch (error) {
+        console.error("Failed to check onboarding status:", error);
+
+        if (cancelled) return;
+
+        // Fail safely into authentication if storage fails.
+        hasDecidedEntry.current = true;
+        router.replace("/(auth)/login");
+      }
+    }
+
+    void decideEntry();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, introFinished]);
 
   // --------------------------------------------------
   // FINISH ONBOARDING
   // --------------------------------------------------
 
   const finishOnboarding = useCallback(async () => {
-    await markOnboardingSeen();
+    if (isFinishingOnboarding.current) return;
 
-    router.replace("/(auth)/login");
+    isFinishingOnboarding.current = true;
+
+    try {
+      await markOnboardingSeen();
+    } catch (error) {
+      console.error("Failed to save onboarding status:", error);
+    } finally {
+      router.replace("/(auth)/login");
+    }
   }, []);
 
   // --------------------------------------------------
@@ -99,7 +154,7 @@ export default function RootIndex() {
 
   const nextSlide = useCallback(() => {
     if (currentIndex >= slides.length - 1) {
-      finishOnboarding();
+      void finishOnboarding();
       return;
     }
 
@@ -114,7 +169,13 @@ export default function RootIndex() {
   // --------------------------------------------------
 
   useEffect(() => {
-    if (authLoading || user || !showOnboarding) {
+    if (
+      authLoading ||
+      user ||
+      !introFinished ||
+      !showOnboarding ||
+      checkingOnboarding
+    ) {
       return;
     }
 
@@ -137,7 +198,16 @@ export default function RootIndex() {
       animation.stop();
       progress.stopAnimation();
     };
-  }, [currentIndex, nextSlide, authLoading, user, showOnboarding, progress]);
+  }, [
+    currentIndex,
+    nextSlide,
+    authLoading,
+    user,
+    introFinished,
+    showOnboarding,
+    checkingOnboarding,
+    progress,
+  ]);
 
   // --------------------------------------------------
   // SCROLL
@@ -152,62 +222,88 @@ export default function RootIndex() {
   };
 
   // --------------------------------------------------
-  // LOADING
+  // LOADING / INTRO
   // --------------------------------------------------
+  if (showIntro) {
+    return <BrandSplash onFinish={finishIntro} />;
+  }
 
   if (authLoading || checkingOnboarding || !showOnboarding) {
     return (
-      <View className="flex-1 bg-[#070A08]">
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: COLORS.background,
+        }}
+      >
         <StatusBar style="light" />
       </View>
     );
   }
 
   // --------------------------------------------------
-  // ONBOARDING
+  // ONBOARDING CAROUSEL
   // --------------------------------------------------
 
   return (
-    <View className="flex-1 bg-[#070A08]">
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: COLORS.background,
+      }}
+    >
       <StatusBar style="light" translucent backgroundColor="transparent" />
 
-      {/* PROGRESS */}
+      {/* PROGRESS INDICATORS */}
 
       <View
-        className="absolute left-0 right-0 z-30"
         style={{
+          position: "absolute",
           top: insets.top + 12,
+          left: 0,
+          right: 0,
+          zIndex: 30,
           paddingHorizontal: OUTER_GAP,
         }}
       >
-        <View className="flex-row" style={{ gap: 5 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 5,
+          }}
+        >
           {slides.map((_, index) => {
             const completed = index < currentIndex;
-
             const active = index === currentIndex;
 
             return (
               <View
                 key={index}
-                className="h-[3px] flex-1 overflow-hidden rounded-full"
                 style={{
+                  height: 3,
+                  flex: 1,
+                  overflow: "hidden",
+                  borderRadius: 999,
                   backgroundColor: "rgba(255,255,255,0.16)",
                 }}
               >
                 {completed && (
                   <View
-                    className="h-full w-full rounded-full"
                     style={{
-                      backgroundColor: "#9DFFB5",
+                      height: "100%",
+                      width: "100%",
+                      borderRadius: 999,
+                      backgroundColor: COLORS.accentLight,
                     }}
                   />
                 )}
 
                 {active && (
                   <Animated.View
-                    className="h-full rounded-full"
                     style={{
-                      backgroundColor: "#9DFFB5",
+                      height: "100%",
+                      borderRadius: 999,
+                      backgroundColor: COLORS.accentLight,
                       width: progress.interpolate({
                         inputRange: [0, 1],
                         outputRange: ["0%", "100%"],
@@ -221,7 +317,7 @@ export default function RootIndex() {
         </View>
       </View>
 
-      {/* CAROUSEL */}
+      {/* FULL-SCREEN IMAGE CAROUSEL */}
 
       <FlatList
         ref={flatListRef}
@@ -253,14 +349,12 @@ export default function RootIndex() {
                 flex: 1,
                 borderRadius: 30,
                 overflow: "hidden",
-                backgroundColor: "#101510",
+                backgroundColor: COLORS.surface,
                 elevation: 8,
               }}
             >
               <Image
-                source={{
-                  uri: item.image,
-                }}
+                source={{ uri: item.image }}
                 resizeMode="cover"
                 style={{
                   width: "100%",
@@ -284,21 +378,25 @@ export default function RootIndex() {
         )}
       />
 
-      {/* SKIP */}
+      {/* SKIP BUTTON */}
 
       <View
-        className="absolute left-0 right-0"
         style={{
+          position: "absolute",
           bottom: insets.bottom + 18,
+          left: 0,
+          right: 0,
           paddingHorizontal: OUTER_GAP,
         }}
       >
         <Pressable
-          onPress={finishOnboarding}
+          onPress={() => void finishOnboarding()}
+          accessibilityRole="button"
+          accessibilityLabel="Skip onboarding"
           style={{
             height: 54,
             borderRadius: 27,
-            backgroundColor: "#06C261",
+            backgroundColor: COLORS.accent,
             alignItems: "center",
             justifyContent: "center",
             elevation: 5,
@@ -306,7 +404,7 @@ export default function RootIndex() {
         >
           <Text
             style={{
-              color: "#071009",
+              color: COLORS.buttonText,
               fontSize: 15,
               fontWeight: "700",
               letterSpacing: 0.2,

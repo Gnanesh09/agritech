@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { DarkTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import {
   useFonts,
@@ -15,28 +15,12 @@ import {
 
 import "react-native-reanimated";
 import "../global.css";
-
 import { AuthProvider } from "@/lib/auth-context";
 
-// Prevent the splash screen from hiding before fonts load.
-SplashScreen.preventAutoHideAsync();
-
-// Global fallback for ordinary React Native Text components.
-// AppText will set its own font weight explicitly.
-interface TextWithDefaultProps extends React.FunctionComponent<any> {
-  defaultProps?: { style?: any };
-}
-
-(Text as unknown as TextWithDefaultProps).defaultProps = {
-  ...(Text as unknown as TextWithDefaultProps).defaultProps,
-  style: [
-    (Text as unknown as TextWithDefaultProps).defaultProps?.style,
-    { fontFamily: "Poppins_400Regular" },
-  ],
-};
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
-  const [fontsLoaded, error] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Poppins_400Regular,
     Poppins_500Medium,
     Poppins_600SemiBold,
@@ -45,12 +29,12 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded || error) {
-      SplashScreen.hideAsync();
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, error]);
+  }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !error) {
+  if (!fontsLoaded && !fontError) {
     return null;
   }
 

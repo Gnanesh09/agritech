@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, TextProps } from "react-native";
+import { Text, TextProps, StyleProp, TextStyle } from "react-native";
 
 type AppTextProps = TextProps & {
   weight?: "regular" | "medium" | "semibold" | "bold" | "extrabold";
@@ -12,19 +12,18 @@ const FONT_FAMILIES = {
   semibold: "Poppins_600SemiBold",
   bold: "Poppins_700Bold",
   extrabold: "Poppins_800ExtraBold",
-};
+} as const;
 
 export default function AppText({
   weight = "regular",
-  className = "",
+  className,
   style,
   ...props
 }: AppTextProps) {
-  return (
-    <Text
-      {...props}
-      className={className}
-      style={[{ fontFamily: FONT_FAMILIES[weight] }, style]}
-    />
-  );
+  const fontStyle: StyleProp<TextStyle> = [
+    { fontFamily: FONT_FAMILIES[weight] },
+    style,
+  ];
+
+  return <Text {...props} className={className} style={fontStyle} />;
 }

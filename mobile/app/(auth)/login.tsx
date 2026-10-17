@@ -9,6 +9,7 @@ import {
 import { router } from "expo-router";
 
 import { useAuth } from "@/lib/auth-context";
+import AppText from "@/components/ui/AppText";
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -48,13 +49,13 @@ export default function LoginScreen() {
       {/* HEADER */}
 
       <View>
-        <Text className="text-[32px] font-bold tracking-[-0.8px] text-white">
+        <AppText weight="semibold" className="text-2xl text-white">
           Welcome back
-        </Text>
+        </AppText>
 
-        <Text className="mt-2 text-[15px] text-[#7D857E]">
+        <AppText className="mt-2 text-[15px] text-[#7D857E]">
           Log in to continue
-        </Text>
+        </AppText>
       </View>
 
       {/* FORM */}
@@ -62,9 +63,9 @@ export default function LoginScreen() {
       <View className="mt-10">
         {/* EMAIL */}
 
-        <Text className="mb-2 ml-1 text-[13px] font-medium text-[#A3AAA4]">
+        <AppText className="mb-2 ml-1 text-[13px] font-medium text-[#A3AAA4]">
           Email
-        </Text>
+        </AppText>
 
         <TextInput
           value={email}
@@ -82,17 +83,17 @@ export default function LoginScreen() {
 
         <View className="mt-5">
           <View className="mb-2 flex-row items-center justify-between px-1">
-            <Text className="text-[13px] font-medium text-[#A3AAA4]">
+            <AppText className="text-[13px] font-medium text-[#A3AAA4]">
               Password
-            </Text>
+            </AppText>
 
             <Pressable
               onPress={() => router.push("/(auth)/forgetpass")}
               disabled={loading}
             >
-              <Text className="text-[13px] font-medium text-[#9DFFB5]">
+              <AppText className="text-[13px] font-medium text-[#9DFFB5]">
                 Forgot password?
-              </Text>
+              </AppText>
             </Pressable>
           </View>
 
@@ -112,9 +113,9 @@ export default function LoginScreen() {
               disabled={loading}
               className="w-[56px] items-center justify-center"
             >
-              <Text className="text-[13px] text-[#7D857E]">
+              <AppText className="text-[13px] text-[#7D857E]">
                 {showPassword ? "Hide" : "Show"}
-              </Text>
+              </AppText>
             </Pressable>
           </View>
         </View>
@@ -122,7 +123,9 @@ export default function LoginScreen() {
         {/* ERROR */}
 
         {error ? (
-          <Text className="mt-3 px-1 text-[13px] text-[#FF6B6B]">{error}</Text>
+          <AppText className="mt-3 px-1 text-[13px] text-[#FF6B6B]">
+            {error}
+          </AppText>
         ) : null}
 
         {/* LOGIN */}
@@ -137,7 +140,9 @@ export default function LoginScreen() {
           {loading ? (
             <ActivityIndicator color="#061009" />
           ) : (
-            <Text className="text-[15px] font-bold text-[#061009]">Log in</Text>
+            <AppText className="text-[15px] font-bold text-[#061009]">
+              Log in
+            </AppText>
           )}
         </Pressable>
       </View>
@@ -145,27 +150,30 @@ export default function LoginScreen() {
       {/* SIGNUP */}
 
       <View className="mt-8 flex-row items-center justify-center">
-        <Text className="text-[14px] text-[#626962]">New here?</Text>
+        <AppText className="text-[14px] text-[#626962]">New here?</AppText>
 
         <Pressable
           onPress={() => router.push("/(auth)/signup")}
           disabled={loading}
           className="ml-2"
         >
-          <Text className="text-[14px] font-semibold text-white">
+          <AppText className="text-[14px] font-semibold text-white">
             Create an account
-          </Text>
+          </AppText>
         </Pressable>
       </View>
 
       {/* TERMS */}
 
       <View className="mt-auto items-center pb-8">
-        <Text className="text-center text-[11px] leading-4 text-[#555D56]">
+        <AppText className="text-center text-[11px] leading-4 text-[#555D56]">
           By continuing, you agree to our{" "}
-          <Text className="text-[#89928A] underline">Terms & Conditions</Text>{" "}
-          and <Text className="text-[#89928A] underline">Privacy Policy</Text>
-        </Text>
+          <AppText className="text-[#89928A] underline">
+            Terms & Conditions
+          </AppText>{" "}
+          and{" "}
+          <AppText className="text-[#89928A] underline">Privacy Policy</AppText>
+        </AppText>
       </View>
     </View>
   );

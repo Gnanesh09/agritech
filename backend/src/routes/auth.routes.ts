@@ -40,4 +40,7 @@ authRouter.get("/logout-all", authController.logoutAll);
  */
 authRouter.post("/verify-email", authController.verifyEmail);
 
+authRouter.post("/forgot-password", authController.forgotPassword);
+authRouter.post("/reset-password", authController.resetPassword);
+
 export default authRouter;

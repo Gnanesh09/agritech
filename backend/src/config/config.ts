@@ -46,7 +46,7 @@ const config: Config = {
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN,
   GOOGLE_USER: process.env.GOOGLE_USER,
-  GMAIL_APP_PASSWORD: process.env.GMAIL_APP_PASSWORD,
+  GMAIL_APP_PASSWORD: process.env.GOOGLE_APP_PASSWORD,
 };
 
 export default config;
