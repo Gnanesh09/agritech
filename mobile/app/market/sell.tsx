@@ -24,23 +24,23 @@ import { apiRequest } from "../../lib/api";
 import { getAccessToken } from "../../lib/auth-storage";
 
 const C = {
-  bg: "#0B0D0B",
-  surface: "#141815",
-  surface2: "#1B211C",
-  surface3: "#222A23",
-  border: "#2C382E",
-  text: "#F4F7F1",
-  muted: "#A0ADA1",
-  subtle: "#748176",
-  lime: "#C8FF67",
-  green: "#347D4A",
-  greenSoft: "#1A2A1D",
-  red: "#FF8178",
-  redSoft: "#321D1B",
-  amber: "#F3BF79",
-  amberSoft: "#302417",
-  blue: "#8EBBFF",
-  blueSoft: "#1D2A3A",
+  bg: "#F5F7F5",
+  surface: "#FFFFFF",
+  surface2: "#F7F9F7",
+  surface3: "#EDF2ED",
+  border: "#E1E8E2",
+  text: "#172019",
+  muted: "#68756B",
+  subtle: "#818C83",
+  lime: "#2F7D4E",
+  green: "#2F7D4E",
+  greenSoft: "#E5F3E7",
+  red: "#C53D38",
+  redSoft: "#FCEBE9",
+  amber: "#946200",
+  amberSoft: "#FFF1D9",
+  blue: "#426FBA",
+  blueSoft: "#EAF1FC",
 };
 
 const API_URL =
@@ -242,40 +242,115 @@ function initialDraft(locationId = ""): Draft {
 }
 
 async function uploadToImageKit(image: PendingImage) {
-  if (!IMAGEKIT_PUBLIC_KEY || !IMAGEKIT_AUTH_ENDPOINT) {
+  const publicKey = IMAGEKIT_PUBLIC_KEY.trim();
+  const configuredEndpoint = IMAGEKIT_AUTH_ENDPOINT.trim();
+
+  if (!publicKey || !configuredEndpoint) {
     throw new Error(
-      "Photo upload is not configured. Set EXPO_PUBLIC_IMAGEKIT_PUBLIC_KEY and EXPO_PUBLIC_IMAGEKIT_AUTH_ENDPOINT, or remove the photo and publish without one.",
+      "Photo upload is not configured. Set EXPO_PUBLIC_IMAGEKIT_PUBLIC_KEY and EXPO_PUBLIC_IMAGEKIT_AUTH_ENDPOINT in your app environment, then restart Expo.",
     );
   }
-  const token = await getAccessToken();
-  const authUrl = IMAGEKIT_AUTH_ENDPOINT.startsWith("http")
-    ? IMAGEKIT_AUTH_ENDPOINT
-    : `${API_URL}${IMAGEKIT_AUTH_ENDPOINT.startsWith("/") ? "" : "/"}${IMAGEKIT_AUTH_ENDPOINT}`;
-  const authResponse = await fetch(authUrl, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+
+  // Keep the authorization contract used by market.tsx, while safely
+  // accepting absolute URLs, /user/... paths, and /api/... paths.
+  const apiBase = API_URL.replace(/\/+$/, "");
+  const cleanEndpoint = configuredEndpoint.replace(/^\/+/, "");
+  let endpoint: string;
+  if (/^https?:\/\//i.test(configuredEndpoint)) {
+    endpoint = configuredEndpoint;
+  } else if (/^api\//i.test(cleanEndpoint) && /\/api$/i.test(apiBase)) {
+    // Avoid accidentally producing /api/api/... when the env already includes /api.
+    endpoint = `${apiBase.slice(0, -4)}/${cleanEndpoint}`;
+  } else {
+    endpoint = `${apiBase}/${cleanEndpoint}`;
+  }
+
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error(
+      "Your session is missing or expired, so the photo authorization request cannot be authenticated. Sign in again and retry.",
+    );
+  }
+
+  const authResponse = await fetch(endpoint, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
   });
-  const auth = await authResponse.json().catch(() => null);
-  if (!authResponse.ok)
-    throw new Error(auth?.message ?? "Unable to authorize photo upload.");
+
+  const authText = await authResponse.text();
+  let auth: any = null;
+  try {
+    auth = authText ? JSON.parse(authText) : null;
+  } catch {
+    auth = null;
+  }
+
+  if (!authResponse.ok) {
+    const detail =
+      auth?.message ??
+      auth?.error ??
+      (authText && !authText.trim().startsWith("<")
+        ? authText.trim().slice(0, 180)
+        : "The server did not return a JSON error message.");
+    throw new Error(
+      `ImageKit authorization failed (HTTP ${authResponse.status}). ${detail} Check EXPO_PUBLIC_IMAGEKIT_AUTH_ENDPOINT and confirm its backend route is reachable by an authenticated user.`,
+    );
+  }
+
+  if (
+    !auth ||
+    typeof auth.token !== "string" ||
+    !auth.token ||
+    typeof auth.signature !== "string" ||
+    !auth.signature ||
+    auth.expire === undefined ||
+    auth.expire === null ||
+    String(auth.expire).length === 0
+  ) {
+    throw new Error(
+      "The photo authorization endpoint responded, but did not return the required token, signature, and expire fields. Return these fields from the ImageKit authentication endpoint.",
+    );
+  }
 
   const form = new FormData();
   form.append("file", {
     uri: image.uri,
-    name: image.name,
+    name: image.name || `marketplace-${Date.now()}.jpg`,
     type: image.mimeType || "image/jpeg",
   } as any);
-  form.append("fileName", image.name);
-  form.append("publicKey", IMAGEKIT_PUBLIC_KEY);
+  form.append("fileName", image.name || `marketplace-${Date.now()}.jpg`);
+  form.append("publicKey", publicKey);
   form.append("signature", auth.signature);
   form.append("expire", String(auth.expire));
   form.append("token", auth.token);
-  const response = await fetch(IMAGEKIT_UPLOAD_URL, {
+
+  const uploadResponse = await fetch(IMAGEKIT_UPLOAD_URL, {
     method: "POST",
     body: form,
   });
-  const result = await response.json().catch(() => null);
-  if (!response.ok || !result?.url)
-    throw new Error(result?.message ?? "Photo upload failed.");
+  const uploadText = await uploadResponse.text();
+  let result: any = null;
+  try {
+    result = uploadText ? JSON.parse(uploadText) : null;
+  } catch {
+    result = null;
+  }
+
+  if (!uploadResponse.ok || !result?.url) {
+    const detail =
+      result?.message ??
+      result?.help ??
+      (uploadText && !uploadText.trim().startsWith("<")
+        ? uploadText.trim().slice(0, 180)
+        : "ImageKit did not return a usable upload URL.");
+    throw new Error(
+      `Photo upload failed (HTTP ${uploadResponse.status}). ${detail}`,
+    );
+  }
+
   return {
     url: String(result.url),
     fileId: String(result.fileId ?? ""),
@@ -366,32 +441,32 @@ function Field({
 }) {
   return (
     <View className="gap-1.5">
-      <AppText className="text-[11px] font-semibold text-[#A0ADA1]">
+      <AppText className="text-[11px] font-semibold text-[#69766D]">
         {label}
       </AppText>
       <View
-        className={`flex-row items-center rounded-[12px] border border-[#2C382E] bg-[#0F130F] px-3 ${multiline ? "items-start" : ""}`}
+        className={`flex-row items-center rounded-[12px] border border-[#E1E8E2] bg-[#FFFFFF] px-3 ${multiline ? "items-start" : ""}`}
       >
         <TextInput
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor="#68766A"
+          placeholderTextColor="#89958B"
           keyboardType={keyboardType}
           multiline={multiline}
           maxLength={maxLength}
           selectionColor={C.lime}
           textAlignVertical={multiline ? "top" : "center"}
-          className={`min-w-0 flex-1 py-3 text-[13px] text-[#F4F7F1] ${multiline ? "min-h-[86px]" : ""}`}
+          className={`min-w-0 flex-1 py-3 text-[13px] text-[#171D18] ${multiline ? "min-h-[86px]" : ""}`}
         />
         {suffix ? (
-          <AppText className="pl-2 text-[11px] text-[#748176]">
+          <AppText className="pl-2 text-[11px] text-[#7A877D]">
             {suffix}
           </AppText>
         ) : null}
       </View>
       {helper ? (
-        <AppText className="text-[10px] leading-4 text-[#748176]">
+        <AppText className="text-[10px] leading-4 text-[#7A877D]">
           {helper}
         </AppText>
       ) : null}
@@ -408,11 +483,11 @@ function SectionTitle({
 }) {
   return (
     <View className="mb-3 gap-1">
-      <AppText className="text-[16px] font-bold text-[#F4F7F1]">
+      <AppText className="text-[16px] font-bold text-[#171D18]">
         {title}
       </AppText>
       {subtitle ? (
-        <AppText className="text-[11px] leading-4 text-[#A0ADA1]">
+        <AppText className="text-[11px] leading-4 text-[#69766D]">
           {subtitle}
         </AppText>
       ) : null}
@@ -447,9 +522,10 @@ function Drawer({
       transparent
       animationType="slide"
       statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onRequestClose}
     >
-      <View className="flex-1 justify-end bg-[rgba(0,0,0,0.65)]">
+      <View className="flex-1 justify-end bg-[rgba(12,20,14,0.34)]">
         <Pressable
           className="flex-1"
           onPress={onRequestClose}
@@ -457,54 +533,63 @@ function Drawer({
         />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={{ maxHeight: "94%" }}
+          style={{
+            height: large ? "93%" : undefined,
+            maxHeight: "96%",
+            width: "100%",
+          }}
         >
           <View
-            className="overflow-hidden rounded-t-[26px] border border-[#2C382E] bg-[#101510]"
-            style={{
-              height: large ? "91%" : "auto",
-              maxHeight: "94%",
-              paddingBottom: Math.max(insets.bottom, 10),
-            }}
+            className="flex-1 overflow-hidden rounded-t-[26px] border border-[#E1E8E2] bg-white"
+            style={{ paddingBottom: 0 }}
           >
             <View className="items-center pb-2 pt-2.5">
-              <View className="h-1 w-10 rounded-full bg-[#465247]" />
+              <View className="h-1 w-10 rounded-full bg-[#D7E0D8]" />
             </View>
-            <View className="flex-row items-center gap-3 border-b border-[#263128] px-4 pb-3 pt-1">
+
+            <View className="flex-row items-center gap-3 border-b border-[#E6ECE6] px-4 pb-3 pt-1">
               <View className="min-w-0 flex-1 gap-0.5">
-                <AppText className="text-[17px] font-bold text-[#F4F7F1]">
+                <AppText className="text-[17px] font-bold text-[#172019]">
                   {title}
                 </AppText>
                 {subtitle ? (
-                  <AppText className="text-[10px] leading-4 text-[#A0ADA1]">
+                  <AppText className="text-[10px] leading-4 text-[#69766D]">
                     {subtitle}
                   </AppText>
                 ) : null}
               </View>
+
               {onClose ? (
                 <Pressable
                   onPress={onClose}
-                  className="h-9 w-9 items-center justify-center rounded-full border border-[#2C382E] bg-[#1B211C]"
+                  className="h-9 w-9 items-center justify-center rounded-full border border-[#E1E8E2] bg-[#F5F7F5]"
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
                 >
                   <Feather name="x" size={17} color={C.text} />
                 </Pressable>
               ) : null}
             </View>
+
             <ScrollView
+              className="flex-1"
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ padding: 16, paddingBottom: 22 }}
+              contentContainerStyle={{ padding: 16, paddingBottom: 18 }}
             >
               {children}
             </ScrollView>
+
             {footer ? (
               <View
-                className="border-t border-[#263128] bg-[#101510] px-4 pt-3"
-                style={{ paddingBottom: Math.max(insets.bottom, 10) }}
+                className="border-t border-[#E6ECE6] bg-white px-4 pt-3"
+                style={{ paddingBottom: Math.max(insets.bottom, 12) }}
               >
                 {footer}
               </View>
-            ) : null}
+            ) : (
+              <View style={{ height: insets.bottom }} />
+            )}
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -539,9 +624,9 @@ function ListingCard({
           ? C.red
           : C.muted;
   return (
-    <View className="mb-3 overflow-hidden rounded-[17px] border border-[#2C382E] bg-[#141815]">
+    <View className="mb-3 overflow-hidden rounded-[17px] border border-[#E1E8E2] bg-[#FFFFFF]">
       <View className="flex-row gap-3 p-3">
-        <View className="h-[91px] w-[88px] shrink-0 overflow-hidden rounded-[12px] bg-[#202A19]">
+        <View className="h-[91px] w-[88px] shrink-0 overflow-hidden rounded-[12px] bg-[#EAF4E4]">
           {listing.imageUrl ? (
             <Image
               source={{ uri: listing.imageUrl }}
@@ -551,7 +636,7 @@ function ListingCard({
           ) : (
             <View className="flex-1 items-center justify-center">
               <Ionicons name="leaf-outline" size={29} color={C.lime} />
-              <AppText className="mt-1 text-[9px] text-[#A0ADA1]">
+              <AppText className="mt-1 text-[9px] text-[#69766D]">
                 No photo
               </AppText>
             </View>
@@ -561,12 +646,12 @@ function ListingCard({
           <View className="flex-row items-start gap-2">
             <View className="min-w-0 flex-1 gap-1">
               <AppText
-                className="text-[14px] font-bold text-[#F4F7F1]"
+                className="text-[14px] font-bold text-[#171D18]"
                 numberOfLines={2}
               >
                 {listing.cropName}
               </AppText>
-              <AppText className="text-[10px] text-[#A0ADA1]">
+              <AppText className="text-[10px] text-[#69766D]">
                 {listing.packSizeValue} {listing.packSizeUnit} ·{" "}
                 {listing.harvestType === "UPCOMING"
                   ? `Expected ${dateLabel(listing.expectedHarvestDate)}`
@@ -594,17 +679,17 @@ function ListingCard({
           </View>
           <View className="flex-row items-end justify-between gap-2">
             <View className="min-w-0 flex-1">
-              <AppText className="text-[18px] font-extrabold text-[#F4F7F1]">
+              <AppText className="text-[18px] font-extrabold text-[#171D18]">
                 {money(listing.price)}
               </AppText>
-              <AppText className="mt-0.5 text-[10px] text-[#8ACB8A]">
+              <AppText className="mt-0.5 text-[10px] text-[#2E7D4F]">
                 {listing.quantityAvailable} available ·{" "}
                 {listing.orderCount ?? 0} orders
               </AppText>
             </View>
             {discount > 0 ? (
-              <View className="rounded-md bg-[#25351E] px-2 py-1">
-                <AppText className="text-[9px] font-bold text-[#C8FF67]">
+              <View className="rounded-md bg-[#E5F3E4] px-2 py-1">
+                <AppText className="text-[9px] font-bold text-[#2F7D4E]">
                   {discount}% OFF
                 </AppText>
               </View>
@@ -612,15 +697,15 @@ function ListingCard({
           </View>
         </View>
       </View>
-      <View className="flex-row border-t border-[#263128] p-2.5">
+      <View className="flex-row border-t border-[#E6ECE6] p-2.5">
         {isRemoved ? (
           <Pressable
             onPress={onRelist}
             disabled={busy}
-            className="flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#C8FF67] py-2.5"
+            className="flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#2F7D4E] py-2.5"
           >
             <Feather name="refresh-cw" size={13} color={C.bg} />
-            <AppText className="text-[11px] font-bold text-[#0B0D0B]">
+            <AppText className="text-[11px] font-bold text-[#F5F7F5]">
               Relist crop
             </AppText>
           </Pressable>
@@ -628,31 +713,31 @@ function ListingCard({
           <>
             <Pressable
               onPress={onEdit}
-              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#222A23] py-2.5"
+              className="flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#EDF2ED] py-2.5"
             >
               <Feather name="edit-3" size={13} color={C.text} />
-              <AppText className="text-[11px] font-bold text-[#F4F7F1]">
+              <AppText className="text-[11px] font-bold text-[#171D18]">
                 Edit
               </AppText>
             </Pressable>
             <Pressable
               onPress={onToggle}
               disabled={busy}
-              className="ml-2 flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#222A23] py-2.5"
+              className="ml-2 flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#EDF2ED] py-2.5"
             >
               <Feather
                 name={isPaused ? "play" : "pause"}
                 size={13}
                 color={C.amber}
               />
-              <AppText className="text-[11px] font-bold text-[#F4F7F1]">
+              <AppText className="text-[11px] font-bold text-[#171D18]">
                 {isPaused ? "Resume" : "Pause"}
               </AppText>
             </Pressable>
             <Pressable
               onPress={onRemove}
               disabled={busy}
-              className="ml-2 h-9 w-10 items-center justify-center rounded-[10px] bg-[#321D1B]"
+              className="ml-2 h-9 w-10 items-center justify-center rounded-[10px] bg-[#FCEBE9]"
             >
               {busy ? (
                 <ActivityIndicator size="small" color={C.red} />
@@ -686,24 +771,24 @@ function OrderCard({
   return (
     <Pressable
       onPress={onPress}
-      className="mb-3 rounded-[16px] border border-[#2C382E] bg-[#141815] p-3.5"
+      className="mb-3 rounded-[16px] border border-[#E1E8E2] bg-[#FFFFFF] p-3.5"
       style={({ pressed }) => ({ opacity: pressed ? 0.86 : 1 })}
     >
       <View className="flex-row items-start gap-2">
-        <View className="h-10 w-10 items-center justify-center rounded-[12px] bg-[#202A19]">
+        <View className="h-10 w-10 items-center justify-center rounded-[12px] bg-[#EAF4E4]">
           <Feather name="shopping-bag" size={17} color={C.lime} />
         </View>
         <View className="min-w-0 flex-1 gap-1">
           <AppText
-            className="text-[13px] font-bold text-[#F4F7F1]"
+            className="text-[13px] font-bold text-[#171D18]"
             numberOfLines={1}
           >
             {order.cropName}
           </AppText>
-          <AppText className="text-[10px] text-[#A0ADA1]">
+          <AppText className="text-[10px] text-[#69766D]">
             Order {order.orderNumber} · {order.buyer?.username ?? "Buyer"}
           </AppText>
-          <AppText className="text-[10px] text-[#748176]">
+          <AppText className="text-[10px] text-[#7A877D]">
             {order.quantity} × {order.packSizeValue} {order.packSizeUnit} ·{" "}
             {order.fulfillmentType === "SELLER_DELIVERY"
               ? "Delivery"
@@ -711,7 +796,7 @@ function OrderCard({
           </AppText>
         </View>
         <View className="items-end gap-1">
-          <AppText className="text-[15px] font-extrabold text-[#F4F7F1]">
+          <AppText className="text-[15px] font-extrabold text-[#171D18]">
             {money(order.totalAmount)}
           </AppText>
           <View
@@ -734,21 +819,21 @@ function OrderCard({
           </View>
         </View>
       </View>
-      <View className="mt-3 flex-row items-center justify-between border-t border-[#263128] pt-2.5">
+      <View className="mt-3 flex-row items-center justify-between border-t border-[#E6ECE6] pt-2.5">
         <View className="flex-row items-center gap-1.5">
           <Feather
             name={isPaid ? "check-circle" : "clock"}
             size={12}
             color={isPaid ? C.lime : C.amber}
           />
-          <AppText className="text-[10px] text-[#A0ADA1]">
+          <AppText className="text-[10px] text-[#69766D]">
             {isPaid
               ? "Payment received"
               : `${order.paymentMethod === "COD" ? "Cash on delivery" : "Online payment"} · ${statusLabel(order.paymentStatus)}`}
           </AppText>
         </View>
         <View className="flex-row items-center gap-1">
-          <AppText className="text-[10px] font-bold text-[#C8FF67]">
+          <AppText className="text-[10px] font-bold text-[#2F7D4E]">
             Manage order
           </AppText>
           <Feather name="chevron-right" size={13} color={C.lime} />
@@ -845,6 +930,52 @@ export default function MarketplaceSellScreen() {
         ["GROWING", "READY", "HARVESTED"].includes(crop.status),
       ),
     [crops],
+  );
+
+  // Derive the chart and activity list only from the orders returned by the API.
+  const weeklyRevenueBars = useMemo(() => {
+    const today = new Date();
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(today);
+      date.setHours(0, 0, 0, 0);
+      date.setDate(today.getDate() - (6 - index));
+      const amount = orders.reduce((sum, order) => {
+        if (order.paymentStatus !== "PAID" || !order.createdAt) return sum;
+        const orderDate = new Date(order.createdAt);
+        if (Number.isNaN(orderDate.getTime())) return sum;
+        return orderDate.toDateString() === date.toDateString()
+          ? sum + Number(order.totalAmount || 0)
+          : sum;
+      }, 0);
+      return {
+        key: date.toISOString().slice(0, 10),
+        label: date.toLocaleDateString("en-IN", { weekday: "short" }),
+        amount,
+      };
+    });
+    return days;
+  }, [orders]);
+
+  const weeklyPaidRevenue = useMemo(
+    () => weeklyRevenueBars.reduce((sum, day) => sum + day.amount, 0),
+    [weeklyRevenueBars],
+  );
+
+  const recentOrders = useMemo(
+    () =>
+      [...orders]
+        .sort((a, b) => {
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          return bTime - aTime;
+        })
+        .slice(0, 3),
+    [orders],
+  );
+
+  const maxWeeklyRevenue = Math.max(
+    1,
+    ...weeklyRevenueBars.map((day) => day.amount),
   );
 
   const changeDraft = (patch: Partial<Draft>) =>
@@ -1509,10 +1640,10 @@ export default function MarketplaceSellScreen() {
 
   const renderCropPicker = () => (
     <View className="gap-3">
-      <View className="rounded-[13px] border border-[#2C382E] bg-[#141815] px-3.5 py-3">
+      <View className="rounded-[13px] border border-[#E1E8E2] bg-[#FFFFFF] px-3.5 py-3">
         <View className="flex-row items-start gap-2">
           <Feather name="info" size={14} color={C.lime} />
-          <AppText className="min-w-0 flex-1 text-[10px] leading-4 text-[#A0ADA1]">
+          <AppText className="min-w-0 flex-1 text-[10px] leading-4 text-[#69766D]">
             Choose a crop from your active grow racks. Crop name and harvest
             status come from your crop records.
           </AppText>
@@ -1521,26 +1652,26 @@ export default function MarketplaceSellScreen() {
       {loading ? (
         <View className="items-center py-10">
           <ActivityIndicator color={C.lime} />
-          <AppText className="mt-2 text-[11px] text-[#A0ADA1]">
+          <AppText className="mt-2 text-[11px] text-[#69766D]">
             Loading your crops…
           </AppText>
         </View>
       ) : availableCrops.length === 0 ? (
-        <View className="items-center rounded-[16px] border border-dashed border-[#3A493C] px-6 py-9">
-          <View className="mb-3 h-12 w-12 items-center justify-center rounded-[15px] bg-[#202A19]">
+        <View className="items-center rounded-[16px] border border-dashed border-[#C9D9CC] px-6 py-9">
+          <View className="mb-3 h-12 w-12 items-center justify-center rounded-[15px] bg-[#EAF4E4]">
             <Ionicons name="leaf-outline" size={24} color={C.lime} />
           </View>
-          <AppText className="text-[14px] font-bold text-[#F4F7F1]">
+          <AppText className="text-[14px] font-bold text-[#171D18]">
             No sellable crops yet
           </AppText>
-          <AppText className="mt-1 text-center text-[11px] leading-4 text-[#A0ADA1]">
+          <AppText className="mt-1 text-center text-[11px] leading-4 text-[#69766D]">
             Your GROWING, READY, and HARVESTED crops will appear here.
           </AppText>
           <Pressable
             onPress={() => void loadAll()}
-            className="mt-4 rounded-[10px] bg-[#222A23] px-3 py-2"
+            className="mt-4 rounded-[10px] bg-[#EDF2ED] px-3 py-2"
           >
-            <AppText className="text-[11px] font-bold text-[#C8FF67]">
+            <AppText className="text-[11px] font-bold text-[#2F7D4E]">
               Refresh crops
             </AppText>
           </Pressable>
@@ -1556,10 +1687,10 @@ export default function MarketplaceSellScreen() {
                 setSelectedCrop(crop);
                 changeDraft({ cropCycleId: crop.id, harvestType: cropType });
               }}
-              className={`flex-row items-center gap-3 rounded-[14px] border p-3.5 ${chosen ? "border-[#718F38] bg-[#1A2A1D]" : "border-[#2C382E] bg-[#141815]"}`}
+              className={`flex-row items-center gap-3 rounded-[14px] border p-3.5 ${chosen ? "border-[#4A8154] bg-[#E6F3E7]" : "border-[#E1E8E2] bg-[#FFFFFF]"}`}
             >
               <View
-                className={`h-11 w-11 items-center justify-center rounded-[12px] ${chosen ? "bg-[#2B4127]" : "bg-[#202A19]"}`}
+                className={`h-11 w-11 items-center justify-center rounded-[12px] ${chosen ? "bg-[#E0F0E0]" : "bg-[#EAF4E4]"}`}
               >
                 <Ionicons
                   name="leaf-outline"
@@ -1568,36 +1699,36 @@ export default function MarketplaceSellScreen() {
                 />
               </View>
               <View className="min-w-0 flex-1 gap-1">
-                <AppText className="text-[13px] font-bold text-[#F4F7F1]">
+                <AppText className="text-[13px] font-bold text-[#171D18]">
                   {crop.cropName}
                 </AppText>
-                <AppText className="text-[10px] text-[#A0ADA1]">
+                <AppText className="text-[10px] text-[#69766D]">
                   {crop.rack?.name ?? "Grow rack"}
                   {crop.row?.name ? ` · ${crop.row.name}` : ""}
                   {crop.tray?.name ? ` · ${crop.tray.name}` : ""}
                 </AppText>
                 <View className="flex-row flex-wrap items-center gap-1.5">
-                  <View className="rounded-full bg-[#202A19] px-2 py-1">
-                    <AppText className="text-[9px] font-bold text-[#C8FF67]">
+                  <View className="rounded-full bg-[#EAF4E4] px-2 py-1">
+                    <AppText className="text-[9px] font-bold text-[#2F7D4E]">
                       {statusLabel(crop.status)}
                     </AppText>
                   </View>
                   {crop.selling?.hasListing ? (
-                    <View className="rounded-full bg-[#302417] px-2 py-1">
-                      <AppText className="text-[9px] font-bold text-[#F3BF79]">
+                    <View className="rounded-full bg-[#FFF1D9] px-2 py-1">
+                      <AppText className="text-[9px] font-bold text-[#946200]">
                         Already listed
                       </AppText>
                     </View>
                   ) : null}
                   {cropType === "UPCOMING" ? (
-                    <AppText className="text-[9px] text-[#748176]">
+                    <AppText className="text-[9px] text-[#7A877D]">
                       Expected {dateLabel(crop.expectedHarvestDate)}
                     </AppText>
                   ) : null}
                 </View>
               </View>
               <View
-                className={`h-5 w-5 items-center justify-center rounded-full border ${chosen ? "border-[#C8FF67] bg-[#C8FF67]" : "border-[#526052]"}`}
+                className={`h-5 w-5 items-center justify-center rounded-full border ${chosen ? "border-[#2F7D4E] bg-[#2F7D4E]" : "border-[#A1AEA3]"}`}
               >
                 {chosen ? (
                   <Feather name="check" size={12} color={C.bg} />
@@ -1613,15 +1744,15 @@ export default function MarketplaceSellScreen() {
   const renderDetailsStep = () => (
     <View className="gap-4">
       {selectedCrop ? (
-        <View className="flex-row items-center gap-3 rounded-[14px] border border-[#2C382E] bg-[#141815] p-3">
-          <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#202A19]">
+        <View className="flex-row items-center gap-3 rounded-[14px] border border-[#E1E8E2] bg-[#FFFFFF] p-3">
+          <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#EAF4E4]">
             <Feather name="check-circle" size={18} color={C.lime} />
           </View>
           <View className="min-w-0 flex-1">
-            <AppText className="text-[13px] font-bold text-[#F4F7F1]">
+            <AppText className="text-[13px] font-bold text-[#171D18]">
               {selectedCrop.cropName}
             </AppText>
-            <AppText className="mt-0.5 text-[10px] text-[#A0ADA1]">
+            <AppText className="mt-0.5 text-[10px] text-[#69766D]">
               {draft.harvestType === "HARVESTED"
                 ? "Harvested crop"
                 : `Upcoming harvest · ${dateLabel(selectedCrop.expectedHarvestDate)}`}
@@ -1629,7 +1760,7 @@ export default function MarketplaceSellScreen() {
           </View>
           {!editingListing ? (
             <Pressable onPress={() => setStep("CROP")}>
-              <AppText className="text-[10px] font-bold text-[#C8FF67]">
+              <AppText className="text-[10px] font-bold text-[#2F7D4E]">
                 Change
               </AppText>
             </Pressable>
@@ -1653,7 +1784,7 @@ export default function MarketplaceSellScreen() {
             />
           </View>
           <View className="flex-1 gap-1.5">
-            <AppText className="text-[11px] font-semibold text-[#A0ADA1]">
+            <AppText className="text-[11px] font-semibold text-[#69766D]">
               Unit
             </AppText>
             <View className="flex-row flex-wrap gap-1.5">
@@ -1662,10 +1793,10 @@ export default function MarketplaceSellScreen() {
                   <Pressable
                     key={unit}
                     onPress={() => changeDraft({ packSizeUnit: unit })}
-                    className={`rounded-[9px] border px-2.5 py-2.5 ${draft.packSizeUnit === unit ? "border-[#718F38] bg-[#1A2A1D]" : "border-[#2C382E] bg-[#0F130F]"}`}
+                    className={`rounded-[9px] border px-2.5 py-2.5 ${draft.packSizeUnit === unit ? "border-[#4A8154] bg-[#E6F3E7]" : "border-[#E1E8E2] bg-[#FFFFFF]"}`}
                   >
                     <AppText
-                      className={`text-[10px] font-bold ${draft.packSizeUnit === unit ? "text-[#C8FF67]" : "text-[#A0ADA1]"}`}
+                      className={`text-[10px] font-bold ${draft.packSizeUnit === unit ? "text-[#2F7D4E]" : "text-[#69766D]"}`}
                     >
                       {unit}
                     </AppText>
@@ -1698,11 +1829,11 @@ export default function MarketplaceSellScreen() {
             />
           </View>
         </View>
-        <View className="rounded-[12px] border border-[#2C382E] bg-[#141815] p-3">
-          <AppText className="text-[10px] text-[#A0ADA1]">
+        <View className="rounded-[12px] border border-[#E1E8E2] bg-[#FFFFFF] p-3">
+          <AppText className="text-[10px] text-[#69766D]">
             Selling price per pack
           </AppText>
-          <AppText className="mt-1 text-[22px] font-extrabold text-[#C8FF67]">
+          <AppText className="mt-1 text-[22px] font-extrabold text-[#2F7D4E]">
             {isPositive(draft.basePrice) &&
             isNonNegative(draft.discountPercent) &&
             Number(draft.discountPercent) <= 100
@@ -1712,7 +1843,7 @@ export default function MarketplaceSellScreen() {
                 )
               : "—"}
           </AppText>
-          <AppText className="mt-0.5 text-[10px] text-[#748176]">
+          <AppText className="mt-0.5 text-[10px] text-[#7A877D]">
             Calculated from the price and discount you enter.
           </AppText>
         </View>
@@ -1756,7 +1887,7 @@ export default function MarketplaceSellScreen() {
           subtitle="A clear photo helps buyers understand what they are ordering."
         />
         {draft.imageUrl ? (
-          <View className="overflow-hidden rounded-[13px] border border-[#2C382E] bg-[#141815]">
+          <View className="overflow-hidden rounded-[13px] border border-[#E1E8E2] bg-[#FFFFFF]">
             <Image
               source={{ uri: draft.imageUrl }}
               resizeMode="cover"
@@ -1765,10 +1896,10 @@ export default function MarketplaceSellScreen() {
             <View className="flex-row gap-2 p-2.5">
               <Pressable
                 onPress={() => void pickPhoto()}
-                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#222A23] py-2.5"
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#EDF2ED] py-2.5"
               >
                 <Feather name="image" size={13} color={C.text} />
-                <AppText className="text-[10px] font-bold text-[#F4F7F1]">
+                <AppText className="text-[10px] font-bold text-[#171D18]">
                   Change photo
                 </AppText>
               </Pressable>
@@ -1781,10 +1912,10 @@ export default function MarketplaceSellScreen() {
                     imageSizeBytes: "",
                   });
                 }}
-                className="flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#321D1B] px-3 py-2.5"
+                className="flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#FCEBE9] px-3 py-2.5"
               >
                 <Feather name="trash-2" size={13} color={C.red} />
-                <AppText className="text-[10px] font-bold text-[#FF8178]">
+                <AppText className="text-[10px] font-bold text-[#C53D38]">
                   Remove
                 </AppText>
               </Pressable>
@@ -1793,16 +1924,16 @@ export default function MarketplaceSellScreen() {
         ) : (
           <Pressable
             onPress={() => void pickPhoto()}
-            className="flex-row items-center gap-3 rounded-[13px] border border-dashed border-[#3A493C] bg-[#141815] p-4"
+            className="flex-row items-center gap-3 rounded-[13px] border border-dashed border-[#C9D9CC] bg-[#FFFFFF] p-4"
           >
-            <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#202A19]">
+            <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#EAF4E4]">
               <Feather name="camera" size={17} color={C.lime} />
             </View>
             <View className="min-w-0 flex-1">
-              <AppText className="text-[12px] font-bold text-[#F4F7F1]">
+              <AppText className="text-[12px] font-bold text-[#171D18]">
                 Add crop photo
               </AppText>
-              <AppText className="mt-1 text-[10px] text-[#A0ADA1]">
+              <AppText className="mt-1 text-[10px] text-[#69766D]">
                 Optional · Choose an image from your gallery
               </AppText>
             </View>
@@ -1824,14 +1955,14 @@ export default function MarketplaceSellScreen() {
 
   const renderFulfilmentStep = () => (
     <View className="gap-4">
-      <View className="rounded-[13px] border border-[#2C382E] bg-[#141815] p-3.5">
+      <View className="rounded-[13px] border border-[#E1E8E2] bg-[#FFFFFF] p-3.5">
         <View className="flex-row items-start gap-2">
           <Feather name="truck" size={15} color={C.lime} />
           <View className="min-w-0 flex-1">
-            <AppText className="text-[12px] font-bold text-[#F4F7F1]">
+            <AppText className="text-[12px] font-bold text-[#171D18]">
               How can buyers receive this crop?
             </AppText>
-            <AppText className="mt-1 text-[10px] leading-4 text-[#A0ADA1]">
+            <AppText className="mt-1 text-[10px] leading-4 text-[#69766D]">
               Select at least one option. Delivery fees and delivery radius are
               saved with the listing.
             </AppText>
@@ -1841,21 +1972,21 @@ export default function MarketplaceSellScreen() {
       <View className="gap-2">
         <Pressable
           onPress={() => changeDraft({ customerPickup: !draft.customerPickup })}
-          className={`flex-row items-center gap-3 rounded-[13px] border p-3.5 ${draft.customerPickup ? "border-[#718F38] bg-[#1A2A1D]" : "border-[#2C382E] bg-[#141815]"}`}
+          className={`flex-row items-center gap-3 rounded-[13px] border p-3.5 ${draft.customerPickup ? "border-[#4A8154] bg-[#E6F3E7]" : "border-[#E1E8E2] bg-[#FFFFFF]"}`}
         >
-          <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#202A19]">
+          <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#EAF4E4]">
             <Feather name="map-pin" size={17} color={C.lime} />
           </View>
           <View className="min-w-0 flex-1">
-            <AppText className="text-[12px] font-bold text-[#F4F7F1]">
+            <AppText className="text-[12px] font-bold text-[#171D18]">
               Customer pickup
             </AppText>
-            <AppText className="mt-1 text-[10px] text-[#A0ADA1]">
+            <AppText className="mt-1 text-[10px] text-[#69766D]">
               Buyer collects the order from your selected location.
             </AppText>
           </View>
           <View
-            className={`h-5 w-5 items-center justify-center rounded-full border ${draft.customerPickup ? "border-[#C8FF67] bg-[#C8FF67]" : "border-[#526052]"}`}
+            className={`h-5 w-5 items-center justify-center rounded-full border ${draft.customerPickup ? "border-[#2F7D4E] bg-[#2F7D4E]" : "border-[#A1AEA3]"}`}
           >
             {draft.customerPickup ? (
               <Feather name="check" size={12} color={C.bg} />
@@ -1864,21 +1995,21 @@ export default function MarketplaceSellScreen() {
         </Pressable>
         <Pressable
           onPress={() => changeDraft({ sellerDelivery: !draft.sellerDelivery })}
-          className={`flex-row items-center gap-3 rounded-[13px] border p-3.5 ${draft.sellerDelivery ? "border-[#718F38] bg-[#1A2A1D]" : "border-[#2C382E] bg-[#141815]"}`}
+          className={`flex-row items-center gap-3 rounded-[13px] border p-3.5 ${draft.sellerDelivery ? "border-[#4A8154] bg-[#E6F3E7]" : "border-[#E1E8E2] bg-[#FFFFFF]"}`}
         >
-          <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#202A19]">
+          <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#EAF4E4]">
             <Feather name="truck" size={17} color={C.lime} />
           </View>
           <View className="min-w-0 flex-1">
-            <AppText className="text-[12px] font-bold text-[#F4F7F1]">
+            <AppText className="text-[12px] font-bold text-[#171D18]">
               Seller delivery
             </AppText>
-            <AppText className="mt-1 text-[10px] text-[#A0ADA1]">
+            <AppText className="mt-1 text-[10px] text-[#69766D]">
               You deliver within the radius you set.
             </AppText>
           </View>
           <View
-            className={`h-5 w-5 items-center justify-center rounded-full border ${draft.sellerDelivery ? "border-[#C8FF67] bg-[#C8FF67]" : "border-[#526052]"}`}
+            className={`h-5 w-5 items-center justify-center rounded-full border ${draft.sellerDelivery ? "border-[#2F7D4E] bg-[#2F7D4E]" : "border-[#A1AEA3]"}`}
           >
             {draft.sellerDelivery ? (
               <Feather name="check" size={12} color={C.bg} />
@@ -1933,9 +2064,9 @@ export default function MarketplaceSellScreen() {
               <Pressable
                 key={location.id}
                 onPress={() => changeDraft({ sellerLocationId: location.id })}
-                className={`flex-row items-center gap-3 rounded-[13px] border p-3 ${selected ? "border-[#718F38] bg-[#1A2A1D]" : "border-[#2C382E] bg-[#141815]"}`}
+                className={`flex-row items-center gap-3 rounded-[13px] border p-3 ${selected ? "border-[#4A8154] bg-[#E6F3E7]" : "border-[#E1E8E2] bg-[#FFFFFF]"}`}
               >
-                <View className="h-9 w-9 items-center justify-center rounded-[10px] bg-[#202A19]">
+                <View className="h-9 w-9 items-center justify-center rounded-[10px] bg-[#EAF4E4]">
                   <Feather
                     name={location.isDefault ? "home" : "map-pin"}
                     size={15}
@@ -1944,24 +2075,24 @@ export default function MarketplaceSellScreen() {
                 </View>
                 <View className="min-w-0 flex-1">
                   <View className="flex-row flex-wrap items-center gap-1.5">
-                    <AppText className="text-[12px] font-bold text-[#F4F7F1]">
+                    <AppText className="text-[12px] font-bold text-[#171D18]">
                       {location.label}
                     </AppText>
                     {location.isDefault ? (
-                      <AppText className="rounded bg-[#2A391F] px-1.5 py-0.5 text-[8px] font-bold text-[#C8FF67]">
+                      <AppText className="rounded bg-[#EAF4E4] px-1.5 py-0.5 text-[8px] font-bold text-[#2F7D4E]">
                         DEFAULT
                       </AppText>
                     ) : null}
                   </View>
                   <AppText
-                    className="mt-1 text-[10px] leading-4 text-[#A0ADA1]"
+                    className="mt-1 text-[10px] leading-4 text-[#69766D]"
                     numberOfLines={2}
                   >
                     {location.address}
                   </AppText>
                 </View>
                 <View
-                  className={`h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-[#C8FF67] bg-[#C8FF67]" : "border-[#526052]"}`}
+                  className={`h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-[#2F7D4E] bg-[#2F7D4E]" : "border-[#A1AEA3]"}`}
                 >
                   {selected ? (
                     <Feather name="check" size={12} color={C.bg} />
@@ -1971,11 +2102,11 @@ export default function MarketplaceSellScreen() {
             );
           })
         ) : (
-          <View className="rounded-[13px] border border-dashed border-[#3A493C] bg-[#141815] p-4">
-            <AppText className="text-[12px] font-bold text-[#F4F7F1]">
+          <View className="rounded-[13px] border border-dashed border-[#C9D9CC] bg-[#FFFFFF] p-4">
+            <AppText className="text-[12px] font-bold text-[#171D18]">
               No saved locations
             </AppText>
-            <AppText className="mt-1 text-[10px] leading-4 text-[#A0ADA1]">
+            <AppText className="mt-1 text-[10px] leading-4 text-[#69766D]">
               Add a seller location before publishing this listing.
             </AppText>
             <Pressable
@@ -1995,30 +2126,30 @@ export default function MarketplaceSellScreen() {
                   ],
                 );
               }}
-              className="mt-3 self-start rounded-[10px] bg-[#222A23] px-3 py-2"
+              className="mt-3 self-start rounded-[10px] bg-[#EDF2ED] px-3 py-2"
             >
-              <AppText className="text-[10px] font-bold text-[#C8FF67]">
+              <AppText className="text-[10px] font-bold text-[#2F7D4E]">
                 Manage locations
               </AppText>
             </Pressable>
           </View>
         )}
       </View>
-      <View className="rounded-[14px] border border-[#2C382E] bg-[#141815] p-3.5">
-        <AppText className="text-[10px] font-semibold uppercase tracking-[0.8px] text-[#A0ADA1]">
+      <View className="rounded-[14px] border border-[#E1E8E2] bg-[#FFFFFF] p-3.5">
+        <AppText className="text-[10px] font-semibold uppercase tracking-[0.8px] text-[#69766D]">
           Listing preview
         </AppText>
         <View className="mt-2 flex-row items-end justify-between gap-3">
           <View className="min-w-0 flex-1">
-            <AppText className="text-[15px] font-bold text-[#F4F7F1]">
+            <AppText className="text-[15px] font-bold text-[#171D18]">
               {selectedCrop?.cropName ?? "Your crop"}
             </AppText>
-            <AppText className="mt-1 text-[10px] text-[#A0ADA1]">
+            <AppText className="mt-1 text-[10px] text-[#69766D]">
               {draft.packSizeValue || "—"} {draft.packSizeUnit} ·{" "}
               {draft.quantityAvailable || "—"} packs available
             </AppText>
           </View>
-          <AppText className="text-[20px] font-extrabold text-[#C8FF67]">
+          <AppText className="text-[20px] font-extrabold text-[#2F7D4E]">
             {isPositive(draft.basePrice) && isNonNegative(draft.discountPercent)
               ? money(
                   Number(draft.basePrice) *
@@ -2029,15 +2160,15 @@ export default function MarketplaceSellScreen() {
         </View>
         <View className="mt-3 flex-row flex-wrap gap-1.5">
           {draft.customerPickup ? (
-            <View className="rounded-full bg-[#202A19] px-2.5 py-1">
-              <AppText className="text-[9px] font-semibold text-[#C8FF67]">
+            <View className="rounded-full bg-[#EAF4E4] px-2.5 py-1">
+              <AppText className="text-[9px] font-semibold text-[#2F7D4E]">
                 Customer pickup
               </AppText>
             </View>
           ) : null}
           {draft.sellerDelivery ? (
-            <View className="rounded-full bg-[#202A19] px-2.5 py-1">
-              <AppText className="text-[9px] font-semibold text-[#C8FF67]">
+            <View className="rounded-full bg-[#EAF4E4] px-2.5 py-1">
+              <AppText className="text-[9px] font-semibold text-[#2F7D4E]">
                 Delivery · {draft.deliveryRadiusKm} km
               </AppText>
             </View>
@@ -2065,47 +2196,47 @@ export default function MarketplaceSellScreen() {
     return (
       <View className="gap-4">
         {orderError ? (
-          <View className="rounded-[12px] bg-[#321D1B] p-3">
-            <AppText className="text-[11px] leading-4 text-[#FF8178]">
+          <View className="rounded-[12px] bg-[#FCEBE9] p-3">
+            <AppText className="text-[11px] leading-4 text-[#C53D38]">
               {orderError}
             </AppText>
           </View>
         ) : null}
-        <View className="rounded-[15px] border border-[#2C382E] bg-[#141815] p-3.5">
+        <View className="rounded-[15px] border border-[#E1E8E2] bg-[#FFFFFF] p-3.5">
           <View className="flex-row items-start justify-between gap-2">
             <View className="min-w-0 flex-1">
-              <AppText className="text-[16px] font-bold text-[#F4F7F1]">
+              <AppText className="text-[16px] font-bold text-[#171D18]">
                 {order.cropName}
               </AppText>
-              <AppText className="mt-1 text-[10px] text-[#A0ADA1]">
+              <AppText className="mt-1 text-[10px] text-[#69766D]">
                 Order {order.orderNumber}
               </AppText>
             </View>
             <View className="items-end">
-              <AppText className="text-[19px] font-extrabold text-[#C8FF67]">
+              <AppText className="text-[19px] font-extrabold text-[#2F7D4E]">
                 {money(order.totalAmount)}
               </AppText>
-              <AppText className="mt-1 text-[9px] text-[#A0ADA1]">
+              <AppText className="mt-1 text-[9px] text-[#69766D]">
                 {statusLabel(order.status)}
               </AppText>
             </View>
           </View>
-          <View className="mt-3 flex-row justify-between border-t border-[#263128] pt-3">
+          <View className="mt-3 flex-row justify-between border-t border-[#E6ECE6] pt-3">
             <View>
-              <AppText className="text-[9px] text-[#748176]">QUANTITY</AppText>
-              <AppText className="mt-1 text-[11px] font-bold text-[#F4F7F1]">
+              <AppText className="text-[9px] text-[#7A877D]">QUANTITY</AppText>
+              <AppText className="mt-1 text-[11px] font-bold text-[#171D18]">
                 {order.quantity} × {order.packSizeValue} {order.packSizeUnit}
               </AppText>
             </View>
             <View>
-              <AppText className="text-[9px] text-[#748176]">PAYMENT</AppText>
-              <AppText className="mt-1 text-[11px] font-bold text-[#F4F7F1]">
+              <AppText className="text-[9px] text-[#7A877D]">PAYMENT</AppText>
+              <AppText className="mt-1 text-[11px] font-bold text-[#171D18]">
                 {statusLabel(order.paymentStatus)}
               </AppText>
             </View>
             <View>
-              <AppText className="text-[9px] text-[#748176]">METHOD</AppText>
-              <AppText className="mt-1 text-[11px] font-bold text-[#F4F7F1]">
+              <AppText className="text-[9px] text-[#7A877D]">METHOD</AppText>
+              <AppText className="mt-1 text-[11px] font-bold text-[#171D18]">
                 {order.paymentMethod}
               </AppText>
             </View>
@@ -2113,15 +2244,15 @@ export default function MarketplaceSellScreen() {
         </View>
         <View className="gap-2">
           <SectionTitle title="Buyer and fulfilment" />
-          <View className="rounded-[13px] border border-[#2C382E] bg-[#141815] p-3.5">
+          <View className="rounded-[13px] border border-[#E1E8E2] bg-[#FFFFFF] p-3.5">
             <View className="flex-row items-center gap-2">
               <Feather name="user" size={14} color={C.lime} />
-              <AppText className="text-[12px] font-bold text-[#F4F7F1]">
+              <AppText className="text-[12px] font-bold text-[#171D18]">
                 {order.buyer?.username ?? "Buyer"}
               </AppText>
             </View>
             {order.buyer?.phoneNo ? (
-              <AppText className="mt-1 text-[11px] text-[#A0ADA1]">
+              <AppText className="mt-1 text-[11px] text-[#69766D]">
                 {order.buyer.countryCode ?? ""}
                 {order.buyer.phoneNo}
               </AppText>
@@ -2129,12 +2260,12 @@ export default function MarketplaceSellScreen() {
             <View className="mt-3 flex-row items-start gap-2">
               <Feather name="map-pin" size={14} color={C.muted} />
               <View className="min-w-0 flex-1">
-                <AppText className="text-[11px] font-bold text-[#F4F7F1]">
+                <AppText className="text-[11px] font-bold text-[#171D18]">
                   {order.fulfillmentType === "SELLER_DELIVERY"
                     ? "Delivery address"
                     : "Buyer pickup"}
                 </AppText>
-                <AppText className="mt-1 text-[10px] leading-4 text-[#A0ADA1]">
+                <AppText className="mt-1 text-[10px] leading-4 text-[#69766D]">
                   {order.buyerLocation?.address ??
                     order.buyerAddressSnapshot ??
                     "No address details returned."}
@@ -2144,14 +2275,14 @@ export default function MarketplaceSellScreen() {
           </View>
         </View>
         {order.tracking ? (
-          <View className="rounded-[13px] border border-[#2C382E] bg-[#141815] p-3.5">
+          <View className="rounded-[13px] border border-[#E1E8E2] bg-[#FFFFFF] p-3.5">
             <View className="flex-row items-center gap-2">
               <Feather name="navigation" size={15} color={C.lime} />
-              <AppText className="text-[12px] font-bold text-[#F4F7F1]">
+              <AppText className="text-[12px] font-bold text-[#171D18]">
                 Delivery tracking
               </AppText>
             </View>
-            <AppText className="mt-2 text-[10px] leading-4 text-[#A0ADA1]">
+            <AppText className="mt-2 text-[10px] leading-4 text-[#69766D]">
               {order.tracking.isActive
                 ? "Live tracking is active."
                 : order.tracking.reachedAt
@@ -2172,17 +2303,17 @@ export default function MarketplaceSellScreen() {
             {order.payments.map((payment) => (
               <View
                 key={payment.id}
-                className="flex-row items-center justify-between rounded-[11px] border border-[#2C382E] bg-[#141815] p-3"
+                className="flex-row items-center justify-between rounded-[11px] border border-[#E1E8E2] bg-[#FFFFFF] p-3"
               >
                 <View>
-                  <AppText className="text-[11px] font-bold text-[#F4F7F1]">
+                  <AppText className="text-[11px] font-bold text-[#171D18]">
                     {statusLabel(payment.kind)}
                   </AppText>
-                  <AppText className="mt-1 text-[9px] text-[#A0ADA1]">
+                  <AppText className="mt-1 text-[9px] text-[#69766D]">
                     {statusLabel(payment.status)}
                   </AppText>
                 </View>
-                <AppText className="text-[12px] font-bold text-[#F4F7F1]">
+                <AppText className="text-[12px] font-bold text-[#171D18]">
                   {money(payment.amount)}
                 </AppText>
               </View>
@@ -2211,17 +2342,17 @@ export default function MarketplaceSellScreen() {
           <Pressable
             onPress={() => cancelOrder(order)}
             disabled={orderBusy}
-            className="min-h-[44px] items-center justify-center rounded-[12px] border border-[#59302C] bg-[#241512]"
+            className="min-h-[44px] items-center justify-center rounded-[12px] border border-[#F0CFCA] bg-[#FCEBE9]"
           >
-            <AppText className="text-[11px] font-bold text-[#FF8178]">
+            <AppText className="text-[11px] font-bold text-[#C53D38]">
               Cancel order
             </AppText>
           </Pressable>
         ) : null}
         {["COMPLETED", "CANCELLED"].includes(order.status) ? (
-          <View className="flex-row items-center gap-2 rounded-[12px] bg-[#1A2A1D] p-3">
+          <View className="flex-row items-center gap-2 rounded-[12px] bg-[#E6F3E7] p-3">
             <Feather name="check-circle" size={15} color={C.lime} />
-            <AppText className="text-[11px] text-[#D7E9D4]">
+            <AppText className="text-[11px] text-[#386547]">
               This order is {statusLabel(order.status).toLowerCase()}.
             </AppText>
           </View>
@@ -2340,19 +2471,20 @@ export default function MarketplaceSellScreen() {
   );
 
   return (
-    <View className="flex-1 bg-[#0B0D0B]">
-      <StatusBar style="light" />
-      <View style={{ paddingTop: insets.top }} />
-      <View className="flex-row items-center gap-3 border-b border-[#202A22] px-4 pb-4 pt-2">
-        <View className="h-11 w-11 items-center justify-center rounded-[14px] bg-[#202A19]">
-          <Ionicons name="leaf" size={21} color={C.lime} />
+    <View className="flex-1 bg-[#F5F7F5]">
+      <StatusBar style="dark" backgroundColor="#F5F7F5" />
+      <View style={{ height: insets.top, backgroundColor: "#F5F7F5" }} />
+
+      <View className="flex-row items-center gap-3 border-b border-[#E6ECE6] bg-[#F5F7F5] px-5 pb-4 pt-2">
+        <View className="h-11 w-11 items-center justify-center rounded-full bg-[#E4F1E6]">
+          <Ionicons name="leaf" size={21} color="#2F7D4E" />
         </View>
         <View className="min-w-0 flex-1">
-          <AppText className="text-[22px] font-extrabold text-[#F4F7F1]">
-            Sell your harvest
+          <AppText className="text-[21px] font-extrabold leading-7 text-[#172019]">
+            Seller overview
           </AppText>
-          <AppText className="mt-0.5 text-[10px] text-[#A0ADA1]">
-            Manage listings, orders and fulfilment.
+          <AppText className="mt-0.5 text-[11px] text-[#69766D]">
+            Your harvest, listings and orders
           </AppText>
         </View>
         <Pressable
@@ -2360,9 +2492,16 @@ export default function MarketplaceSellScreen() {
             setRefreshing(true);
             void loadAll(true);
           }}
-          className="h-10 w-10 items-center justify-center rounded-full border border-[#2C382E] bg-[#141815]"
+          disabled={refreshing}
+          className="h-10 w-10 items-center justify-center rounded-full border border-[#E1E8E2] bg-white"
+          accessibilityRole="button"
+          accessibilityLabel="Refresh seller data"
         >
-          <Feather name="refresh-cw" size={16} color={C.text} />
+          {refreshing ? (
+            <ActivityIndicator size="small" color="#2F7D4E" />
+          ) : (
+            <Feather name="refresh-cw" size={16} color="#435348" />
+          )}
         </Pressable>
       </View>
 
@@ -2371,8 +2510,8 @@ export default function MarketplaceSellScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            tintColor={C.lime}
-            colors={[C.lime]}
+            tintColor="#2F7D4E"
+            colors={["#2F7D4E"]}
             onRefresh={() => {
               setRefreshing(true);
               void loadAll(true);
@@ -2380,127 +2519,346 @@ export default function MarketplaceSellScreen() {
           />
         }
         contentContainerStyle={{
-          paddingHorizontal: 16,
+          paddingHorizontal: 18,
           paddingTop: 16,
-          paddingBottom: Math.max(insets.bottom, 20),
+          paddingBottom: Math.max(insets.bottom, 18) + 36,
         }}
       >
-        <View className="overflow-hidden rounded-[19px] border border-[#304331] bg-[#142019] p-4">
-          <View className="flex-row items-start justify-between gap-3">
-            <View className="min-w-0 flex-1">
-              <View className="self-start rounded-full bg-[#263B28] px-2.5 py-1">
-                <AppText className="text-[9px] font-bold tracking-[0.6px] text-[#C8FF67]">
-                  GROW · LIST · EARN
-                </AppText>
+        <View className="mb-3 flex-row items-center justify-between">
+          <AppText className="text-[16px] font-bold text-[#172019]">
+            Overview
+          </AppText>
+          <AppText className="text-[10px] text-[#7A877D]">
+            Live marketplace data
+          </AppText>
+        </View>
+
+        <View className="flex-row gap-3">
+          <View className="min-w-0 flex-1 overflow-hidden rounded-[20px] bg-[#F0EAFB] p-4">
+            <View className="flex-row items-center justify-between">
+              <AppText className="text-[11px] font-medium text-[#5C566D]">
+                Active listings
+              </AppText>
+              <View className="h-8 w-8 items-center justify-center rounded-[11px] bg-[#E0D6F5]">
+                <Feather name="package" size={15} color="#765CB6" />
               </View>
-              <AppText className="mt-3 text-[20px] font-extrabold leading-6 text-[#F4F7F1]">
-                From your rack to nearby buyers.
-              </AppText>
-              <AppText className="mt-1.5 text-[11px] leading-4 text-[#A0ADA1]">
-                Create a listing from your grow records and manage every order
-                in one place.
-              </AppText>
             </View>
-            <View className="h-12 w-12 items-center justify-center rounded-[15px] bg-[#263B28]">
-              <Feather name="trending-up" size={22} color={C.lime} />
+            <AppText className="mt-3 text-[28px] font-extrabold leading-8 text-[#211A32]">
+              {activeListings.toLocaleString("en-IN")}
+            </AppText>
+            <AppText className="mt-1 text-[10px] text-[#6C6380]">
+              {listings.filter((item) => item.status !== "REMOVED").length}{" "}
+              published in total
+            </AppText>
+            <View className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#DED5F1]">
+              <View
+                className="h-full rounded-full bg-[#8C76C8]"
+                style={{
+                  width: `${
+                    listings.filter((item) => item.status !== "REMOVED").length
+                      ? Math.max(
+                          4,
+                          (activeListings /
+                            listings.filter((item) => item.status !== "REMOVED")
+                              .length) *
+                            100,
+                        )
+                      : 0
+                  }%`,
+                }}
+              />
             </View>
           </View>
-          <PrimaryButton
-            label="List a crop"
-            icon="plus"
-            tone="lime"
-            onPress={startNewListing}
-          />
-        </View>
 
-        <View className="mt-3 flex-row gap-2">
-          {[
-            {
-              label: "Active listings",
-              value: String(activeListings),
-              icon: "package" as const,
-            },
-            {
-              label: "Open orders",
-              value: String(openOrders),
-              icon: "shopping-bag" as const,
-            },
-            {
-              label: "Payments received",
-              value: money(completedRevenue),
-              icon: "credit-card" as const,
-            },
-          ].map((item) => (
-            <View
-              key={item.label}
-              className="min-w-0 flex-1 rounded-[13px] border border-[#2C382E] bg-[#141815] p-3"
-            >
-              <Feather name={item.icon} size={14} color={C.lime} />
-              <AppText
-                className="mt-2 text-[15px] font-extrabold text-[#F4F7F1]"
-                numberOfLines={1}
-              >
-                {item.value}
+          <View className="min-w-0 flex-1 overflow-hidden rounded-[20px] bg-[#E3F1E5] p-4">
+            <View className="flex-row items-center justify-between">
+              <AppText className="text-[11px] font-medium text-[#47664D]">
+                Paid revenue
               </AppText>
-              <AppText className="mt-1 text-[9px] leading-3 text-[#A0ADA1]">
-                {item.label}
+              <View className="h-8 w-8 items-center justify-center rounded-[11px] bg-[#CDE5D1]">
+                <Feather name="trending-up" size={15} color="#2F7D4E" />
+              </View>
+            </View>
+            <AppText
+              className="mt-3 text-[25px] font-extrabold leading-8 text-[#183B24]"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {money(completedRevenue)}
+            </AppText>
+            <AppText className="mt-1 text-[10px] text-[#52745A]">
+              Confirmed payments
+            </AppText>
+            <View className="mt-4 flex-row items-center gap-1.5">
+              <Feather name="check-circle" size={12} color="#2F7D4E" />
+              <AppText className="text-[10px] font-semibold text-[#2F7D4E]">
+                {
+                  orders.filter((order) => order.paymentStatus === "PAID")
+                    .length
+                }{" "}
+                paid orders
               </AppText>
             </View>
-          ))}
+          </View>
         </View>
 
-        <View className="mt-5 flex-row rounded-[13px] bg-[#1B211C] p-1">
+        <View className="mt-3 flex-row items-center rounded-[16px] border border-[#E1E8E2] bg-white px-4 py-3.5">
+          <View className="min-w-0 flex-1 flex-row items-center gap-2.5">
+            <View className="h-9 w-9 items-center justify-center rounded-[12px] bg-[#F0EAFB]">
+              <Feather name="shopping-bag" size={16} color="#765CB6" />
+            </View>
+            <View>
+              <AppText className="text-[19px] font-extrabold text-[#172019]">
+                {openOrders}
+              </AppText>
+              <AppText className="text-[10px] text-[#69766D]">
+                Open orders
+              </AppText>
+            </View>
+          </View>
+          <View className="mx-3 h-9 w-px bg-[#E6ECE6]" />
+          <View className="min-w-0 flex-1 flex-row items-center gap-2.5">
+            <View className="h-9 w-9 items-center justify-center rounded-[12px] bg-[#E3F1E5]">
+              <Ionicons name="leaf-outline" size={17} color="#2F7D4E" />
+            </View>
+            <View>
+              <AppText className="text-[19px] font-extrabold text-[#172019]">
+                {availableCrops.length}
+              </AppText>
+              <AppText className="text-[10px] text-[#69766D]">
+                Sellable crops
+              </AppText>
+            </View>
+          </View>
+        </View>
+
+        <Pressable
+          onPress={startNewListing}
+          className="mt-4 flex-row items-center gap-3 rounded-[18px] bg-[#2F7D4E] px-4 py-4"
+          style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
+        >
+          <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-[rgba(255,255,255,0.16)]">
+            <Feather name="plus" size={21} color="#FFFFFF" />
+          </View>
+          <View className="min-w-0 flex-1">
+            <AppText className="text-[14px] font-bold text-white">
+              List a crop
+            </AppText>
+            <AppText className="mt-0.5 text-[10px] leading-4 text-[#E4F3E7]">
+              Publish produce from your grow records
+            </AppText>
+          </View>
+          <Feather name="arrow-up-right" size={19} color="#FFFFFF" />
+        </Pressable>
+
+        <View className="mt-5 rounded-[20px] border border-[#E1E8E2] bg-white p-4">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="min-w-0 flex-1">
+              <AppText className="text-[15px] font-bold text-[#172019]">
+                Revenue this week
+              </AppText>
+              <AppText className="mt-1 text-[10px] text-[#7A877D]">
+                Confirmed payments · last 7 days
+              </AppText>
+            </View>
+            <AppText
+              className="text-[16px] font-extrabold text-[#2F7D4E]"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {money(weeklyPaidRevenue)}
+            </AppText>
+          </View>
+          <View className="mt-4 flex-row items-end justify-between gap-2">
+            {weeklyRevenueBars.map((day) => (
+              <View key={day.key} className="min-w-0 flex-1 items-center">
+                <View className="h-[96px] w-full items-center justify-end">
+                  <View
+                    className="w-full max-w-[24px] rounded-t-[6px]"
+                    style={{
+                      height:
+                        day.amount > 0
+                          ? Math.max(7, (day.amount / maxWeeklyRevenue) * 88)
+                          : 4,
+                      backgroundColor: day.amount > 0 ? "#65A875" : "#E8EEE9",
+                    }}
+                  />
+                </View>
+                <AppText className="mt-2 text-[9px] font-medium text-[#7A877D]">
+                  {day.label}
+                </AppText>
+              </View>
+            ))}
+          </View>
+          {weeklyPaidRevenue === 0 ? (
+            <View className="mt-3 flex-row items-center gap-2 rounded-[11px] bg-[#F5F8F5] px-3 py-2.5">
+              <Feather name="info" size={13} color="#7A877D" />
+              <AppText className="flex-1 text-[10px] leading-4 text-[#69766D]">
+                Confirmed sales will appear here when paid order data is
+                available.
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+
+        {recentOrders.length > 0 ? (
+          <View className="mt-5">
+            <View className="mb-3 flex-row items-end justify-between">
+              <View>
+                <AppText className="text-[15px] font-bold text-[#172019]">
+                  Recent activity
+                </AppText>
+                <AppText className="mt-1 text-[10px] text-[#7A877D]">
+                  Your latest customer orders
+                </AppText>
+              </View>
+              <Pressable onPress={() => setTab("ORDERS")} className="py-1">
+                <AppText className="text-[11px] font-semibold text-[#2F7D4E]">
+                  View all
+                </AppText>
+              </Pressable>
+            </View>
+            <View className="overflow-hidden rounded-[18px] border border-[#E1E8E2] bg-white px-3.5">
+              {recentOrders.map((order, index) => (
+                <Pressable
+                  key={order.id}
+                  onPress={() => void openOrder(order)}
+                  className={`flex-row items-center gap-3 py-3.5 ${
+                    index < recentOrders.length - 1
+                      ? "border-b border-[#E6ECE6]"
+                      : ""
+                  }`}
+                >
+                  <View className="h-10 w-10 items-center justify-center rounded-full bg-[#E3F1E5]">
+                    <Feather name="shopping-bag" size={16} color="#2F7D4E" />
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <AppText
+                      className="text-[12px] font-bold text-[#172019]"
+                      numberOfLines={1}
+                    >
+                      {order.buyer?.username || "Customer"} · {order.cropName}
+                    </AppText>
+                    <AppText
+                      className="mt-1 text-[10px] text-[#7A877D]"
+                      numberOfLines={1}
+                    >
+                      {order.orderNumber} · {statusLabel(order.status)}
+                    </AppText>
+                  </View>
+                  <View className="items-end gap-1">
+                    <AppText className="text-[12px] font-bold text-[#172019]">
+                      {money(order.totalAmount)}
+                    </AppText>
+                    <AppText
+                      className="text-[9px] font-semibold"
+                      style={{
+                        color:
+                          order.paymentStatus === "PAID"
+                            ? "#2F7D4E"
+                            : "#946200",
+                      }}
+                    >
+                      {statusLabel(order.paymentStatus)}
+                    </AppText>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View className="mt-6">
+          <AppText className="text-[17px] font-extrabold text-[#172019]">
+            Workspace
+          </AppText>
+          <AppText className="mt-1 text-[10px] text-[#7A877D]">
+            Manage your products and fulfilment
+          </AppText>
+        </View>
+
+        <View className="mt-3 flex-row rounded-[14px] border border-[#E1E8E2] bg-[#ECEFEC] p-1">
           <Pressable
             onPress={() => setTab("LISTINGS")}
-            className={`flex-1 flex-row items-center justify-center gap-2 rounded-[10px] py-2.5 ${tab === "LISTINGS" ? "bg-[#303B30]" : ""}`}
+            className={`flex-1 flex-row items-center justify-center gap-2 rounded-[11px] py-3 ${
+              tab === "LISTINGS" ? "bg-white" : ""
+            }`}
+            style={
+              tab === "LISTINGS"
+                ? {
+                    shadowColor: "#1B2A1D",
+                    shadowOpacity: 0.07,
+                    shadowRadius: 5,
+                    shadowOffset: { width: 0, height: 2 },
+                    elevation: 1,
+                  }
+                : undefined
+            }
           >
             <Feather
               name="layers"
               size={14}
-              color={tab === "LISTINGS" ? C.lime : C.muted}
+              color={tab === "LISTINGS" ? "#2F7D4E" : "#7A877D"}
             />
             <AppText
-              className={`text-[11px] font-bold ${tab === "LISTINGS" ? "text-[#F4F7F1]" : "text-[#A0ADA1]"}`}
+              className={`text-[11px] font-bold ${
+                tab === "LISTINGS" ? "text-[#172019]" : "text-[#69766D]"
+              }`}
             >
-              My listings (
+              Listings (
               {listings.filter((item) => item.status !== "REMOVED").length})
             </AppText>
           </Pressable>
           <Pressable
             onPress={() => setTab("ORDERS")}
-            className={`flex-1 flex-row items-center justify-center gap-2 rounded-[10px] py-2.5 ${tab === "ORDERS" ? "bg-[#303B30]" : ""}`}
+            className={`flex-1 flex-row items-center justify-center gap-2 rounded-[11px] py-3 ${
+              tab === "ORDERS" ? "bg-white" : ""
+            }`}
+            style={
+              tab === "ORDERS"
+                ? {
+                    shadowColor: "#1B2A1D",
+                    shadowOpacity: 0.07,
+                    shadowRadius: 5,
+                    shadowOffset: { width: 0, height: 2 },
+                    elevation: 1,
+                  }
+                : undefined
+            }
           >
             <Feather
               name="shopping-bag"
               size={14}
-              color={tab === "ORDERS" ? C.lime : C.muted}
+              color={tab === "ORDERS" ? "#2F7D4E" : "#7A877D"}
             />
             <AppText
-              className={`text-[11px] font-bold ${tab === "ORDERS" ? "text-[#F4F7F1]" : "text-[#A0ADA1]"}`}
+              className={`text-[11px] font-bold ${
+                tab === "ORDERS" ? "text-[#172019]" : "text-[#69766D]"
+              }`}
             >
-              Selling orders ({orders.length})
+              Orders ({orders.length})
             </AppText>
           </Pressable>
         </View>
 
         {error ? (
-          <View className="mt-4 rounded-[13px] border border-[#59302C] bg-[#241512] p-3">
+          <View className="mt-4 rounded-[13px] border border-[#F0CFCA] bg-[#FCEBE9] p-3">
             <View className="flex-row items-start gap-2">
-              <Feather name="alert-circle" size={15} color={C.red} />
+              <Feather name="alert-circle" size={15} color="#C53D38" />
               <View className="min-w-0 flex-1">
-                <AppText className="text-[11px] font-bold text-[#FF8178]">
+                <AppText className="text-[11px] font-bold text-[#913F39]">
                   Could not refresh seller data
                 </AppText>
-                <AppText className="mt-1 text-[10px] leading-4 text-[#E5B1AD]">
+                <AppText className="mt-1 text-[10px] leading-4 text-[#913F39]">
                   {error}
                 </AppText>
               </View>
             </View>
             <Pressable
               onPress={() => void loadAll()}
-              className="mt-3 self-start rounded-[9px] bg-[#321D1B] px-3 py-2"
+              className="mt-3 self-start rounded-[9px] bg-white px-3 py-2"
             >
-              <AppText className="text-[10px] font-bold text-[#FF8178]">
+              <AppText className="text-[10px] font-bold text-[#2F7D4E]">
                 Try again
               </AppText>
             </Pressable>
@@ -2509,8 +2867,8 @@ export default function MarketplaceSellScreen() {
 
         {loading ? (
           <View className="items-center py-12">
-            <ActivityIndicator color={C.lime} size="large" />
-            <AppText className="mt-3 text-[11px] text-[#A0ADA1]">
+            <ActivityIndicator color="#2F7D4E" size="large" />
+            <AppText className="mt-3 text-[11px] text-[#69766D]">
               Loading your seller workspace…
             </AppText>
           </View>
@@ -2518,32 +2876,32 @@ export default function MarketplaceSellScreen() {
           <View className="mt-5">
             <View className="mb-3 flex-row items-end justify-between gap-2">
               <View className="min-w-0 flex-1">
-                <AppText className="text-[17px] font-extrabold text-[#F4F7F1]">
+                <AppText className="text-[17px] font-extrabold text-[#172019]">
                   Your listings
                 </AppText>
-                <AppText className="mt-1 text-[10px] text-[#A0ADA1]">
+                <AppText className="mt-1 text-[10px] text-[#7A877D]">
                   Update pricing and availability at any time.
                 </AppText>
               </View>
               <Pressable
                 onPress={startNewListing}
-                className="flex-row items-center gap-1 rounded-[10px] bg-[#C8FF67] px-3 py-2"
+                className="flex-row items-center gap-1.5 rounded-full bg-[#2F7D4E] px-3.5 py-2.5"
               >
-                <Feather name="plus" size={13} color={C.bg} />
-                <AppText className="text-[10px] font-extrabold text-[#0B0D0B]">
+                <Feather name="plus" size={13} color="#FFFFFF" />
+                <AppText className="text-[10px] font-bold text-white">
                   Add crop
                 </AppText>
               </Pressable>
             </View>
             {listings.length === 0 ? (
-              <View className="items-center rounded-[16px] border border-dashed border-[#3A493C] bg-[#141815] px-6 py-9">
-                <View className="mb-3 h-12 w-12 items-center justify-center rounded-[15px] bg-[#202A19]">
-                  <Ionicons name="basket-outline" size={24} color={C.lime} />
+              <View className="items-center rounded-[18px] border border-dashed border-[#C9D9CC] bg-white px-6 py-9">
+                <View className="mb-3 h-12 w-12 items-center justify-center rounded-[15px] bg-[#E5F3E7]">
+                  <Ionicons name="basket-outline" size={24} color="#2F7D4E" />
                 </View>
-                <AppText className="text-[14px] font-bold text-[#F4F7F1]">
+                <AppText className="text-[14px] font-bold text-[#172019]">
                   No listings yet
                 </AppText>
-                <AppText className="mt-1 text-center text-[11px] leading-4 text-[#A0ADA1]">
+                <AppText className="mt-1 text-center text-[11px] leading-4 text-[#69766D]">
                   Create a listing using crops already recorded in your grow
                   racks.
                 </AppText>
@@ -2568,13 +2926,12 @@ export default function MarketplaceSellScreen() {
                 />
               ))
             )}
-            <View className="mt-2 rounded-[13px] border border-[#2C382E] bg-[#111611] p-3">
+            <View className="mt-2 rounded-[13px] border border-[#E1E8E2] bg-white p-3">
               <View className="flex-row items-start gap-2">
-                <Feather name="shield-check" size={14} color={C.muted} />
-                <AppText className="min-w-0 flex-1 text-[10px] leading-4 text-[#748176]">
-                  Available crops, stock, listing status, order counts and
-                  seller locations are loaded from your marketplace API. Server
-                  validation is applied when saving.
+                <Feather name="shield-check" size={14} color="#7A877D" />
+                <AppText className="min-w-0 flex-1 text-[10px] leading-4 text-[#7A877D]">
+                  Crops, stock, listing status, order counts and locations come
+                  from your marketplace API. The server validates each change.
                 </AppText>
               </View>
             </View>
@@ -2582,24 +2939,24 @@ export default function MarketplaceSellScreen() {
         ) : (
           <View className="mt-5">
             <View className="mb-3">
-              <AppText className="text-[17px] font-extrabold text-[#F4F7F1]">
+              <AppText className="text-[17px] font-extrabold text-[#172019]">
                 Selling orders
               </AppText>
-              <AppText className="mt-1 text-[10px] text-[#A0ADA1]">
+              <AppText className="mt-1 text-[10px] text-[#7A877D]">
                 Accept orders, prepare them, track deliveries and record
                 payment.
               </AppText>
             </View>
             {orders.length === 0 ? (
-              <View className="items-center rounded-[16px] border border-dashed border-[#3A493C] bg-[#141815] px-6 py-9">
-                <View className="mb-3 h-12 w-12 items-center justify-center rounded-[15px] bg-[#202A19]">
-                  <Feather name="shopping-bag" size={22} color={C.lime} />
+              <View className="items-center rounded-[18px] border border-dashed border-[#C9D9CC] bg-white px-6 py-9">
+                <View className="mb-3 h-12 w-12 items-center justify-center rounded-[15px] bg-[#E3F1E5]">
+                  <Feather name="shopping-bag" size={22} color="#2F7D4E" />
                 </View>
-                <AppText className="text-[14px] font-bold text-[#F4F7F1]">
+                <AppText className="text-[14px] font-bold text-[#172019]">
                   No customer orders yet
                 </AppText>
-                <AppText className="mt-1 text-center text-[11px] leading-4 text-[#A0ADA1]">
-                  Orders placed for your active listings will appear here.
+                <AppText className="mt-1 text-center text-[11px] leading-4 text-[#69766D]">
+                  Orders for your active listings will appear here.
                 </AppText>
               </View>
             ) : (
@@ -2644,8 +3001,8 @@ export default function MarketplaceSellScreen() {
       >
         {orderBusy && !selectedOrder ? (
           <View className="items-center py-10">
-            <ActivityIndicator color={C.lime} />
-            <AppText className="mt-2 text-[10px] text-[#A0ADA1]">
+            <ActivityIndicator color="#2F7D4E" />
+            <AppText className="mt-2 text-[10px] text-[#69766D]">
               Loading order details…
             </AppText>
           </View>
