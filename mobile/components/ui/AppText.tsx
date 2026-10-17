@@ -2,7 +2,7 @@ import React from "react";
 import { Text, TextProps } from "react-native";
 
 type AppTextProps = TextProps & {
-  weight?: "regular" | "medium" | "semibold" | "bold";
+  weight?: "regular" | "medium" | "semibold" | "bold" | "extrabold";
   className?: string;
 };
 
@@ -11,6 +11,7 @@ const FONT_FAMILIES = {
   medium: "Poppins_500Medium",
   semibold: "Poppins_600SemiBold",
   bold: "Poppins_700Bold",
+  extrabold: "Poppins_800ExtraBold",
 };
 
 export default function AppText({

@@ -10,6 +10,7 @@ import {
   Poppins_500Medium,
   Poppins_600SemiBold,
   Poppins_700Bold,
+  Poppins_800ExtraBold,
 } from "@expo-google-fonts/poppins";
 
 import "react-native-reanimated";
@@ -40,6 +41,7 @@ export default function RootLayout() {
     Poppins_500Medium,
     Poppins_600SemiBold,
     Poppins_700Bold,
+    Poppins_800ExtraBold,
   });
 
   useEffect(() => {

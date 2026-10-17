@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   StatusBar,
-  Text,
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -23,6 +22,7 @@ import {
   type MarketplaceLocation,
 } from "../../lib/marketplace-store";
 import { MARKETPLACE_COLORS as C } from "../../theme/marketplace-colors";
+import AppText from "@/components/ui/AppText";
 
 type PaymentMethod = "COD" | "ONLINE";
 type FulfillmentType = "SELLER_DELIVERY" | "CUSTOMER_PICKUP";
@@ -77,6 +77,9 @@ export default function MarketplaceCartScreen() {
   const [busy, setBusy] = useState(false);
   const [loadingLocations, setLoadingLocations] = useState(true);
   const [locationError, setLocationError] = useState("");
+  const [showAddressOptions, setShowAddressOptions] = useState(false);
+  const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  const [showCheckoutOptions, setShowCheckoutOptions] = useState(false);
   const checkoutLock = useRef(false);
 
   // GET /api/user/marketplace/locations
@@ -163,7 +166,6 @@ export default function MarketplaceCartScreen() {
   );
 
   const total = subtotal + delivery;
-  const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
   const cancelPendingOrder = async (orderId: string) => {
     // POST /api/user/marketplace/orders/:orderId/cancel
     await apiRequest(`/user/marketplace/orders/${orderId}/cancel`, {
@@ -391,693 +393,756 @@ export default function MarketplaceCartScreen() {
     }
   };
 
+  const originalSubtotal = subtotal + savings;
+  const discountPercent =
+    originalSubtotal > 0 ? Math.round((savings / originalSubtotal) * 100) : 0;
+  const selectedLocation = locations.find(
+    (location) => location.id === locationId,
+  );
+
   return (
-    <View className="flex-1 bg-[#0C0D0B]">
-      <StatusBar barStyle="light-content" backgroundColor="#0C0D0B" />
+    <View className="flex-1 bg-[#07110B]">
+      <StatusBar barStyle="light-content" backgroundColor="#07110B" />
 
-      {/* Cart header */}
+      {/* Full-screen cart: safe-area insets are handled by the screen, not a floating drawer. */}
       <View
-        className="flex-row items-center gap-3 border-b border-[#252922] px-4 pb-4"
-        style={{ paddingTop: insets.top + 8 }}
+        className="flex-1 bg-[#0D140F]"
+        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
-        <Pressable
-          onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center rounded-2xl border border-[#30352D] bg-[#171916]"
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Feather name="arrow-left" size={20} color="#F6F7F4" />
-        </Pressable>
+        {/* Cart header */}
+        <View className="flex-row items-center justify-between border-b border-[#263229] bg-[#111914] px-4 py-3">
+          <AppText className="text-[19px] font-bold leading-6 text-[#F5F7F2]">
+            Your Cart ({items.length})
+          </AppText>
 
-        <View className="min-w-0 flex-1">
-          <Text className="text-[10px] font-bold tracking-[1.7px] text-[#A2A79E]">
-            FRESH FROM LOCAL GROWERS
-          </Text>
-          <Text className="mt-0.5 text-[25px] font-extrabold leading-8 text-[#F6F7F4]">
-            Your cart
-          </Text>
-        </View>
-
-        {items.length > 0 && (
-          <>
-            <View className="rounded-full bg-[#202A19] px-2.5 py-1.5">
-              <Text className="text-[11px] font-extrabold text-[#C8FF67]">
-                {totalUnits} {totalUnits === 1 ? "item" : "items"}
-              </Text>
-            </View>
+          <View className="flex-row items-center gap-1">
+            {items.length > 0 ? (
+              <Pressable
+                onPress={() =>
+                  Alert.alert(
+                    "Clear cart?",
+                    "Remove every product from your cart?",
+                    [
+                      { text: "Keep items", style: "cancel" },
+                      {
+                        text: "Clear cart",
+                        style: "destructive",
+                        onPress: clearCart,
+                      },
+                    ],
+                  )
+                }
+                className="h-8 w-8 items-center justify-center rounded-full"
+                accessibilityRole="button"
+                accessibilityLabel="Clear cart"
+              >
+                <Feather name="trash-2" size={15} color="#8F9B90" />
+              </Pressable>
+            ) : null}
             <Pressable
-              onPress={() =>
-                Alert.alert(
-                  "Clear cart?",
-                  "Remove every product from your cart?",
-                  [
-                    { text: "Keep items", style: "cancel" },
-                    {
-                      text: "Clear cart",
-                      style: "destructive",
-                      onPress: clearCart,
-                    },
-                  ],
-                )
-              }
-              className="h-10 w-10 items-center justify-center rounded-xl border border-[#30352D] bg-[#171916]"
+              onPress={() => router.back()}
+              className="h-8 w-8 items-center justify-center rounded-full"
               accessibilityRole="button"
-              accessibilityLabel="Clear cart"
+              accessibilityLabel="Close cart"
             >
-              <Feather name="trash-2" size={16} color="#F59E6B" />
+              <Feather name="x" size={25} color="#EAF0E8" />
             </Pressable>
-          </>
-        )}
-      </View>
-
-      {items.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-8">
-          <View className="mb-5 h-[88px] w-[88px] items-center justify-center rounded-[30px] border border-[#35432A] bg-[#171E12]">
-            <Ionicons name="basket-outline" size={39} color="#C8FF67" />
           </View>
-          <Text className="text-center text-[22px] font-extrabold text-[#F6F7F4]">
-            Nothing here. Yet.
-          </Text>
-          <Text className="mt-2 max-w-[280px] text-center text-[13px] leading-[21px] text-[#A2A79E]">
-            Your next fresh find is waiting. Browse local harvests and add
-            something good.
-          </Text>
-          <Pressable
-            onPress={() => router.replace("/(tabs)/market" as any)}
-            className="mt-6 min-h-[50px] w-full flex-row items-center justify-center gap-2 rounded-2xl bg-[#C8FF67] px-5"
-          >
-            <Text className="text-[13px] font-extrabold text-[#0C0D0B]">
-              Explore the marketplace
-            </Text>
-            <Feather name="arrow-up-right" size={17} color="#0C0D0B" />
-          </Pressable>
         </View>
-      ) : (
-        <>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 28 }}
-          >
-            <View className="px-4 pt-5">
-              {/* Cart items */}
-              <View className="mb-3 flex-row items-end justify-between">
-                <View>
-                  <Text className="text-[17px] font-extrabold text-[#F6F7F4]">
-                    Items in your bag
-                  </Text>
-                  <Text className="mt-1 text-[11px] text-[#8D9489]">
-                    Review your picks before checkout
-                  </Text>
-                </View>
-                <Text className="text-[11px] font-semibold text-[#A2A79E]">
-                  {items.length} {items.length === 1 ? "product" : "products"}
-                </Text>
-              </View>
 
-              {items.map(({ listing, quantity }: CartLine) => {
-                const bounds = quantityBounds(listing);
-                const selectedFulfillment = getFulfillment(listing);
-                const itemSubtotal = Number(listing.price || 0) * quantity;
-                const itemSavings =
-                  Math.max(
+        {items.length === 0 ? (
+          <View className="flex-1 items-center justify-center px-7">
+            <View className="mb-4 h-[76px] w-[76px] items-center justify-center rounded-[22px] border border-[#344832] bg-[#17251A]">
+              <Ionicons name="basket-outline" size={35} color="#C9F477" />
+            </View>
+            <AppText className="text-center text-[21px] font-bold text-[#F5F7F2]">
+              Your cart is empty
+            </AppText>
+            <AppText className="mt-2 text-center text-[12px] leading-5 text-[#A0ADA1]">
+              Find something fresh from growers near you.
+            </AppText>
+            <Pressable
+              onPress={() => router.replace("/(tabs)/market" as any)}
+              className="mt-5 min-h-[46px] w-full flex-row items-center justify-center gap-2 rounded-full bg-[#347D4A] px-4"
+            >
+              <AppText className="text-[13px] font-bold text-white">
+                Browse marketplace
+              </AppText>
+              <Feather name="arrow-right" size={15} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 14 }}
+            >
+              {/* Cart items: independent full-width section. */}
+              <View className="border-b border-[#26372A] bg-[#0D140F] pb-4 pt-3">
+                {items.map(({ listing, quantity }: CartLine) => {
+                  const bounds = quantityBounds(listing);
+                  const selectedFulfillment = getFulfillment(listing);
+                  const price = Number(listing.price || 0);
+                  const originalPrice = Number(
+                    listing.originalPrice || listing.price || 0,
+                  );
+                  const itemSubtotal = price * quantity;
+                  const itemOriginalSubtotal = originalPrice * quantity;
+                  const itemSavings = Math.max(
                     0,
-                    Number(listing.originalPrice || listing.price || 0) -
-                      Number(listing.price || 0),
-                  ) * quantity;
-                const overStock =
-                  quantity > bounds.max || bounds.max < bounds.min;
+                    itemOriginalSubtotal - itemSubtotal,
+                  );
+                  const overStock =
+                    quantity > bounds.max || bounds.max < bounds.min;
 
-                return (
-                  <View
-                    key={listing.id}
-                    className="mb-3 rounded-[19px] border border-[#30352D] bg-[#171916] p-3.5"
-                  >
-                    <View className="flex-row gap-3">
-                      <View className="h-[94px] w-[91px] shrink-0 overflow-hidden rounded-[14px] bg-[#202A19]">
-                        {listing.imageUrl ? (
-                          <Image
-                            source={{ uri: listing.imageUrl }}
-                            className="h-full w-full"
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <View className="flex-1 items-center justify-center">
-                            <Ionicons
-                              name="leaf-outline"
-                              size={31}
-                              color="#C8FF67"
-                            />
-                            <Text className="mt-1 text-[9px] text-[#A2A79E]">
-                              Fresh produce
-                            </Text>
-                          </View>
-                        )}
+                  return (
+                    <View key={listing.id} className="mb-4 px-4">
+                      <View className="mb-2 flex-row items-center justify-between">
+                        <AppText className="text-[11px] font-semibold text-[#DCE6DA]">
+                          Fresh from your local grower
+                        </AppText>
+                        <Pressable
+                          onPress={() =>
+                            Alert.alert(
+                              "Remove item?",
+                              `Remove ${listing.cropName} from your cart?`,
+                              [
+                                { text: "Keep", style: "cancel" },
+                                {
+                                  text: "Remove",
+                                  style: "destructive",
+                                  onPress: () => removeCartItem(listing.id),
+                                },
+                              ],
+                            )
+                          }
+                          hitSlop={8}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove ${listing.cropName}`}
+                        >
+                          <Feather name="trash-2" size={15} color="#8F9B90" />
+                        </Pressable>
                       </View>
 
-                      <View className="min-w-0 flex-1 py-0.5">
-                        <View className="flex-row items-start gap-2">
-                          <View className="min-w-0 flex-1">
-                            <Text
-                              className="text-[14px] font-extrabold leading-5 text-[#F6F7F4]"
-                              numberOfLines={2}
-                            >
-                              {listing.cropName}
-                            </Text>
-                            <Text
-                              className="mt-1 text-[11px] text-[#A2A79E]"
-                              numberOfLines={1}
-                            >
-                              {listing.packSizeValue} {listing.packSizeUnit} ·{" "}
-                              {listing.seller?.username ?? "Local grower"}
-                            </Text>
-                          </View>
-                          <Pressable
-                            onPress={() =>
-                              Alert.alert(
-                                "Remove item?",
-                                `Remove ${listing.cropName} from your cart?`,
-                                [
-                                  { text: "Keep", style: "cancel" },
-                                  {
-                                    text: "Remove",
-                                    style: "destructive",
-                                    onPress: () => removeCartItem(listing.id),
-                                  },
-                                ],
-                              )
-                            }
-                            hitSlop={8}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Remove ${listing.cropName}`}
-                            className="h-7 w-7 items-center justify-center rounded-lg bg-[#242720]"
+                      <View className="flex-row gap-3">
+                        <View className="h-[88px] w-[82px] shrink-0 overflow-hidden rounded-[10px] bg-[#202D23]">
+                          {listing.imageUrl ? (
+                            <Image
+                              source={{ uri: listing.imageUrl }}
+                              className="h-full w-full"
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View className="flex-1 items-center justify-center">
+                              <Ionicons
+                                name="leaf-outline"
+                                size={30}
+                                color="#C9F477"
+                              />
+                              <AppText className="mt-1 text-[9px] text-[#A0ADA1]">
+                                Fresh produce
+                              </AppText>
+                            </View>
+                          )}
+                        </View>
+
+                        <View className="min-w-0 flex-1">
+                          <AppText
+                            className="text-[15px] font-bold leading-5 text-[#F5F7F2]"
+                            numberOfLines={2}
                           >
-                            <Feather name="x" size={15} color="#A2A79E" />
+                            {listing.cropName}
+                          </AppText>
+                          <AppText className="mt-0.5 text-[11px] text-[#A0ADA1]">
+                            {listing.packSizeValue} {listing.packSizeUnit}
+                          </AppText>
+                          <AppText
+                            className="text-[11px] text-[#A0ADA1]"
+                            numberOfLines={1}
+                          >
+                            {listing.seller?.username ?? "Local grower"}
+                          </AppText>
+
+                          <View className="mt-2 flex-row flex-wrap items-baseline gap-1.5">
+                            <AppText className="text-[16px] font-bold text-[#F5F7F2]">
+                              {money(itemSubtotal)}
+                            </AppText>
+                            {itemSavings > 0 ? (
+                              <AppText className="text-[10px] text-[#849087] line-through">
+                                {money(itemOriginalSubtotal)}
+                              </AppText>
+                            ) : null}
+                          </View>
+
+                          {itemSavings > 0 ? (
+                            <View className="mt-1.5 self-start flex-row items-center gap-1 rounded-md bg-[#24372A] px-2 py-1">
+                              <Feather name="tag" size={10} color="#C9F477" />
+                              <AppText className="text-[10px] font-semibold text-[#DCEBD6]">
+                                SAVE {money(itemSavings)}
+                              </AppText>
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+
+                      {/* Quantity controls */}
+                      <View className="mt-3 flex-row flex-wrap items-center justify-between gap-2">
+                        <View className="h-9 flex-row items-center rounded-full border border-[#344337] bg-[#101711]">
+                          <Pressable
+                            onPress={() => {
+                              if (quantity > bounds.min) {
+                                setCartQuantity(listing.id, quantity - 1);
+                              }
+                            }}
+                            disabled={quantity <= bounds.min}
+                            className="h-8 w-9 items-center justify-center"
+                            accessibilityRole="button"
+                            accessibilityLabel={`Decrease ${listing.cropName} quantity`}
+                          >
+                            <Feather
+                              name="minus"
+                              size={14}
+                              color={
+                                quantity <= bounds.min ? "#59645A" : "#F5F7F2"
+                              }
+                            />
+                          </Pressable>
+                          <AppText className="min-w-[20px] text-center text-[12px] font-bold text-[#F5F7F2]">
+                            {quantity}
+                          </AppText>
+                          <Pressable
+                            onPress={() => {
+                              if (
+                                bounds.max >= bounds.min &&
+                                quantity < bounds.max
+                              ) {
+                                setCartQuantity(
+                                  listing.id,
+                                  Math.min(
+                                    bounds.max,
+                                    Math.max(bounds.min, quantity + 1),
+                                  ),
+                                );
+                              }
+                            }}
+                            disabled={
+                              bounds.max < bounds.min || quantity >= bounds.max
+                            }
+                            className="h-8 w-9 items-center justify-center"
+                            accessibilityRole="button"
+                            accessibilityLabel={`Increase ${listing.cropName} quantity`}
+                          >
+                            <Feather
+                              name="plus"
+                              size={14}
+                              color={
+                                bounds.max < bounds.min ||
+                                quantity >= bounds.max
+                                  ? "#59645A"
+                                  : "#C9F477"
+                              }
+                            />
                           </Pressable>
                         </View>
 
-                        <View className="mt-auto flex-row items-end justify-between gap-2 pt-3">
-                          <View className="min-w-0 flex-1">
-                            <Text className="text-[16px] font-extrabold text-[#F6F7F4]">
-                              {money(itemSubtotal)}
-                            </Text>
-                            <Text className="mt-0.5 text-[10px] text-[#8D9489]">
-                              {money(Number(listing.price || 0))} each
-                            </Text>
-                          </View>
-
-                          <View className="h-9 flex-row items-center rounded-xl border border-[#46513A] bg-[#10130E]">
-                            <Pressable
-                              onPress={() => {
-                                if (quantity > bounds.min) {
-                                  setCartQuantity(listing.id, quantity - 1);
-                                }
-                              }}
-                              disabled={quantity <= bounds.min}
-                              className="h-8 w-8 items-center justify-center"
-                              accessibilityRole="button"
-                              accessibilityLabel={`Decrease ${listing.cropName} quantity`}
-                            >
-                              <Feather
-                                name="minus"
-                                size={13}
-                                color={
-                                  quantity <= bounds.min ? "#555B53" : "#F6F7F4"
-                                }
-                              />
-                            </Pressable>
-                            <Text className="min-w-[22px] text-center text-[12px] font-extrabold text-[#F6F7F4]">
-                              {quantity}
-                            </Text>
-                            <Pressable
-                              onPress={() => {
-                                if (
-                                  bounds.max >= bounds.min &&
-                                  quantity < bounds.max
-                                ) {
-                                  setCartQuantity(
-                                    listing.id,
-                                    Math.min(
-                                      bounds.max,
-                                      Math.max(bounds.min, quantity + 1),
-                                    ),
-                                  );
-                                }
-                              }}
-                              disabled={
-                                bounds.max < bounds.min ||
-                                quantity >= bounds.max
-                              }
-                              className="h-8 w-8 items-center justify-center"
-                              accessibilityRole="button"
-                              accessibilityLabel={`Increase ${listing.cropName} quantity`}
-                            >
-                              <Feather
-                                name="plus"
-                                size={13}
-                                color={
-                                  bounds.max < bounds.min ||
-                                  quantity >= bounds.max
-                                    ? "#555B53"
-                                    : "#C8FF67"
-                                }
-                              />
-                            </Pressable>
-                          </View>
-                        </View>
+                        <AppText className="text-[10px] text-[#A0ADA1]">
+                          {money(price)} per pack
+                        </AppText>
                       </View>
-                    </View>
 
-                    {itemSavings > 0 && (
-                      <View className="mt-3 flex-row items-center gap-1.5">
-                        <Feather name="tag" size={12} color="#C8FF67" />
-                        <Text className="text-[10px] font-semibold text-[#C8FF67]">
-                          You save {money(itemSavings)} on this item
-                        </Text>
-                      </View>
-                    )}
-
-                    {/* Fulfillment method is chosen per seller/listing. */}
-                    <View className="mt-3 border-t border-[#30352D] pt-3">
+                      {/* Compact delivery and pickup options */}
                       {listing.sellerDelivery && listing.customerPickup ? (
-                        <>
-                          <Text className="mb-2 text-[10px] font-bold uppercase tracking-[0.8px] text-[#8D9489]">
-                            Fulfilment option
-                          </Text>
-                          <View className="flex-row gap-2">
-                            <Pressable
-                              onPress={() =>
-                                chooseFulfillment(listing.id, "SELLER_DELIVERY")
+                        <View className="mt-3 flex-row gap-2">
+                          <Pressable
+                            onPress={() =>
+                              chooseFulfillment(listing.id, "SELLER_DELIVERY")
+                            }
+                            className={`flex-1 flex-row items-center justify-center gap-1.5 rounded-lg border px-2 py-2 ${selectedFulfillment === "SELLER_DELIVERY" ? "border-[#638D5D] bg-[#1B2B1D]" : "border-[#2A382D] bg-[#111813]"}`}
+                          >
+                            <Feather
+                              name="truck"
+                              size={12}
+                              color={
+                                selectedFulfillment === "SELLER_DELIVERY"
+                                  ? "#C9F477"
+                                  : "#A0ADA1"
                               }
-                              className={`min-h-[42px] flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-2 ${selectedFulfillment === "SELLER_DELIVERY" ? "border-[#718F38] bg-[#202A19]" : "border-[#30352D] bg-[#10110F]"}`}
-                            >
-                              <Feather
-                                name="truck"
-                                size={13}
-                                color={
-                                  selectedFulfillment === "SELLER_DELIVERY"
-                                    ? "#C8FF67"
-                                    : "#A2A79E"
-                                }
-                              />
-                              <View className="shrink">
-                                <Text
-                                  className={`text-[11px] font-bold ${selectedFulfillment === "SELLER_DELIVERY" ? "text-[#F6F7F4]" : "text-[#A2A79E]"}`}
-                                >
-                                  Delivery
-                                </Text>
-                                <Text className="mt-0.5 text-[9px] text-[#8D9489]">
-                                  {Number(listing.deliveryFee || 0) > 0
-                                    ? `+${money(Number(listing.deliveryFee || 0))}`
-                                    : "No fee"}
-                                </Text>
-                              </View>
-                            </Pressable>
-
-                            <Pressable
-                              onPress={() =>
-                                chooseFulfillment(listing.id, "CUSTOMER_PICKUP")
+                            />
+                            <AppText className="text-[10px] font-semibold text-[#E5ECE3]">
+                              Delivery{" "}
+                              {Number(listing.deliveryFee || 0) > 0
+                                ? `· ${money(Number(listing.deliveryFee || 0))}`
+                                : "· Free"}
+                            </AppText>
+                          </Pressable>
+                          <Pressable
+                            onPress={() =>
+                              chooseFulfillment(listing.id, "CUSTOMER_PICKUP")
+                            }
+                            className={`flex-1 flex-row items-center justify-center gap-1.5 rounded-lg border px-2 py-2 ${selectedFulfillment === "CUSTOMER_PICKUP" ? "border-[#638D5D] bg-[#1B2B1D]" : "border-[#2A382D] bg-[#111813]"}`}
+                          >
+                            <Feather
+                              name="map-pin"
+                              size={12}
+                              color={
+                                selectedFulfillment === "CUSTOMER_PICKUP"
+                                  ? "#C9F477"
+                                  : "#A0ADA1"
                               }
-                              className={`min-h-[42px] flex-1 flex-row items-center justify-center gap-1.5 rounded-xl border px-2 ${selectedFulfillment === "CUSTOMER_PICKUP" ? "border-[#718F38] bg-[#202A19]" : "border-[#30352D] bg-[#10110F]"}`}
-                            >
-                              <Feather
-                                name="map-pin"
-                                size={13}
-                                color={
-                                  selectedFulfillment === "CUSTOMER_PICKUP"
-                                    ? "#C8FF67"
-                                    : "#A2A79E"
-                                }
-                              />
-                              <View className="shrink">
-                                <Text
-                                  className={`text-[11px] font-bold ${selectedFulfillment === "CUSTOMER_PICKUP" ? "text-[#F6F7F4]" : "text-[#A2A79E]"}`}
-                                >
-                                  Pickup
-                                </Text>
-                                <Text className="mt-0.5 text-[9px] text-[#8D9489]">
-                                  Free
-                                </Text>
-                              </View>
-                            </Pressable>
-                          </View>
-                        </>
+                            />
+                            <AppText className="text-[10px] font-semibold text-[#E5ECE3]">
+                              Pickup · Free
+                            </AppText>
+                          </Pressable>
+                        </View>
                       ) : (
-                        <View className="flex-row items-center gap-2">
+                        <View className="mt-2 flex-row items-center gap-1.5">
                           <Feather
                             name={listing.sellerDelivery ? "truck" : "map-pin"}
-                            size={14}
-                            color="#C8FF67"
+                            size={12}
+                            color="#9EC49B"
                           />
-                          <Text className="text-[11px] font-semibold text-[#DDE2D6]">
+                          <AppText className="text-[10px] text-[#A0ADA1]">
                             {listing.sellerDelivery
                               ? `Seller delivery · ${Number(listing.deliveryFee || 0) > 0 ? money(Number(listing.deliveryFee || 0)) : "Free"}`
                               : listing.customerPickup
                                 ? "Customer pickup · Free"
-                                : "No fulfilment option available"}
-                          </Text>
+                                : "No delivery or pickup option available"}
+                          </AppText>
                         </View>
                       )}
+
+                      {overStock ? (
+                        <View className="mt-2 flex-row items-start gap-2 rounded-lg border border-[#624B30] bg-[#281F15] px-3 py-2">
+                          <Feather
+                            name="alert-triangle"
+                            size={13}
+                            color="#F2B873"
+                          />
+                          <AppText className="flex-1 text-[10px] leading-4 text-[#F4D7B2]">
+                            {bounds.max < bounds.min
+                              ? "This listing is below its minimum order quantity. Remove it and choose another listing."
+                              : `Only ${bounds.max} packs are available. Update the quantity before checkout.`}
+                          </AppText>
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* Dark olive upsell panel, mirroring the reference's highlighted section. */}
+              <View className="border-y border-[#3A4329] bg-[#202719] px-3.5 py-4">
+                <AppText className="text-[17px] font-bold leading-6 text-[#F0F4E9]">
+                  More goodness for your table
+                </AppText>
+                <AppText className="mt-1 text-[11px] leading-[18px] text-[#D0D8C8]">
+                  Discover seasonal produce from nearby growers and add
+                  something fresh to your order.
+                </AppText>
+                <AppText className="mt-1 text-[9px] leading-4 text-[#AAB59E]">
+                  Browse the marketplace for current availability and pricing.
+                </AppText>
+
+                <View className="mt-3 flex-row items-center gap-3 rounded-[14px] bg-[#101711] p-2.5">
+                  <View className="h-[94px] w-[94px] shrink-0 items-center justify-center rounded-[10px] bg-[#263529]">
+                    <Ionicons name="leaf" size={46} color="#C9F477" />
+                    <AppText className="mt-1 text-[9px] font-bold text-[#DDE8D8]">
+                      LOCAL HARVEST
+                    </AppText>
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <AppText className="text-[13px] font-bold text-[#F5F7F2]">
+                      Seasonal favourites
+                    </AppText>
+                    <AppText className="mt-1 text-[10px] leading-[15px] text-[#B7C2B6]">
+                      Fresh picks, fair prices, and direct-from-grower produce.
+                    </AppText>
+                    <Pressable
+                      onPress={() => router.replace("/(tabs)/market" as any)}
+                      className="mt-2.5 min-h-[36px] items-center justify-center rounded-full border border-[#D3E99C] bg-[#C9F477] px-3"
+                    >
+                      <AppText className="text-[11px] font-bold text-[#142013]">
+                        Browse Marketplace
+                      </AppText>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+
+              {/* Compact expandable delivery/payment row keeps the reference layout clean. */}
+              <View className="pt-3">
+                <Pressable
+                  onPress={() => setShowCheckoutOptions((value) => !value)}
+                  className="flex-row items-center gap-3 rounded-xl border border-[#2A382D] bg-[#111813] p-3"
+                >
+                  <View className="h-9 w-9 items-center justify-center rounded-lg bg-[#223224]">
+                    <Feather name="clipboard" size={15} color="#C9F477" />
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <AppText className="text-[12px] font-bold text-[#F5F7F2]">
+                      Delivery & payment
+                    </AppText>
+                    <AppText
+                      className="mt-0.5 text-[10px] text-[#A0ADA1]"
+                      numberOfLines={1}
+                    >
+                      {selectedLocation?.label ??
+                        (loadingLocations
+                          ? "Loading address…"
+                          : "Choose an address")}
+                      {paymentMethod === "ONLINE"
+                        ? " · Pay online"
+                        : " · Cash on delivery"}
+                    </AppText>
+                  </View>
+                  <AppText className="text-[10px] font-bold text-[#C9F477]">
+                    {showCheckoutOptions ? "Hide" : "Change"}
+                  </AppText>
+                </Pressable>
+              </View>
+
+              {showCheckoutOptions ? (
+                <>
+                  {/* Compact address selector */}
+                  <View className="pt-4">
+                    <View className="mb-2 flex-row items-center justify-between">
+                      <AppText className="text-[16px] font-bold text-[#F5F7F2]">
+                        Delivery address
+                      </AppText>
+                      <Pressable
+                        onPress={() => router.push("/market/location" as any)}
+                        className="px-1 py-1"
+                      >
+                        <AppText className="text-[11px] font-bold text-[#C9F477]">
+                          Manage
+                        </AppText>
+                      </Pressable>
                     </View>
 
-                    {overStock && (
-                      <View className="mt-3 flex-row items-start gap-2 rounded-xl border border-[#6B4930] bg-[#2A2017] px-3 py-2.5">
-                        <Feather
-                          name="alert-triangle"
-                          size={14}
-                          color="#F5B66B"
-                        />
-                        <Text className="min-w-0 flex-1 text-[10px] leading-4 text-[#F5D5AE]">
-                          {bounds.max < bounds.min
-                            ? "This listing is currently below its minimum order quantity. Remove it and choose another listing."
-                            : `Only ${bounds.max} pack${bounds.max === 1 ? " is" : "s are"} available for this listing. Update the quantity before checkout.`}
-                        </Text>
+                    {loadingLocations ? (
+                      <View className="flex-row items-center gap-2 rounded-xl border border-[#2A382D] bg-[#111813] p-3">
+                        <ActivityIndicator size="small" color="#C9F477" />
+                        <AppText className="text-[11px] text-[#A0ADA1]">
+                          Loading saved addresses…
+                        </AppText>
                       </View>
-                    )}
-                  </View>
-                );
-              })}
-
-              <Pressable
-                onPress={() => router.replace("/(tabs)/market" as any)}
-                className="mb-7 mt-1 flex-row items-center justify-center gap-2 rounded-xl border border-[#30352D] bg-[#141612] py-3.5"
-              >
-                <Feather name="plus" size={14} color="#C8FF67" />
-                <Text className="text-[11px] font-bold text-[#DDE2D6]">
-                  Add more products
-                </Text>
-              </Pressable>
-
-              {/* Delivery address API */}
-              <View className="mb-3 flex-row items-center justify-between">
-                <View className="min-w-0 flex-1">
-                  <Text className="text-[17px] font-extrabold text-[#F6F7F4]">
-                    Delivery address
-                  </Text>
-                  <Text className="mt-1 text-[11px] text-[#8D9489]">
-                    Where should your order go?
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => router.push("/market/location" as any)}
-                  className="rounded-lg px-2 py-1.5"
-                >
-                  <Text className="text-[12px] font-bold text-[#C8FF67]">
-                    Manage
-                  </Text>
-                </Pressable>
-              </View>
-
-              {loadingLocations ? (
-                <View className="items-center rounded-2xl border border-[#30352D] bg-[#171916] py-6">
-                  <ActivityIndicator color="#C8FF67" />
-                  <Text className="mt-2 text-[11px] text-[#A2A79E]">
-                    Loading saved addresses…
-                  </Text>
-                </View>
-              ) : locationError ? (
-                <View className="rounded-2xl border border-[#6B4930] bg-[#221C15] p-4">
-                  <View className="flex-row items-start gap-2">
-                    <Feather name="alert-circle" size={16} color="#F5B66B" />
-                    <Text className="min-w-0 flex-1 text-[11px] leading-4 text-[#E8CBA8]">
-                      {locationError}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => void loadLocations()}
-                    className="mt-3 self-start rounded-lg bg-[#383020] px-3 py-2"
-                  >
-                    <Text className="text-[11px] font-bold text-[#F5D5AE]">
-                      Try again
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : locations.length === 0 ? (
-                <Pressable
-                  onPress={() => router.push("/market/location" as any)}
-                  className="flex-row items-center gap-3 rounded-[18px] border border-dashed border-[#536344] bg-[#171E12] p-4"
-                >
-                  <View className="h-10 w-10 items-center justify-center rounded-xl bg-[#26351D]">
-                    <Feather name="map-pin" size={18} color="#C8FF67" />
-                  </View>
-                  <View className="min-w-0 flex-1">
-                    <Text className="text-[13px] font-bold text-[#F6F7F4]">
-                      Add a delivery address
-                    </Text>
-                    <Text className="mt-1 text-[11px] text-[#A2A79E]">
-                      Choose where your fresh produce should arrive.
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={18} color="#A2A79E" />
-                </Pressable>
-              ) : (
-                <View className="gap-2">
-                  {locations.map((location) => {
-                    const selected = locationId === location.id;
-                    return (
-                      <Pressable
-                        key={location.id}
-                        onPress={() => setLocationId(location.id)}
-                        className={`flex-row items-center gap-3 rounded-[17px] border p-3.5 ${selected ? "border-[#718F38] bg-[#171E12]" : "border-[#30352D] bg-[#171916]"}`}
-                      >
-                        <View
-                          className={`h-10 w-10 items-center justify-center rounded-xl ${selected ? "bg-[#29391D]" : "bg-[#242720]"}`}
+                    ) : locationError ? (
+                      <View className="rounded-xl border border-[#624B30] bg-[#211C15] p-3">
+                        <AppText className="text-[11px] leading-4 text-[#E8CBA8]">
+                          {locationError}
+                        </AppText>
+                        <Pressable
+                          onPress={() => void loadLocations()}
+                          className="mt-2 self-start"
                         >
-                          <Feather
-                            name={location.isDefault ? "home" : "map-pin"}
-                            size={17}
-                            color={selected ? "#C8FF67" : "#A2A79E"}
-                          />
-                        </View>
+                          <AppText className="text-[11px] font-bold text-[#F2B873]">
+                            Try again
+                          </AppText>
+                        </Pressable>
+                      </View>
+                    ) : locations.length === 0 ? (
+                      <Pressable
+                        onPress={() => router.push("/market/location" as any)}
+                        className="flex-row items-center gap-3 rounded-xl border border-dashed border-[#405640] bg-[#111813] p-3"
+                      >
+                        <Feather name="map-pin" size={17} color="#C9F477" />
                         <View className="min-w-0 flex-1">
-                          <View className="flex-row flex-wrap items-center gap-2">
-                            <Text
-                              className="text-[13px] font-bold text-[#F6F7F4]"
+                          <AppText className="text-[12px] font-semibold text-[#F5F7F2]">
+                            Add a delivery address
+                          </AppText>
+                          <AppText className="mt-0.5 text-[10px] text-[#A0ADA1]">
+                            Required before placing your order.
+                          </AppText>
+                        </View>
+                        <Feather
+                          name="chevron-right"
+                          size={16}
+                          color="#A0ADA1"
+                        />
+                      </Pressable>
+                    ) : (
+                      <>
+                        <Pressable
+                          onPress={() =>
+                            setShowAddressOptions((value) => !value)
+                          }
+                          className="flex-row items-center gap-3 rounded-xl border border-[#2A382D] bg-[#111813] p-3"
+                        >
+                          <View className="h-9 w-9 items-center justify-center rounded-lg bg-[#223224]">
+                            <Feather name="map-pin" size={15} color="#C9F477" />
+                          </View>
+                          <View className="min-w-0 flex-1">
+                            <AppText
+                              className="text-[12px] font-bold text-[#F5F7F2]"
                               numberOfLines={1}
                             >
-                              {location.label}
-                            </Text>
-                            {location.isDefault && (
-                              <View className="rounded-md bg-[#242720] px-1.5 py-0.5">
-                                <Text className="text-[9px] font-bold text-[#C8FF67]">
-                                  DEFAULT
-                                </Text>
-                              </View>
-                            )}
+                              {selectedLocation?.label ?? "Select an address"}
+                            </AppText>
+                            <AppText
+                              className="mt-0.5 text-[10px] leading-4 text-[#A0ADA1]"
+                              numberOfLines={2}
+                            >
+                              {selectedLocation?.address ??
+                                "Choose a saved location"}
+                            </AppText>
                           </View>
-                          <Text
-                            className="mt-1 text-[11px] leading-[16px] text-[#A2A79E]"
-                            numberOfLines={2}
-                          >
-                            {location.address}
-                          </Text>
-                        </View>
-                        <View
-                          className={`h-5 w-5 items-center justify-center rounded-full border ${selected ? "border-[#C8FF67] bg-[#C8FF67]" : "border-[#596052] bg-transparent"}`}
+                          <AppText className="text-[10px] font-bold text-[#C9F477]">
+                            {showAddressOptions ? "Done" : "Change"}
+                          </AppText>
+                        </Pressable>
+
+                        {showAddressOptions ? (
+                          <View className="mt-2 gap-2">
+                            {locations.map((location) => {
+                              const selected = locationId === location.id;
+                              return (
+                                <Pressable
+                                  key={location.id}
+                                  onPress={() => {
+                                    setLocationId(location.id);
+                                    setShowAddressOptions(false);
+                                  }}
+                                  className={`flex-row items-center gap-2 rounded-lg border p-3 ${selected ? "border-[#638D5D] bg-[#1B2B1D]" : "border-[#2A382D] bg-[#111813]"}`}
+                                >
+                                  <View className="min-w-0 flex-1">
+                                    <AppText className="text-[11px] font-bold text-[#F5F7F2]">
+                                      {location.label}
+                                      {location.isDefault ? " · DEFAULT" : ""}
+                                    </AppText>
+                                    <AppText
+                                      className="mt-0.5 text-[10px] leading-4 text-[#A0ADA1]"
+                                      numberOfLines={2}
+                                    >
+                                      {location.address}
+                                    </AppText>
+                                  </View>
+                                  {selected ? (
+                                    <Feather
+                                      name="check-circle"
+                                      size={16}
+                                      color="#C9F477"
+                                    />
+                                  ) : null}
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        ) : null}
+                      </>
+                    )}
+                  </View>
+
+                  {/* Compact payment selector */}
+                  <View className="pt-4">
+                    <AppText className="mb-2 text-[16px] font-bold text-[#F5F7F2]">
+                      Payment method
+                    </AppText>
+                    <Pressable
+                      onPress={() => setShowPaymentOptions((value) => !value)}
+                      className="flex-row items-center gap-3 rounded-xl border border-[#2A382D] bg-[#111813] p-3"
+                    >
+                      <View className="h-9 w-9 items-center justify-center rounded-lg bg-[#223224]">
+                        <Feather
+                          name={
+                            paymentMethod === "ONLINE" ? "credit-card" : "truck"
+                          }
+                          size={15}
+                          color="#C9F477"
+                        />
+                      </View>
+                      <View className="min-w-0 flex-1">
+                        <AppText className="text-[12px] font-bold text-[#F5F7F2]">
+                          {paymentMethod === "ONLINE"
+                            ? "Pay online"
+                            : "Cash on delivery"}
+                        </AppText>
+                        <AppText className="mt-0.5 text-[10px] text-[#A0ADA1]">
+                          {paymentMethod === "ONLINE"
+                            ? "Secure Razorpay checkout"
+                            : "Pay when your order arrives"}
+                        </AppText>
+                      </View>
+                      <AppText className="text-[10px] font-bold text-[#C9F477]">
+                        {showPaymentOptions ? "Done" : "Change"}
+                      </AppText>
+                    </Pressable>
+
+                    {showPaymentOptions ? (
+                      <View className="mt-2 flex-row gap-2">
+                        <Pressable
+                          onPress={() => {
+                            setPaymentMethod("COD");
+                            setShowPaymentOptions(false);
+                          }}
+                          className={`flex-1 flex-row items-center justify-center gap-2 rounded-lg border px-2 py-3 ${paymentMethod === "COD" ? "border-[#638D5D] bg-[#1B2B1D]" : "border-[#2A382D] bg-[#111813]"}`}
                         >
-                          {selected && (
-                            <Feather name="check" size={12} color="#0C0D0B" />
-                          )}
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* Payment method */}
-              <View className="mb-3 mt-7">
-                <Text className="text-[17px] font-extrabold text-[#F6F7F4]">
-                  Payment method
-                </Text>
-                <Text className="mt-1 text-[11px] text-[#8D9489]">
-                  Choose how you’d like to pay
-                </Text>
-              </View>
-
-              <View className="gap-2">
-                <Pressable
-                  onPress={() => setPaymentMethod("COD")}
-                  className={`flex-row items-center gap-3 rounded-[17px] border p-3.5 ${paymentMethod === "COD" ? "border-[#718F38] bg-[#171E12]" : "border-[#30352D] bg-[#171916]"}`}
-                >
-                  <View
-                    className={`h-10 w-10 items-center justify-center rounded-xl ${paymentMethod === "COD" ? "bg-[#29391D]" : "bg-[#242720]"}`}
-                  >
-                    <Feather
-                      name="truck"
-                      size={18}
-                      color={paymentMethod === "COD" ? "#C8FF67" : "#A2A79E"}
-                    />
+                          <Feather
+                            name="truck"
+                            size={13}
+                            color={
+                              paymentMethod === "COD" ? "#C9F477" : "#A0ADA1"
+                            }
+                          />
+                          <AppText className="text-[10px] font-semibold text-[#E5ECE3]">
+                            Cash on delivery
+                          </AppText>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            setPaymentMethod("ONLINE");
+                            setShowPaymentOptions(false);
+                          }}
+                          className={`flex-1 flex-row items-center justify-center gap-2 rounded-lg border px-2 py-3 ${paymentMethod === "ONLINE" ? "border-[#638D5D] bg-[#1B2B1D]" : "border-[#2A382D] bg-[#111813]"}`}
+                        >
+                          <Feather
+                            name="credit-card"
+                            size={13}
+                            color={
+                              paymentMethod === "ONLINE" ? "#C9F477" : "#A0ADA1"
+                            }
+                          />
+                          <AppText className="text-[10px] font-semibold text-[#E5ECE3]">
+                            Pay online
+                          </AppText>
+                        </Pressable>
+                      </View>
+                    ) : null}
                   </View>
-                  <View className="min-w-0 flex-1">
-                    <Text className="text-[13px] font-bold text-[#F6F7F4]">
-                      Cash on delivery
-                    </Text>
-                    <Text className="mt-1 text-[11px] leading-4 text-[#A2A79E]">
-                      Pay when your order arrives
-                    </Text>
-                  </View>
-                  <View
-                    className={`h-5 w-5 items-center justify-center rounded-full border ${paymentMethod === "COD" ? "border-[#C8FF67] bg-[#C8FF67]" : "border-[#596052]"}`}
-                  >
-                    {paymentMethod === "COD" && (
-                      <Feather name="check" size={12} color="#0C0D0B" />
-                    )}
-                  </View>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => setPaymentMethod("ONLINE")}
-                  className={`flex-row items-center gap-3 rounded-[17px] border p-3.5 ${paymentMethod === "ONLINE" ? "border-[#718F38] bg-[#171E12]" : "border-[#30352D] bg-[#171916]"}`}
-                >
-                  <View
-                    className={`h-10 w-10 items-center justify-center rounded-xl ${paymentMethod === "ONLINE" ? "bg-[#29391D]" : "bg-[#242720]"}`}
-                  >
-                    <Feather
-                      name="credit-card"
-                      size={18}
-                      color={paymentMethod === "ONLINE" ? "#C8FF67" : "#A2A79E"}
-                    />
-                  </View>
-                  <View className="min-w-0 flex-1">
-                    <Text className="text-[13px] font-bold text-[#F6F7F4]">
-                      Pay online
-                    </Text>
-                    <Text className="mt-1 text-[11px] leading-4 text-[#A2A79E]">
-                      Secure Razorpay checkout
-                    </Text>
-                    {items.length > 1 && (
-                      <Text className="mt-1 text-[10px] leading-4 text-[#8D9489]">
-                        Each grower order is paid separately.
-                      </Text>
-                    )}
-                  </View>
-                  <View
-                    className={`h-5 w-5 items-center justify-center rounded-full border ${paymentMethod === "ONLINE" ? "border-[#C8FF67] bg-[#C8FF67]" : "border-[#596052]"}`}
-                  >
-                    {paymentMethod === "ONLINE" && (
-                      <Feather name="check" size={12} color="#0C0D0B" />
-                    )}
-                  </View>
-                </Pressable>
-              </View>
-
-              {/* Bill summary */}
-              <View className="mt-7 rounded-[20px] border border-[#30352D] bg-[#171916] p-4">
-                <View className="mb-4 flex-row items-center gap-2">
-                  <View className="h-8 w-8 items-center justify-center rounded-xl bg-[#242720]">
-                    <Feather name="file-text" size={15} color="#C8FF67" />
-                  </View>
-                  <Text className="text-[15px] font-extrabold text-[#F6F7F4]">
-                    Bill summary
-                  </Text>
-                </View>
-
-                <View className="mb-3 flex-row items-center justify-between">
-                  <Text className="text-[12px] text-[#A2A79E]">
-                    Item subtotal
-                  </Text>
-                  <Text className="text-[12px] font-semibold text-[#E8EAE5]">
-                    {money(subtotal)}
-                  </Text>
-                </View>
-
-                {savings > 0 && (
-                  <View className="mb-3 flex-row items-center justify-between">
-                    <Text className="text-[12px] text-[#A2A79E]">
-                      Product savings
-                    </Text>
-                    <Text className="text-[12px] font-semibold text-[#C8FF67]">
-                      −{money(savings)}
-                    </Text>
-                  </View>
-                )}
-
-                <View className="mb-3 flex-row items-center justify-between">
-                  <Text className="text-[12px] text-[#A2A79E]">
-                    Delivery fees
-                  </Text>
-                  <Text
-                    className={`text-[12px] font-semibold ${delivery ? "text-[#E8EAE5]" : "text-[#C8FF67]"}`}
-                  >
-                    {delivery ? money(delivery) : "FREE"}
-                  </Text>
-                </View>
-
-                <View className="my-1 border-t border-dashed border-[#3A4035]" />
-
-                <View className="mt-3 flex-row items-end justify-between">
-                  <View>
-                    <Text className="text-[13px] font-bold text-[#F6F7F4]">
-                      Estimated total
-                    </Text>
-                    <Text className="mt-1 text-[10px] text-[#8D9489]">
-                      {totalUnits} units · {items.length} seller{" "}
-                      {items.length === 1 ? "order" : "orders"}
-                    </Text>
-                  </View>
-                  <Text className="text-[23px] font-extrabold leading-7 text-[#C8FF67]">
-                    {money(total)}
-                  </Text>
-                </View>
-              </View>
-
-              <View className="mb-3 mt-4 flex-row items-start gap-2 rounded-xl bg-[#141612] px-3 py-3">
-                <Feather name="shield" size={15} color="#A2A79E" />
-                <Text className="min-w-0 flex-1 text-[10px] leading-[16px] text-[#8D9489]">
-                  Products from different growers are placed as separate orders.
-                  Final delivery fees and availability are confirmed by the
-                  server during checkout.
-                </Text>
-              </View>
-            </View>
-          </ScrollView>
-
-          {/* Sticky checkout bar */}
-          <View
-            className="flex-row items-center gap-3 border-t border-[#30352D] bg-[#10110F] px-4 pt-3"
-            style={{ paddingBottom: Math.max(insets.bottom, 12) }}
-          >
-            <View className="min-w-0 flex-1">
-              <Text className="text-[10px] font-bold tracking-[1px] text-[#8D9489]">
-                TOTAL
-              </Text>
-              <Text className="mt-0.5 text-[21px] font-extrabold leading-7 text-[#F6F7F4]">
-                {money(total)}
-              </Text>
-              <Text className="mt-0.5 text-[10px] text-[#8D9489]">
-                {paymentMethod === "ONLINE"
-                  ? "Secure online payment"
-                  : "Cash on delivery"}
-              </Text>
-            </View>
-
-            <Pressable
-              onPress={() => void checkout()}
-              disabled={busy || loadingLocations}
-              className={`min-h-[52px] min-w-[165px] flex-row items-center justify-center gap-2 rounded-2xl px-4 ${busy || loadingLocations ? "bg-[#68705C]" : "bg-[#C8FF67]"}`}
-              style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
-              accessibilityRole="button"
-              accessibilityLabel={
-                paymentMethod === "ONLINE"
-                  ? "Pay and place order"
-                  : "Place order"
-              }
-            >
-              {busy ? (
-                <ActivityIndicator color="#0C0D0B" />
-              ) : (
-                <>
-                  <Text className="text-[13px] font-extrabold text-[#0C0D0B]">
-                    {paymentMethod === "ONLINE" ? "Pay & order" : "Place order"}
-                  </Text>
-                  <Feather name="arrow-right" size={16} color="#0C0D0B" />
                 </>
-              )}
-            </Pressable>
-          </View>
-        </>
-      )}
+              ) : null}
+
+              {/* Order summary */}
+              <View className="px-3.5 pb-2 pt-5 ">
+                <AppText className="mb-3 text-[17px] font-bold text-[#F5F7F2]">
+                  Order Summary
+                </AppText>
+
+                <View className="mb-2.5 flex-row items-center justify-between gap-3">
+                  <AppText className="text-[12px] text-[#A0ADA1]">
+                    Subtotal
+                  </AppText>
+                  <AppText className="text-[12px] font-semibold text-[#E8EFE6]">
+                    {money(subtotal)}
+                  </AppText>
+                </View>
+
+                <View className="mb-2.5 flex-row items-center justify-between gap-3">
+                  <AppText className="text-[12px] text-[#A0ADA1]">
+                    Discount
+                  </AppText>
+                  <AppText className="text-[12px] font-bold text-[#88C58A]">
+                    {savings > 0 ? `−${money(savings)}` : money(0)}
+                  </AppText>
+                </View>
+
+                {savings > 0 ? (
+                  <View className="mb-3 flex-row flex-wrap gap-1.5">
+                    <View className="flex-row items-center gap-1 rounded-md bg-[#24372A] px-2 py-1.5">
+                      <Feather name="tag" size={10} color="#AFC8A8" />
+                      <AppText className="text-[9px] font-semibold text-[#DCEBD6]">
+                        PRODUCT SAVINGS
+                      </AppText>
+                    </View>
+                  </View>
+                ) : null}
+
+                <View className="mb-2.5 flex-row items-center justify-between gap-3">
+                  <AppText className="text-[12px] text-[#A0ADA1]">
+                    Shipping
+                  </AppText>
+                  <AppText className="text-[11px] font-bold text-[#88C58A]">
+                    {delivery > 0 ? money(delivery) : "FREE"}
+                  </AppText>
+                </View>
+
+                <View className="mb-3 flex-row items-center justify-between gap-3">
+                  <AppText className="text-[12px] text-[#A0ADA1]">
+                    Taxes & other charges
+                  </AppText>
+                  <AppText className="text-right text-[10px] text-[#A0ADA1]">
+                    Confirmed at checkout
+                  </AppText>
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Sticky footer with total, checkout, and trust row */}
+            <View className="border-t border-[#29362B] bg-[#101711] pb-3 pt-3">
+              <View className="px-4">
+                <View className="mb-3 flex-row items-center justify-between gap-2">
+                  <AppText className="text-[15px] font-bold text-[#F5F7F2]">
+                    {delivery > 0 ? "Order total" : "Subtotal"}
+                  </AppText>
+                  <View className="flex-row flex-wrap items-center justify-end gap-1.5">
+                    {savings > 0 ? (
+                      <View className="rounded-full bg-[#C9F477] px-2.5 py-1">
+                        <AppText className="text-[10px] font-bold text-[#172014]">
+                          {discountPercent}% OFF
+                        </AppText>
+                      </View>
+                    ) : null}
+                    {savings > 0 ? (
+                      <AppText className="text-[11px] text-[#849087] line-through">
+                        {money(originalSubtotal + delivery)}
+                      </AppText>
+                    ) : null}
+                    <AppText className="text-[17px] font-bold text-[#F5F7F2]">
+                      {money(total)}
+                    </AppText>
+                  </View>
+                </View>
+
+                <Pressable
+                  onPress={() => void checkout()}
+                  disabled={busy || loadingLocations}
+                  className={`min-h-[52px] flex-row items-center justify-center gap-2 rounded-full border border-[#142D1C] px-4 ${busy || loadingLocations ? "bg-[#526B53]" : "bg-[#347D4A]"}`}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    paymentMethod === "ONLINE"
+                      ? "Pay and place order"
+                      : "Place order"
+                  }
+                >
+                  {busy ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <AppText className="text-[14px] font-bold text-white">
+                        Secure Checkout
+                      </AppText>
+                      <Feather name="lock" size={16} color="#FFFFFF" />
+                    </>
+                  )}
+                </Pressable>
+
+                <View className="mt-3 flex-row items-start justify-between gap-2 border-t border-[#29362B] pt-3">
+                  <View className="min-w-0 flex-1 flex-row items-start gap-1.5">
+                    <Feather name="shield-check" size={14} color="#A0ADA1" />
+                    <AppText className="flex-1 text-[9px] leading-3 text-[#B4BEB3]">
+                      Secure{`\n`}checkout
+                    </AppText>
+                  </View>
+                  <View className="min-w-0 flex-1 flex-row items-start gap-1.5">
+                    <Feather name="map-pin" size={14} color="#A0ADA1" />
+                    <AppText className="flex-1 text-[9px] leading-3 text-[#B4BEB3]">
+                      Local{`\n`}growers
+                    </AppText>
+                  </View>
+                  <View className="min-w-0 flex-1 flex-row items-start gap-1.5">
+                    <Feather name="truck" size={14} color="#A0ADA1" />
+                    <AppText className="flex-1 text-[9px] leading-3 text-[#B4BEB3]">
+                      Delivery or{`\n`}pickup
+                    </AppText>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </>
+        )}
+      </View>
     </View>
   );
 }

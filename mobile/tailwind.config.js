@@ -18,9 +18,11 @@ module.exports = {
       },
 
       fontFamily: {
-        sans: ["Rubik_400Regular"],
-        medium: ["Rubik_500Medium"],
-        bold: ["Rubik_700Bold"],
+        sans: ["Poppins_400Regular"],
+        medium: ["Poppins_500Medium"],
+        bold: ["Poppins_700Bold"],
+        semiBold: ["Poppins_600SemiBold"],
+        extraBold: ["Poppins_800ExtraBold"],
       },
     },
   },
