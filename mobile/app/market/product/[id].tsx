@@ -343,7 +343,7 @@ export default function MarketplaceProductScreen() {
 
       {/* Sticky purchase bar */}
       <View
-        className="flex-row items-center gap-3 border-t border-[#30352D] bg-[#0C0D0B] px-4 pt-3"
+        className="flex-row items-center gap-3  bg-[#0C0D0B] px-4 pt-3"
         style={{ paddingBottom: Math.max(insets.bottom, 12) }}
       >
         <View className="h-[50px] flex-row items-center rounded-2xl border border-[#30352D] bg-[#171916]">

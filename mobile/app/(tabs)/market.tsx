@@ -22,6 +22,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import MarketplaceActionBar from "../../components/marketplace/MarketplaceActionBar";
@@ -1791,20 +1793,20 @@ export default function MarketplaceScreen() {
             style={{ paddingTop: insets.top + 8 }}
           >
             <LinearGradient
-              // 1. Starts solid #094BDB, then fades into deeper midnight blues
-              colors={["#094BDB", "#094BDB", "#04256E", "#010A1C"]}
-
-              // 2. Holds the solid color until 30% down the screen
-              locations={[0, 0.3, 0.7, 1]}
-
+              // Starts with a rich organic purple, fades smoothly to transparent
+              colors={[
+                "#7E22CE", // Rich organic plum purple
+                "rgba(126, 34, 206, 0.85)", // 85% opacity
+                "rgba(126, 34, 206, 0.3)", // Rapid fade
+                "rgba(126, 34, 206, 0)", // 100% transparent at the bottom
+              ]}
+              locations={[0, 0.4, 0.75, 1]}
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
               style={StyleSheet.absoluteFillObject}
               pointerEvents="none"
             />
-
             {/* Rest of your content goes here */}
-
             {/* Search stays shared between map and list. */}
             <View
               className="min-h-[54px] pl-[16px] pr-[7px] flex-row items-center gap-[9px] bg-[#171916] border border-[#30352D] rounded-[20px] mb-4"
@@ -1834,7 +1836,6 @@ export default function MarketplaceScreen() {
                 <Feather name="map-pin" size={18} color={C.primary} />
               </Pressable>
             </View>
-
             {/* Five primary actions. MAP/LIST highlight changes; the row itself stays fixed. */}
             <MarketplaceActionBar
               active={viewMode}
@@ -1844,7 +1845,6 @@ export default function MarketplaceScreen() {
               onLocation={() => router.push("/market/location" as any)}
               onCart={() => router.push("/market/cart" as any)}
             />
-
             {/* Shared radius filters and product count. They appear identically in both modes. */}
             <ScrollView
               horizontal
