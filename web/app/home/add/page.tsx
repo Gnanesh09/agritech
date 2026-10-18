@@ -35,13 +35,13 @@ export default function AddPage() {
   const router = useRouter();
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#071A13] px-4 pb-10 pt-6 text-[#F1F7F2]">
+    <main className="relative min-h-screen overflow-hidden bg-[#071A13] px-4 pb-10 pt-6 text-[#F1F7F2] sm:px-6 lg:px-8">
       {/* Ambient background glow */}
       <div className="pointer-events-none absolute -left-24 top-20 h-64 w-64 rounded-full bg-[#35C759]/10 blur-3xl" />
 
       <div className="pointer-events-none absolute -right-24 top-[45%] h-72 w-72 rounded-full bg-[#7CFF6B]/5 blur-3xl" />
 
-      <div className="relative mx-auto w-full max-w-[430px]">
+      <div className="relative mx-auto w-full max-w-6xl">
 
         {/* Header */}
         <motion.div
@@ -91,7 +91,7 @@ export default function AddPage() {
         </motion.div>
 
         {/* Add options */}
-        <div className="space-y-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 xl:gap-5">
           {options.map((option, index) => {
             const Icon = option.icon;
 
@@ -118,7 +118,7 @@ export default function AddPage() {
                 whileTap={{
                   scale: 0.975,
                 }}
-                className="group relative flex w-full items-center gap-4 overflow-hidden rounded-[24px] border border-[#1D4032] bg-[#0D251C] p-4 text-left shadow-[0_12px_35px_rgba(0,0,0,0.16)] transition-all duration-300 hover:border-[#35C759]/40 hover:bg-[#102A20]"
+                className="group relative flex min-h-32 w-full items-center gap-4 overflow-hidden rounded-[24px] border border-[#1D4032] bg-[#0D251C] p-5 text-left shadow-[0_12px_35px_rgba(0,0,0,0.16)] transition-all duration-300 hover:border-[#35C759]/40 hover:bg-[#102A20] sm:p-6"
               >
                 {/* Hover glow */}
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#7CFF6B]/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

@@ -602,8 +602,8 @@ export default function DeviceDetailsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6">
-        <div className="mx-auto max-w-5xl">
+      <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-8">
+        <div className="mx-auto w-full max-w-7xl">
           <div className="h-10 w-10 animate-pulse rounded-full bg-white" />
           <div className="mt-5 h-[280px] animate-pulse rounded-[30px] bg-white" />
           <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -623,8 +623,8 @@ export default function DeviceDetailsPage() {
 
   if (!device) {
     return (
-      <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6">
-        <div className="mx-auto max-w-md">
+      <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-8">
+        <div className="mx-auto w-full max-w-7xl">
           <button
             type="button"
             onClick={() => router.push("/home/monitor")}
@@ -658,8 +658,8 @@ export default function DeviceDetailsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f6f2] px-3 pb-28 pt-4 sm:px-5">
-      <div className="mx-auto max-w-5xl">
+    <main className="min-h-screen bg-[#f6f6f2] px-3 pb-28 pt-4 sm:px-5 lg:px-8 lg:pb-8">
+      <div className="mx-auto w-full max-w-7xl">
         {/* ====================================================
             HEADER
         ==================================================== */}

@@ -98,8 +98,8 @@ export default function MonitorPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6">
-        <div className="mx-auto max-w-md">
+      <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1600px]">
           <div className="h-7 w-32 animate-pulse rounded-lg bg-[#e7e7e1]" />
 
           <div className="mt-2 h-4 w-56 animate-pulse rounded-lg bg-[#e7e7e1]" />
@@ -122,8 +122,8 @@ export default function MonitorPage() {
   // ==========================================================
 
   return (
-    <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6">
-      <div className="mx-auto max-w-md">
+    <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[1600px]">
         {/* =====================================================
             HEADER
         ===================================================== */}
@@ -158,7 +158,7 @@ export default function MonitorPage() {
             DEVICE LIST
         ===================================================== */}
 
-        <section className="mt-6 space-y-3">
+        <section className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {devices.length === 0 ? (
             <div className="rounded-[30px] bg-white px-6 py-14 text-center shadow-[0_5px_25px_rgba(0,0,0,0.035)]">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand/30">
@@ -175,7 +175,7 @@ export default function MonitorPage() {
 
               {/* <button
                 type="button"
-                onClick={() => router.push("/home/devices/add")}
+                onClick={() => router.push("/home/add/device")}
                 className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#1c1c1c] px-5 py-3 text-[11px] font-semibold text-white"
               >
                 <Plus size={14} />
@@ -246,7 +246,7 @@ export default function MonitorPage() {
         {devices.length > 0 && (
           <button
             type="button"
-            onClick={() => router.push("/home/devices/add")}
+            onClick={() => router.push("/home/add/device")}
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border border-[#deded8] bg-transparent py-3.5 text-[11px] font-semibold text-[#696963]"
           >
             <Plus size={14} />

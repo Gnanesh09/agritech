@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Check,
   Loader2,
-  Sparkles,
   Wifi,
   X,
   Cpu,
@@ -134,7 +133,7 @@ export default function AddDevicePage() {
       <motion.main
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="relative min-h-screen overflow-hidden bg-[#071A13] px-5 text-[#F1F7F2]"
+        className="relative min-h-screen overflow-hidden bg-[#071A13] px-5 text-[#F1F7F2] sm:px-8 lg:px-10"
       >
         {/* Ambient glow */}
         <motion.div
@@ -164,13 +163,13 @@ export default function AddDevicePage() {
           className="pointer-events-none absolute -bottom-32 -left-28 h-80 w-80 rounded-full bg-[#7CFF6B]/5 blur-3xl"
         />
 
-        <div className="relative z-10 mx-auto flex min-h-screen max-w-md flex-col">
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col">
 
           {/* Back */}
           <motion.header
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="pt-6"
+            className="pt-6 lg:pt-8"
           >
             <motion.button
               type="button"
@@ -187,8 +186,9 @@ export default function AddDevicePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.5 }}
-            className="flex flex-1 flex-col justify-center pb-24"
+            className="flex flex-1 flex-col justify-center pb-24 lg:grid lg:grid-cols-2 lg:items-center lg:gap-20 lg:pb-12"
           >
+            <div>
             {/* Icon */}
             <motion.div
               animate={{
@@ -236,9 +236,10 @@ export default function AddDevicePage() {
               Enter the device code printed on your smart agriculture
               device to connect it to your account.
             </p>
+            </div>
 
             {/* Device code */}
-            <div className="mt-9">
+            <div className="mt-9 lg:mt-0">
               <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.13em] text-[#668072]">
                 Device code
               </label>

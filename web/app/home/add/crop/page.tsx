@@ -54,7 +54,7 @@ export default function AddCropPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="relative min-h-screen overflow-hidden bg-[#071A13] px-4 pb-10 pt-6 text-[#F1F7F2]"
+      className="relative min-h-screen overflow-hidden bg-[#071A13] px-4 pb-10 pt-6 text-[#F1F7F2] sm:px-6 lg:px-8"
     >
       {/* Background glow */}
       <motion.div
@@ -84,7 +84,7 @@ export default function AddCropPage() {
         className="pointer-events-none absolute -bottom-28 -left-28 h-72 w-72 rounded-full bg-[#7CFF6B]/5 blur-3xl"
       />
 
-      <div className="relative z-10 mx-auto w-full max-w-[430px]">
+      <div className="relative z-10 mx-auto w-full max-w-6xl">
 
         {/* Header */}
         <motion.div
@@ -164,7 +164,7 @@ export default function AddCropPage() {
           variants={container}
           initial="hidden"
           animate="show"
-          className="space-y-4"
+          className="grid grid-cols-1 gap-4 md:grid-cols-2"
         >
 
           {/* Crop Name */}

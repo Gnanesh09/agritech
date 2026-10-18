@@ -206,7 +206,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa]">
+      <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] px-4">
         <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
       </div>
     );
@@ -237,7 +237,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <div className="min-h-screen bg-[#f5f7fa] px-3 pb-28 pt-5 sm:px-5">
+      <div className="mx-auto min-h-screen w-full max-w-[1600px] bg-[#f5f7fa] px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-8">
         {/* ==========================================
             HEADER
         ========================================== */}
