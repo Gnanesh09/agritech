@@ -11,26 +11,42 @@ type CycleWithOwner = {
   id: string;
   cropName: string;
   expectedHarvestDate: Date;
-  [key: string]: any;
+  tray: {
+    name: string;
+    row: {
+      rack: {
+        name: string;
+        user: { id: string; username: string; email: string | null };
+      };
+    };
+  };
 };
+
+async function releaseClaim(cycleId: string, field: ReminderField, claimedAt: Date) {
+  await prisma.trayCropCycle.updateMany({
+    where: { id: cycleId, [field]: claimedAt } as any,
+    data: { [field]: null } as any,
+  });
+}
 
 async function claimAndSend(cycle: CycleWithOwner, field: ReminderField, kind: CropHarvestEmailKind) {
   const claimedAt = new Date();
   const claim = await prisma.trayCropCycle.updateMany({
-    where: { id: cycle.id, [field]: null } as any,
+    where: { id: cycle.id, status: { in: ["GROWING", "READY"] }, [field]: null } as any,
     data: { [field]: claimedAt } as any,
   });
   if (claim.count === 0) return;
 
+  const { tray } = cycle;
+  const rack = tray.row.rack;
+  const user = rack.user;
+  if (!user?.email) {
+    console.warn(`[crop-reminders] No email address for cycle ${cycle.id}; will retry after profile is fixed.`);
+    await releaseClaim(cycle.id, field, claimedAt);
+    return;
+  }
+
   try {
-    const tray = cycle.tray;
-    const row = tray.row;
-    const rack = row.rack;
-    const user = rack.user;
-    if (!user?.email) {
-      console.warn(`[crop-reminders] Skipping cycle ${cycle.id}: user has no email address.`);
-      return;
-    }
     await sendCropHarvestEmail({
       to: user.email,
       username: user.username,
@@ -42,12 +58,10 @@ async function claimAndSend(cycle: CycleWithOwner, field: ReminderField, kind: C
     });
     console.info(`[crop-reminders] Sent ${kind} email for crop cycle ${cycle.id}.`);
   } catch (error) {
-    // Make the reminder eligible for a retry on the next scheduler pass.
-    await prisma.trayCropCycle.updateMany({
-      where: { id: cycle.id, [field]: claimedAt } as any,
-      data: { [field]: null } as any,
+    await releaseClaim(cycle.id, field, claimedAt).catch((releaseError) => {
+      console.error(`[crop-reminders] Could not release claim for ${cycle.id}:`, releaseError);
     });
-    console.error(`[crop-reminders] Failed to send ${kind} email for cycle ${cycle.id}:`, error);
+    console.error(`[crop-reminders] Failed ${kind} email for cycle ${cycle.id}; next pass will retry:`, error);
   }
 }
 
@@ -66,7 +80,7 @@ async function loadCycles(where: any): Promise<CycleWithOwner[]> {
       },
     },
     orderBy: { expectedHarvestDate: "asc" },
-  }) as Promise<CycleWithOwner[]>;
+  }) as unknown as Promise<CycleWithOwner[]>;
 }
 
 export async function runCropHarvestReminderPass() {
@@ -74,7 +88,6 @@ export async function runCropHarvestReminderPass() {
   running = true;
   const now = new Date();
   try {
-    // Persist READY once the expected date passes; user-facing status won't depend on opening the app.
     await prisma.trayCropCycle.updateMany({
       where: { status: "GROWING", expectedHarvestDate: { lte: now }, tray: { row: { rack: { status: "ACTIVE" } } } },
       data: { status: "READY" },
@@ -87,7 +100,7 @@ export async function runCropHarvestReminderPass() {
     for (const cycle of upcoming) await claimAndSend(cycle, "preHarvestReminderSentAt", "UPCOMING");
 
     const due = await loadCycles({
-      expectedHarvestDate: { lte: now },
+      expectedHarvestDate: { lte: now, gt: new Date(now.getTime() - DAY_MS) },
       harvestDueReminderSentAt: null,
     });
     for (const cycle of due) await claimAndSend(cycle, "harvestDueReminderSentAt", "DUE");
@@ -104,9 +117,9 @@ export async function runCropHarvestReminderPass() {
   }
 }
 
-// Call once from the backend's main startup file, after environment variables and Prisma are configured.
 export function startCropHarvestReminderScheduler() {
   if (timer) return;
+  console.info("[crop-reminders] Scheduler started; checking every 15 minutes.");
   void runCropHarvestReminderPass();
   timer = setInterval(() => void runCropHarvestReminderPass(), CHECK_INTERVAL_MS);
   timer.unref?.();

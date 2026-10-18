@@ -365,6 +365,13 @@ model TrayCropCycle {
   expectedHarvestDate DateTime
   status              TrayCropStatus       @default(GROWING)
   harvestedAt         DateTime?
+  cancelledAt         DateTime?
+  // Idempotency markers for scheduled harvest emails.
+  preHarvestReminderSentAt   DateTime?
+  harvestDueReminderSentAt   DateTime?
+  overdueHarvestReminderSentAt DateTime?
+  // Suppress repeated in-app "harvested yet?" prompts for 24 hours after "Not yet".
+  lastHarvestCheckAt   DateTime?
   notes               String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -376,6 +383,7 @@ model TrayCropCycle {
   @@index([trayId, status])
   @@index([status])
   @@index([expectedHarvestDate])
+  @@index([status, expectedHarvestDate])
   @@index([cropName])
   @@map("tray_crop_cycles")
 }

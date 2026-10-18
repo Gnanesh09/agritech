@@ -763,6 +763,185 @@ async function findOwnedCropCycle(userId: string, id: string) {
     );
 }
 
+// GET /api/user/crop-cycles/history
+// Full account-wide history, including crops on archived racks.
+export async function getCropCycleHistory(req: AuthRequest, res: Response) {
+  try {
+    if (!req.userId)
+      return res.status(401).json({ message: "Authentication required" });
+
+    const allowedStatuses = [
+      "GROWING",
+      "READY",
+      "HARVESTED",
+      "CANCELLED",
+    ] as const;
+    const statusParam =
+      typeof req.query.status === "string"
+        ? req.query.status.trim().toUpperCase()
+        : "";
+    if (
+      statusParam &&
+      statusParam !== "ALL" &&
+      !allowedStatuses.includes(statusParam as (typeof allowedStatuses)[number])
+    ) {
+      return res.status(400).json({ message: "Invalid crop status filter" });
+    }
+
+    const pageParam = Number(req.query.page ?? 1);
+    const limitParam = Number(req.query.limit ?? 20);
+    const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+    const limit =
+      Number.isInteger(limitParam) && limitParam > 0
+        ? Math.min(limitParam, 100)
+        : 20;
+    const search =
+      typeof req.query.q === "string" ? req.query.q.trim().slice(0, 100) : "";
+    const rackId =
+      typeof req.query.rackId === "string" ? req.query.rackId.trim() : "";
+
+    const parseOptionalDate = (value: unknown, field: string): Date | null => {
+      if (typeof value !== "string" || !value.trim()) return null;
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime()))
+        throw new Error(`Invalid ${field} date`);
+      // Treat date-only `to=YYYY-MM-DD` as inclusive through the end of that day.
+      if (field === "to" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+        parsed.setUTCHours(23, 59, 59, 999);
+      return parsed;
+    };
+
+    let from: Date | null;
+    let to: Date | null;
+    try {
+      from = parseOptionalDate(req.query.from, "from");
+      to = parseOptionalDate(req.query.to, "to");
+    } catch (error) {
+      return res
+        .status(400)
+        .json({
+          message:
+            error instanceof Error ? error.message : "Invalid date filter",
+        });
+    }
+    if (from && to && from > to)
+      return res
+        .status(400)
+        .json({ message: "from must be earlier than or equal to to" });
+
+    // Base ownership scope intentionally includes archived racks so historical crops remain visible.
+    const ownerWhere: any = {
+      tray: { row: { rack: { userId: req.userId } } },
+    };
+    const where: any = {
+      tray: {
+        row: {
+          rack: { userId: req.userId, ...(rackId ? { id: rackId } : {}) },
+        },
+      },
+    };
+    if (statusParam && statusParam !== "ALL") where.status = statusParam;
+    if (search) where.cropName = { contains: search, mode: "insensitive" };
+    if (from || to) {
+      where.sowingDate = {
+        ...(from ? { gte: from } : {}),
+        ...(to ? { lte: to } : {}),
+      };
+    }
+
+    const [cycles, total, groups] = await Promise.all([
+      prisma.trayCropCycle.findMany({
+        where,
+        orderBy: [{ sowingDate: "desc" }, { createdAt: "desc" }],
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          tray: {
+            include: {
+              row: {
+                include: {
+                  rack: { select: { id: true, name: true, status: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.trayCropCycle.count({ where }),
+      prisma.trayCropCycle.groupBy({
+        by: ["status"],
+        where: ownerWhere,
+        _count: { _all: true },
+      }),
+    ]);
+
+    const countFor = (status: string) =>
+      groups.find((group: any) => group.status === status)?._count?._all ?? 0;
+    const summary = {
+      total: groups.reduce(
+        (sum: number, group: any) => sum + group._count._all,
+        0,
+      ),
+      growing: countFor("GROWING"),
+      ready: countFor("READY"),
+      harvested: countFor("HARVESTED"),
+      cancelled: countFor("CANCELLED"),
+    };
+    const now = new Date();
+    const history = cycles.map((cycle: any) => {
+      const sowedAt = new Date(cycle.sowingDate).getTime();
+      const expectedAt = new Date(cycle.expectedHarvestDate).getTime();
+      const harvestedAt = cycle.harvestedAt
+        ? new Date(cycle.harvestedAt).getTime()
+        : null;
+      const endAt = harvestedAt ?? now.getTime();
+      const actualGrowingDays = Math.max(
+        0,
+        Math.ceil((endAt - sowedAt) / DAY_MS),
+      );
+      const daysFromExpectedHarvest =
+        harvestedAt === null
+          ? null
+          : Math.ceil((harvestedAt - expectedAt) / DAY_MS);
+      return {
+        ...cycle,
+        actualGrowingDays:
+          cycle.status === "HARVESTED" && harvestedAt !== null
+            ? actualGrowingDays
+            : null,
+        daysFromExpectedHarvest,
+        timing: getCropTiming(cycle, now),
+        location: {
+          rackId: cycle.tray.row.rack.id,
+          rackName: cycle.tray.row.rack.name,
+          rackStatus: cycle.tray.row.rack.status,
+          rowId: cycle.tray.row.id,
+          rowName: cycle.tray.row.name,
+          trayId: cycle.tray.id,
+          trayName: cycle.tray.name,
+          traySlot: cycle.tray.slot,
+        },
+      };
+    });
+
+    return res.status(200).json({
+      history,
+      summary,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      },
+      asOf: now,
+    });
+  } catch (error) {
+    console.error("getCropCycleHistory:", error);
+    return res.status(500).json({ message: "Failed to fetch crop history" });
+  }
+}
+
 // GET /api/user/crop-cycles/harvest-due
 // Poll this when the app opens / returns to foreground to decide whether to prompt.
 export async function getHarvestDueCropCycles(req: AuthRequest, res: Response) {
@@ -1192,7 +1371,7 @@ export async function cancelCropCycle(req: AuthRequest, res: Response) {
 
     const updated = await prisma.trayCropCycle.update({
       where: { id },
-      data: { status: "CANCELLED" },
+      data: { status: "CANCELLED", cancelledAt: new Date() },
     });
     return res
       .status(200)

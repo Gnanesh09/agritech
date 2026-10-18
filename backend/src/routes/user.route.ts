@@ -65,6 +65,13 @@ userRouter.post(
   userController.plantTrayCrop,
 );
 
+// Crop history (static route must remain before /crop-cycles/:id routes).
+userRouter.get(
+  "/crop-cycles/history",
+  protectRoute,
+  userController.getCropCycleHistory,
+);
+
 // Crop lifecycle and harvest tracking. Place static route before the :id routes.
 userRouter.get(
   "/crop-cycles/harvest-due",
