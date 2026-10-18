@@ -837,6 +837,8 @@ export default function DeviceDetailScreen() {
   }
 
   function openEdit() {
+    if (!device) return;
+
     setDeviceName(device.name || device.deviceModel.name);
     setError("");
     setEditOpen(true);
