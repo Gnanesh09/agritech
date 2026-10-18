@@ -65,7 +65,22 @@ userRouter.post(
   userController.plantTrayCrop,
 );
 
-// Crop lifecycle
+// Crop lifecycle and harvest tracking. Place static route before the :id routes.
+userRouter.get(
+  "/crop-cycles/harvest-due",
+  protectRoute,
+  userController.getHarvestDueCropCycles,
+);
+userRouter.get(
+  "/crop-cycles/:id/time-remaining",
+  protectRoute,
+  userController.getCropCycleTimeRemaining,
+);
+userRouter.post(
+  "/crop-cycles/:id/harvest-status",
+  protectRoute,
+  userController.recordCropHarvestStatus,
+);
 userRouter.patch(
   "/crop-cycles/:id",
   protectRoute,

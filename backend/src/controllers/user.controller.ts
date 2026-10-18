@@ -711,6 +711,205 @@ export async function updateRackRow(req: AuthRequest, res: Response) {
   }
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function getCropTiming(
+  cycle: {
+    expectedHarvestDate: Date;
+    status: string;
+    lastHarvestCheckAt?: Date | null;
+  },
+  now = new Date(),
+) {
+  const deltaMs = new Date(cycle.expectedHarvestDate).getTime() - now.getTime();
+  const isActive = !["HARVESTED", "CANCELLED"].includes(cycle.status);
+  const isDue = isActive && deltaMs <= 0;
+  const lastCheck = cycle.lastHarvestCheckAt
+    ? new Date(cycle.lastHarvestCheckAt).getTime()
+    : null;
+
+  return {
+    expectedHarvestDate: cycle.expectedHarvestDate,
+    isDue,
+    isOverdue: isDue && deltaMs < 0,
+    // Keep remaining values at zero after the target date; report overdue separately.
+    remainingMilliseconds: Math.max(0, deltaMs),
+    remainingSeconds: Math.max(0, Math.floor(deltaMs / 1000)),
+    remainingMinutes: Math.max(0, Math.floor(deltaMs / 60_000)),
+    remainingHours: Math.max(0, Math.floor(deltaMs / 3_600_000)),
+    remainingDays: Math.max(0, Math.ceil(deltaMs / DAY_MS)),
+    overdueMilliseconds: isDue ? Math.max(0, -deltaMs) : 0,
+    overdueDays: isDue ? Math.max(0, Math.ceil(-deltaMs / DAY_MS)) : 0,
+    needsHarvestConfirmation:
+      isDue && (lastCheck === null || now.getTime() - lastCheck >= DAY_MS),
+    nextHarvestCheckAt: lastCheck === null ? now : new Date(lastCheck + DAY_MS),
+  };
+}
+
+async function findOwnedCropCycle(userId: string, id: string) {
+  return prisma.trayCropCycle
+    .findFirst({
+      where: { id },
+      include: {
+        tray: { include: { row: { include: { rack: true } } } },
+      },
+    })
+    .then((cycle) =>
+      cycle &&
+      cycle.tray.row.rack.userId === userId &&
+      cycle.tray.row.rack.status === "ACTIVE"
+        ? cycle
+        : null,
+    );
+}
+
+// GET /api/user/crop-cycles/harvest-due
+// Poll this when the app opens / returns to foreground to decide whether to prompt.
+export async function getHarvestDueCropCycles(req: AuthRequest, res: Response) {
+  try {
+    if (!req.userId)
+      return res.status(401).json({ message: "Authentication required" });
+
+    const now = new Date();
+    await prisma.trayCropCycle.updateMany({
+      where: {
+        status: "GROWING",
+        expectedHarvestDate: { lte: now },
+        tray: { row: { rack: { userId: req.userId, status: "ACTIVE" } } },
+      },
+      data: { status: "READY" },
+    });
+
+    const cycles = await prisma.trayCropCycle.findMany({
+      where: {
+        status: "READY",
+        expectedHarvestDate: { lte: now },
+        tray: { row: { rack: { userId: req.userId, status: "ACTIVE" } } },
+      },
+      orderBy: { expectedHarvestDate: "asc" },
+      include: {
+        tray: {
+          include: {
+            row: { include: { rack: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      asOf: now,
+      count: cycles.length,
+      crops: cycles.map((cycle) => ({
+        ...cycle,
+        tray: {
+          id: cycle.tray.id,
+          name: cycle.tray.name,
+          slot: cycle.tray.slot,
+          row: {
+            id: cycle.tray.row.id,
+            name: cycle.tray.row.name,
+            rowNumber: cycle.tray.row.rowNumber,
+            rack: cycle.tray.row.rack,
+          },
+        },
+        timing: getCropTiming(cycle, now),
+      })),
+    });
+  } catch (error) {
+    console.error("getHarvestDueCropCycles:", error);
+    return res
+      .status(500)
+      .json({ message: "Failed to fetch crops due for harvest" });
+  }
+}
+
+// GET /api/user/crop-cycles/:id/time-remaining
+export async function getCropCycleTimeRemaining(
+  req: AuthRequest,
+  res: Response,
+) {
+  try {
+    if (!req.userId)
+      return res.status(401).json({ message: "Authentication required" });
+    const { id } = req.params;
+    if (!id || Array.isArray(id))
+      return res.status(400).json({ message: "Invalid crop cycle ID" });
+
+    const cycle = await findOwnedCropCycle(req.userId, id);
+    if (!cycle)
+      return res.status(404).json({ message: "Crop cycle not found" });
+
+    const now = new Date();
+    let currentCycle = cycle;
+    if (cycle.status === "GROWING" && cycle.expectedHarvestDate <= now) {
+      currentCycle = await prisma.trayCropCycle.update({
+        where: { id: cycle.id },
+        data: { status: "READY" },
+        include: { tray: { include: { row: { include: { rack: true } } } } },
+      });
+    }
+
+    return res.status(200).json({
+      cropCycle: currentCycle,
+      timing: getCropTiming(currentCycle, now),
+      asOf: now,
+    });
+  } catch (error) {
+    console.error("getCropCycleTimeRemaining:", error);
+    return res
+      .status(500)
+      .json({ message: "Failed to fetch crop time remaining" });
+  }
+}
+
+// POST /api/user/crop-cycles/:id/harvest-status
+// Body: { "harvested": true | false }. "false" records the user's check-in and
+// allows the UI to ask again after 24 hours if the crop remains unharvested.
+export async function recordCropHarvestStatus(req: AuthRequest, res: Response) {
+  try {
+    if (!req.userId)
+      return res.status(401).json({ message: "Authentication required" });
+    const { id } = req.params;
+    const { harvested } = req.body ?? {};
+    if (!id || Array.isArray(id))
+      return res.status(400).json({ message: "Invalid crop cycle ID" });
+    if (typeof harvested !== "boolean")
+      return res
+        .status(400)
+        .json({ message: "harvested must be true or false" });
+
+    const cycle = await findOwnedCropCycle(req.userId, id);
+    if (!cycle)
+      return res.status(404).json({ message: "Crop cycle not found" });
+    if (!["GROWING", "READY"].includes(cycle.status))
+      return res.status(400).json({ message: "Crop cycle is not active" });
+
+    const now = new Date();
+    const updated = await prisma.trayCropCycle.update({
+      where: { id },
+      data: harvested
+        ? { status: "HARVESTED", harvestedAt: now, lastHarvestCheckAt: now }
+        : {
+            status: cycle.expectedHarvestDate <= now ? "READY" : cycle.status,
+            lastHarvestCheckAt: now,
+          },
+    });
+
+    return res.status(200).json({
+      message: harvested
+        ? "Crop harvest confirmed"
+        : "Crop marked as not harvested yet",
+      cropCycle: updated,
+      timing: getCropTiming(updated, now),
+    });
+  } catch (error) {
+    console.error("recordCropHarvestStatus:", error);
+    return res
+      .status(500)
+      .json({ message: "Failed to update harvest confirmation" });
+  }
+}
+
 export async function getTrayCropCycles(req: AuthRequest, res: Response) {
   try {
     if (!req.userId)
@@ -728,6 +927,11 @@ export async function getTrayCropCycles(req: AuthRequest, res: Response) {
     if (!rack || !tray)
       return res.status(404).json({ message: "Tray not found" });
 
+    const now = new Date();
+    await prisma.trayCropCycle.updateMany({
+      where: { trayId, status: "GROWING", expectedHarvestDate: { lte: now } },
+      data: { status: "READY" },
+    });
     const cycles = await prisma.trayCropCycle.findMany({
       where: { trayId },
       orderBy: { createdAt: "desc" },
@@ -735,7 +939,11 @@ export async function getTrayCropCycles(req: AuthRequest, res: Response) {
 
     return res.status(200).json({
       tray: { id: tray.id, slot: tray.slot, name: tray.name },
-      cycles,
+      cycles: cycles.map((cycle) => ({
+        ...cycle,
+        timing: getCropTiming(cycle, now),
+      })),
+      asOf: now,
     });
   } catch (error) {
     console.error("getTrayCropCycles:", error);
@@ -898,6 +1106,14 @@ export async function updateCropCycle(req: AuthRequest, res: Response) {
         estimatedGrowthDays: nextGrowth,
         expectedHarvestDate,
         status: expectedHarvestDate <= new Date() ? "READY" : "GROWING",
+        ...(sowingDate !== undefined || estimatedGrowthDays !== undefined
+          ? {
+              preHarvestReminderSentAt: null,
+              harvestDueReminderSentAt: null,
+              overdueHarvestReminderSentAt: null,
+              lastHarvestCheckAt: null,
+            }
+          : {}),
         ...(notes !== undefined
           ? {
               notes:
