@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   Switch,
-  Text,
   TextInput,
   View,
 } from "react-native";
@@ -181,42 +180,47 @@ export default function ProfileScreen() {
       >
         <View className="px-6 pt-5">
           {/* HEADER */}
-          <Text className="text-[34px] font-bold tracking-[-1.2px] text-white">
+          <AppText
+            weight="semibold"
+            className="text-[34px]  tracking-[-1.2px] text-white"
+          >
             Profile
-          </Text>
+          </AppText>
 
-          <Text className="mt-1 text-[15px] text-zinc-500">Your account</Text>
+          <AppText className="mt-1 text-[15px] text-zinc-500">
+            Your account
+          </AppText>
 
           {/* USER */}
           <View className="mt-8 flex-row items-center">
             <View className="h-[58px] w-[58px] items-center justify-center rounded-full bg-primary">
-              <Text className="text-[22px] font-bold text-black">
+              <AppText className="text-[22px] font-bold text-black">
                 {initials}
-              </Text>
+              </AppText>
             </View>
 
             <View className="ml-4 flex-1">
-              <Text
+              <AppText
                 numberOfLines={1}
                 className="text-[20px] font-semibold text-white"
               >
                 {user?.username || "User"}
-              </Text>
+              </AppText>
 
-              <Text
+              <AppText
                 numberOfLines={1}
                 className="mt-1 text-[14px] text-zinc-500"
               >
                 {user?.email}
-              </Text>
+              </AppText>
             </View>
           </View>
 
           {/* ACCOUNT */}
           <View className="mt-10">
-            <Text className="mb-3 px-1 text-[13px] font-medium uppercase tracking-[1px] text-zinc-500">
+            <AppText className="mb-3 px-1 text-[13px] font-medium uppercase tracking-[1px] text-zinc-500">
               Account
-            </Text>
+            </AppText>
 
             <View className="overflow-hidden rounded-[18px] bg-primaryDark1">
               <Pressable
@@ -224,15 +228,17 @@ export default function ProfileScreen() {
                 className="flex-row items-center justify-between px-5 py-[19px] active:bg-zinc-900"
               >
                 <View>
-                  <Text className="text-[17px] text-white">
+                  <AppText className="text-[17px] text-white">
                     Personal Information
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-zinc-500">
+                  </AppText>
+                  <AppText className="mt-1 text-[13px] text-zinc-500">
                     Edit your account details
-                  </Text>
+                  </AppText>
                 </View>
 
-                <Text className="text-[28px] font-light text-zinc-600">›</Text>
+                <AppText className="text-[28px] font-light text-zinc-600">
+                  ›
+                </AppText>
               </Pressable>
 
               <View className="ml-5 h-px bg-zinc-900" />
@@ -241,8 +247,10 @@ export default function ProfileScreen() {
                 onPress={() => setSheet("settings")}
                 className="flex-row items-center justify-between px-5 py-[19px] active:bg-zinc-900"
               >
-                <Text className="text-[17px] text-white">Settings</Text>
-                <Text className="text-[28px] font-light text-zinc-600">›</Text>
+                <AppText className="text-[17px] text-white">Settings</AppText>
+                <AppText className="text-[28px] font-light text-zinc-600">
+                  ›
+                </AppText>
               </Pressable>
 
               <View className="ml-5 h-px bg-zinc-900" />
@@ -251,17 +259,19 @@ export default function ProfileScreen() {
                 onPress={() => setSheet("security")}
                 className="flex-row items-center justify-between px-5 py-[19px] active:bg-zinc-900"
               >
-                <Text className="text-[17px] text-white">Security</Text>
-                <Text className="text-[28px] font-light text-zinc-600">›</Text>
+                <AppText className="text-[17px] text-white">Security</AppText>
+                <AppText className="text-[28px] font-light text-zinc-600">
+                  ›
+                </AppText>
               </Pressable>
             </View>
           </View>
 
           {/* LEGAL */}
           <View className="mt-8">
-            <Text className="mb-3 px-1 text-[13px] font-medium uppercase tracking-[1px] text-zinc-500">
+            <AppText className="mb-3 px-1 text-[13px] font-medium uppercase tracking-[1px] text-zinc-500">
               Legal
-            </Text>
+            </AppText>
 
             <View className="overflow-hidden rounded-[18px] bg-primaryDark1">
               <Pressable
@@ -272,7 +282,9 @@ export default function ProfileScreen() {
                   Terms & Conditions
                 </AppText>
 
-                <Text className="text-[28px] font-light text-zinc-600">›</Text>
+                <AppText className="text-[28px] font-light text-zinc-600">
+                  ›
+                </AppText>
               </Pressable>
             </View>
           </View>
@@ -282,14 +294,14 @@ export default function ProfileScreen() {
             onPress={handleLogout}
             className="mt-10 items-center py-4 active:opacity-60"
           >
-            <Text className="text-[17px] font-medium text-red-500">
+            <AppText className="text-[17px] font-medium text-red-500">
               Log out
-            </Text>
+            </AppText>
           </Pressable>
 
-          <Text className="mt-5 text-center text-[12px] text-zinc-700">
+          <AppText className="mt-5 text-center text-[12px] text-zinc-700">
             {user?.role ? user.role : "Account"}
-          </Text>
+          </AppText>
         </View>
       </ScrollView>
 
@@ -303,25 +315,29 @@ export default function ProfileScreen() {
         <View className="flex-1 justify-end bg-black/70">
           <View className="rounded-t-[28px] bg-[#0D0D0D] px-6 pb-10 pt-5">
             <View className="mb-6 flex-row items-center justify-between">
-              <Text className="text-[28px] font-bold text-white">
+              <AppText className="text-[28px] font-bold text-white">
                 Personal Information
-              </Text>
+              </AppText>
 
               <Pressable
                 onPress={() => setSheet(null)}
                 className="h-9 w-9 items-center justify-center rounded-full bg-zinc-900"
               >
-                <Text className="text-[20px] text-zinc-400">×</Text>
+                <AppText className="text-[20px] text-zinc-400">×</AppText>
               </Pressable>
             </View>
 
-            <Text className="mb-2 text-[13px] text-zinc-500">Email</Text>
+            <AppText className="mb-2 text-[13px] text-zinc-500">Email</AppText>
 
             <View className="mb-5 rounded-2xl bg-[#151515] px-4 py-4">
-              <Text className="text-[16px] text-zinc-400">{user?.email}</Text>
+              <AppText className="text-[16px] text-zinc-400">
+                {user?.email}
+              </AppText>
             </View>
 
-            <Text className="mb-2 text-[13px] text-zinc-500">Username</Text>
+            <AppText className="mb-2 text-[13px] text-zinc-500">
+              Username
+            </AppText>
 
             <TextInput
               value={username}
@@ -332,7 +348,9 @@ export default function ProfileScreen() {
               className="mb-5 rounded-2xl bg-[#151515] px-4 py-4 text-[16px] text-white"
             />
 
-            <Text className="mb-2 text-[13px] text-zinc-500">Country code</Text>
+            <AppText className="mb-2 text-[13px] text-zinc-500">
+              Country code
+            </AppText>
 
             <TextInput
               value={countryCode}
@@ -342,7 +360,9 @@ export default function ProfileScreen() {
               className="mb-5 rounded-2xl bg-[#151515] px-4 py-4 text-[16px] text-white"
             />
 
-            <Text className="mb-2 text-[13px] text-zinc-500">Phone number</Text>
+            <AppText className="mb-2 text-[13px] text-zinc-500">
+              Phone number
+            </AppText>
 
             <TextInput
               value={phoneNo}
@@ -361,9 +381,9 @@ export default function ProfileScreen() {
               {saving ? (
                 <ActivityIndicator color="#000000" />
               ) : (
-                <Text className="text-[17px] font-semibold text-black">
+                <AppText className="text-[17px] font-semibold text-black">
                   Save Changes
-                </Text>
+                </AppText>
               )}
             </Pressable>
           </View>
@@ -380,23 +400,27 @@ export default function ProfileScreen() {
         <View className="flex-1 justify-end bg-black/70">
           <View className="rounded-t-[28px] bg-[#0D0D0D] px-6 pb-10 pt-5">
             <View className="mb-7 flex-row items-center justify-between">
-              <Text className="text-[28px] font-bold text-white">Settings</Text>
+              <AppText className="text-[28px] font-bold text-white">
+                Settings
+              </AppText>
 
               <Pressable
                 onPress={() => setSheet(null)}
                 className="h-9 w-9 items-center justify-center rounded-full bg-zinc-900"
               >
-                <Text className="text-[20px] text-zinc-400">×</Text>
+                <AppText className="text-[20px] text-zinc-400">×</AppText>
               </Pressable>
             </View>
 
             <View className="overflow-hidden rounded-2xl bg-[#151515]">
               <View className="flex-row items-center justify-between px-5 py-[18px]">
                 <View>
-                  <Text className="text-[17px] text-white">Notifications</Text>
-                  <Text className="mt-1 text-[13px] text-zinc-500">
+                  <AppText className="text-[17px] text-white">
+                    Notifications
+                  </AppText>
+                  <AppText className="mt-1 text-[13px] text-zinc-500">
                     Receive important updates
-                  </Text>
+                  </AppText>
                 </View>
 
                 <Switch
@@ -414,10 +438,12 @@ export default function ProfileScreen() {
 
               <View className="flex-row items-center justify-between px-5 py-[18px]">
                 <View>
-                  <Text className="text-[17px] text-white">Auto refresh</Text>
-                  <Text className="mt-1 text-[13px] text-zinc-500">
+                  <AppText className="text-[17px] text-white">
+                    Auto refresh
+                  </AppText>
+                  <AppText className="mt-1 text-[13px] text-zinc-500">
                     Keep device data updated
-                  </Text>
+                  </AppText>
                 </View>
 
                 <Switch
@@ -445,26 +471,32 @@ export default function ProfileScreen() {
         <View className="flex-1 justify-end bg-black/70">
           <View className="rounded-t-[28px] bg-[#0D0D0D] px-6 pb-10 pt-5">
             <View className="mb-7 flex-row items-center justify-between">
-              <Text className="text-[28px] font-bold text-white">Security</Text>
+              <AppText className="text-[28px] font-bold text-white">
+                Security
+              </AppText>
 
               <Pressable
                 onPress={() => setSheet(null)}
                 className="h-9 w-9 items-center justify-center rounded-full bg-zinc-900"
               >
-                <Text className="text-[20px] text-zinc-400">×</Text>
+                <AppText className="text-[20px] text-zinc-400">×</AppText>
               </Pressable>
             </View>
 
             <View className="rounded-2xl bg-[#151515] px-5 py-5">
-              <Text className="text-[15px] text-zinc-500">Signed in as</Text>
+              <AppText className="text-[15px] text-zinc-500">
+                Signed in as
+              </AppText>
 
-              <Text className="mt-1 text-[17px] text-white">{user?.email}</Text>
+              <AppText className="mt-1 text-[17px] text-white">
+                {user?.email}
+              </AppText>
 
               <View className="mt-5 flex-row items-center">
                 <View className="h-2 w-2 rounded-full bg-[#E7EF58]" />
-                <Text className="ml-2 text-[14px] text-zinc-400">
+                <AppText className="ml-2 text-[14px] text-zinc-400">
                   {user?.verified ? "Email verified" : "Email not verified"}
-                </Text>
+                </AppText>
               </View>
             </View>
 
@@ -472,9 +504,9 @@ export default function ProfileScreen() {
               onPress={handleLogoutAll}
               className="mt-5 h-[54px] items-center justify-center rounded-2xl bg-red-500/10"
             >
-              <Text className="text-[16px] font-medium text-red-500">
+              <AppText className="text-[16px] font-medium text-red-500">
                 Log out of all devices
-              </Text>
+              </AppText>
             </Pressable>
           </View>
         </View>
@@ -490,20 +522,20 @@ export default function ProfileScreen() {
         <View className="flex-1 justify-end bg-black/70">
           <View className="max-h-[85%] rounded-t-[28px] bg-[#0D0D0D] px-6 pb-10 pt-5">
             <View className="mb-6 flex-row items-center justify-between">
-              <Text className="text-[28px] font-bold text-white">
+              <AppText weight="bold" className="text-[28px]  text-white">
                 Terms & Conditions
-              </Text>
+              </AppText>
 
               <Pressable
                 onPress={() => setSheet(null)}
                 className="h-9 w-9 items-center justify-center rounded-full bg-zinc-900"
               >
-                <Text className="text-[20px] text-zinc-400">×</Text>
+                <AppText className="text-[20px] text-zinc-400">×</AppText>
               </Pressable>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text className="text-[15px] leading-7 text-zinc-400">
+              <AppText className="text-[15px] leading-7 text-zinc-400">
                 By using this application, you agree to use the service
                 responsibly and provide accurate account information.
                 {"\n\n"}
@@ -517,7 +549,7 @@ export default function ProfileScreen() {
                 {"\n\n"}
                 Continued use of the application means you accept the applicable
                 terms and future updates to these terms.
-              </Text>
+              </AppText>
             </ScrollView>
           </View>
         </View>

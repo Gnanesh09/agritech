@@ -7,11 +7,11 @@ type AppTextProps = TextProps & {
 };
 
 const FONT_FAMILIES = {
-  regular: "Poppins_400Regular",
-  medium: "Poppins_500Medium",
-  semibold: "Poppins_600SemiBold",
-  bold: "Poppins_700Bold",
-  extrabold: "Poppins_800ExtraBold",
+  regular: "DMSans_400Regular",
+  medium: "DMSans_500Medium",
+  semibold: "DMSans_600SemiBold",
+  bold: "DMSans_700Bold",
+  extrabold: "DMSans_800ExtraBold",
 } as const;
 
 export default function AppText({

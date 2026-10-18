@@ -22,6 +22,7 @@ import * as Location from "expo-location";
 import AppText from "@/components/ui/AppText";
 import { apiRequest } from "../../lib/api";
 import { getAccessToken } from "../../lib/auth-storage";
+import { LinearGradient } from "expo-linear-gradient";
 
 const C = {
   bg: "#F5F7F5",
@@ -53,7 +54,7 @@ const IMAGEKIT_UPLOAD_URL = "https://upload.imagekit.io/api/v1/files/upload";
 type PackUnit = "G" | "KG" | "PCS" | "BUNCH" | "BOX" | "PACK";
 type HarvestType = "HARVESTED" | "UPCOMING";
 type MainTab = "LISTINGS" | "ORDERS";
-type FlowStep = "CROP" | "DETAILS" | "FULFILMENT";
+type FlowStep = "CROP" | "DETAILS" | "FULFILMENT" | "SUCCESS";
 
 type SellerCrop = {
   id: string;
@@ -265,6 +266,8 @@ async function uploadToImageKit(image: PendingImage) {
     endpoint = `${apiBase}/${cleanEndpoint}`;
   }
 
+  console.log("ImageKit auth endpoint:", endpoint);
+
   const accessToken = await getAccessToken();
   if (!accessToken) {
     throw new Error(
@@ -409,7 +412,7 @@ function PrimaryButton({
     >
       {loading ? <ActivityIndicator color={fg} /> : null}
       {!loading ? (
-        <AppText className="text-[13px] font-bold" style={{ color: fg }}>
+        <AppText weight="bold" className="text-[13px] text-[#106d18]">
           {label}
         </AppText>
       ) : null}
@@ -492,108 +495,6 @@ function SectionTitle({
         </AppText>
       ) : null}
     </View>
-  );
-}
-
-function Drawer({
-  visible,
-  title,
-  subtitle,
-  onClose,
-  onRequestClose,
-  children,
-  footer,
-  insets,
-  large = true,
-}: {
-  visible: boolean;
-  title: string;
-  subtitle?: string;
-  onClose?: () => void;
-  onRequestClose: () => void;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
-  insets: { bottom: number; top: number };
-  large?: boolean;
-}) {
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={onRequestClose}
-    >
-      <View className="flex-1 justify-end bg-[rgba(12,20,14,0.34)]">
-        <Pressable
-          className="flex-1"
-          onPress={onRequestClose}
-          accessibilityLabel="Close drawer overlay"
-        />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={{
-            height: large ? "93%" : undefined,
-            maxHeight: "96%",
-            width: "100%",
-          }}
-        >
-          <View
-            className="flex-1 overflow-hidden rounded-t-[26px] border border-[#E1E8E2] bg-white"
-            style={{ paddingBottom: 0 }}
-          >
-            <View className="items-center pb-2 pt-2.5">
-              <View className="h-1 w-10 rounded-full bg-[#D7E0D8]" />
-            </View>
-
-            <View className="flex-row items-center gap-3 border-b border-[#E6ECE6] px-4 pb-3 pt-1">
-              <View className="min-w-0 flex-1 gap-0.5">
-                <AppText className="text-[17px] font-bold text-[#172019]">
-                  {title}
-                </AppText>
-                {subtitle ? (
-                  <AppText className="text-[10px] leading-4 text-[#69766D]">
-                    {subtitle}
-                  </AppText>
-                ) : null}
-              </View>
-
-              {onClose ? (
-                <Pressable
-                  onPress={onClose}
-                  className="h-9 w-9 items-center justify-center rounded-full border border-[#E1E8E2] bg-[#F5F7F5]"
-                  accessibilityRole="button"
-                  accessibilityLabel="Close"
-                >
-                  <Feather name="x" size={17} color={C.text} />
-                </Pressable>
-              ) : null}
-            </View>
-
-            <ScrollView
-              className="flex-1"
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ padding: 16, paddingBottom: 18 }}
-            >
-              {children}
-            </ScrollView>
-
-            {footer ? (
-              <View
-                className="border-t border-[#E6ECE6] bg-white px-4 pt-3"
-                style={{ paddingBottom: Math.max(insets.bottom, 12) }}
-              >
-                {footer}
-              </View>
-            ) : (
-              <View style={{ height: insets.bottom }} />
-            )}
-          </View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
   );
 }
 
@@ -866,6 +767,11 @@ export default function MarketplaceSellScreen() {
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [savingListing, setSavingListing] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [showOptionalSettings, setShowOptionalSettings] = useState(false);
+  const [successInfo, setSuccessInfo] = useState<{
+    cropName: string;
+    wasEdit: boolean;
+  } | null>(null);
 
   const [orderVisible, setOrderVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<SellerOrder | null>(null);
@@ -926,10 +832,25 @@ export default function MarketplaceSellScreen() {
   );
   const availableCrops = useMemo(
     () =>
-      crops.filter((crop) =>
-        ["GROWING", "READY", "HARVESTED"].includes(crop.status),
-      ),
-    [crops],
+      crops.filter((crop) => {
+        if (!["GROWING", "READY", "HARVESTED"].includes(crop.status)) {
+          return false;
+        }
+
+        // Do not offer a crop for a second listing while an existing listing
+        // for the same crop cycle is still live. A removed listing can be
+        // relisted through its dedicated "Relist crop" action.
+        const hasLiveListing = listings.some((listing) => {
+          const listingCropId = listing.cropCycleId ?? listing.cropCycle?.id;
+          return listingCropId === crop.id && listing.status !== "REMOVED";
+        });
+        const markedAsListed = Boolean(
+          crop.selling?.hasListing && crop.selling?.listingStatus !== "REMOVED",
+        );
+
+        return !hasLiveListing && !markedAsListed;
+      }),
+    [crops, listings],
   );
 
   // Derive the chart and activity list only from the orders returned by the API.
@@ -995,6 +916,8 @@ export default function MarketplaceSellScreen() {
     setEditingListing(null);
     setSelectedCrop(null);
     setPendingImage(null);
+    setSuccessInfo(null);
+    setShowOptionalSettings(false);
     setDraft(
       initialDraft(
         locations.find((item) => item.isDefault)?.id ?? locations[0]?.id ?? "",
@@ -1030,6 +953,13 @@ export default function MarketplaceSellScreen() {
     setEditingListing(relist ? null : listing);
     setSelectedCrop(crop);
     setPendingImage(null);
+    setSuccessInfo(null);
+    setShowOptionalSettings(
+      Number(listing.discountPercent ?? 0) > 0 ||
+        Boolean(listing.description) ||
+        listing.maxOrderQuantity != null ||
+        Number(listing.minOrderQuantity ?? 1) > 1,
+    );
     setDraft({
       cropCycleId: crop.id,
       harvestType: relist ? cropHarvestType(crop) : listing.harvestType,
@@ -1058,12 +988,31 @@ export default function MarketplaceSellScreen() {
       deliveryRadiusKm: String(listing.deliveryRadiusKm ?? 5),
       deliveryFee: String(listing.deliveryFee ?? 0),
     });
-    setStep(relist ? "DETAILS" : "DETAILS");
+    setStep("DETAILS");
     setFormVisible(true);
+  };
+
+  const finishListingFlow = () => {
+    setFormVisible(false);
+    setSelectedCrop(null);
+    setEditingListing(null);
+    setPendingImage(null);
+    setSuccessInfo(null);
+    setShowOptionalSettings(false);
+    setStep("CROP");
+    setDraft(
+      initialDraft(
+        locations.find((item) => item.isDefault)?.id ?? locations[0]?.id ?? "",
+      ),
+    );
   };
 
   const attemptCloseForm = () => {
     if (savingListing) return;
+    if (step === "SUCCESS") {
+      finishListingFlow();
+      return;
+    }
     Alert.alert(
       "Discard listing changes?",
       editingListing
@@ -1129,15 +1078,30 @@ export default function MarketplaceSellScreen() {
     if (!isPositive(draft.basePrice))
       return "Enter the base price for one pack.";
     if (
-      !isNonNegative(draft.discountPercent) ||
-      Number(draft.discountPercent) > 100
-    )
-      return "Discount must be between 0 and 100%.";
-    if (
       !Number.isInteger(Number(draft.quantityAvailable)) ||
       !isPositive(draft.quantityAvailable)
     )
       return "Available quantity must be a positive whole number.";
+    return "";
+  };
+
+  const validateFulfilment = () => {
+    if (
+      !draft.sellerLocationId ||
+      !locations.some((item) => item.id === draft.sellerLocationId)
+    )
+      return "Choose the location where the crop will be handed over or dispatched from.";
+    if (!draft.sellerDelivery && !draft.customerPickup)
+      return "Enable seller delivery, customer pickup, or both.";
+    if (draft.sellerDelivery && !isPositive(draft.deliveryRadiusKm))
+      return "Enter a delivery radius greater than zero.";
+    if (!isNonNegative(draft.deliveryFee))
+      return "Delivery fee cannot be negative.";
+    if (
+      !isNonNegative(draft.discountPercent) ||
+      Number(draft.discountPercent) > 100
+    )
+      return "Discount must be between 0 and 100%.";
     if (
       !Number.isInteger(Number(draft.minOrderQuantity)) ||
       !isPositive(draft.minOrderQuantity)
@@ -1156,27 +1120,34 @@ export default function MarketplaceSellScreen() {
     return "";
   };
 
-  const validateFulfilment = () => {
-    if (
-      !draft.sellerLocationId ||
-      !locations.some((item) => item.id === draft.sellerLocationId)
-    )
-      return "Choose the location where the crop will be handed over or dispatched from.";
-    if (!draft.sellerDelivery && !draft.customerPickup)
-      return "Enable seller delivery, customer pickup, or both.";
-    if (draft.sellerDelivery && !isPositive(draft.deliveryRadiusKm))
-      return "Enter a delivery radius greater than zero.";
-    if (!isNonNegative(draft.deliveryFee))
-      return "Delivery fee cannot be negative.";
-    return "";
-  };
-
   const submitListing = async () => {
+    if (savingListing) return;
     if (!selectedCrop || !draft.cropCycleId) {
       Alert.alert("Select a crop", "Choose a crop from your grow rack first.");
       setStep("CROP");
       return;
     }
+    const isUpdatingExistingListing = Boolean(
+      editingListing && editingListing.status !== "REMOVED",
+    );
+    if (!isUpdatingExistingListing) {
+      const duplicate = listings.find((listing) => {
+        const listingCropId = listing.cropCycleId ?? listing.cropCycle?.id;
+        return (
+          listingCropId === draft.cropCycleId && listing.status !== "REMOVED"
+        );
+      });
+      if (duplicate) {
+        Alert.alert(
+          "This crop is already listed",
+          "Each crop cycle can have one active marketplace listing. Open the existing listing to edit it, or use Relist crop if it was removed.",
+        );
+        await loadAll(true);
+        setStep("CROP");
+        return;
+      }
+    }
+
     const detailError = validateDetails();
     if (detailError) {
       Alert.alert("Check listing details", detailError);
@@ -1189,6 +1160,10 @@ export default function MarketplaceSellScreen() {
       return;
     }
 
+    const savedCropName = selectedCrop.cropName;
+    const wasEdit = Boolean(
+      editingListing && editingListing.status !== "REMOVED",
+    );
     setSavingListing(true);
     try {
       let imageUrl: string | null = draft.imageUrl.trim() || null;
@@ -1261,15 +1236,10 @@ export default function MarketplaceSellScreen() {
           body: JSON.stringify(payload),
         });
       }
-      setFormVisible(false);
-      setSelectedCrop(null);
-      setEditingListing(null);
-      setPendingImage(null);
       await loadAll(true);
-      Alert.alert(
-        "Listing saved",
-        "Your crop listing has been saved successfully.",
-      );
+      setSuccessInfo({ cropName: savedCropName, wasEdit });
+      setShowOptionalSettings(false);
+      setStep("SUCCESS");
     } catch (e) {
       Alert.alert("Could not save listing", errorMessage(e));
     } finally {
@@ -1713,13 +1683,6 @@ export default function MarketplaceSellScreen() {
                       {statusLabel(crop.status)}
                     </AppText>
                   </View>
-                  {crop.selling?.hasListing ? (
-                    <View className="rounded-full bg-[#FFF1D9] px-2 py-1">
-                      <AppText className="text-[9px] font-bold text-[#946200]">
-                        Already listed
-                      </AppText>
-                    </View>
-                  ) : null}
                   {cropType === "UPCOMING" ? (
                     <AppText className="text-[9px] text-[#7A877D]">
                       Expected {dateLabel(crop.expectedHarvestDate)}
@@ -1744,23 +1707,28 @@ export default function MarketplaceSellScreen() {
   const renderDetailsStep = () => (
     <View className="gap-4">
       {selectedCrop ? (
-        <View className="flex-row items-center gap-3 rounded-[14px] border border-[#E1E8E2] bg-[#FFFFFF] p-3">
-          <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#EAF4E4]">
-            <Feather name="check-circle" size={18} color={C.lime} />
+        <View className="flex-row items-center gap-3 rounded-[16px] border border-[#DDE9DA] bg-[#F4F9F1] p-3">
+          <View className="h-10 w-10 items-center justify-center rounded-full bg-[#E2F1DE]">
+            <Ionicons name="leaf-outline" size={20} color={C.green} />
           </View>
           <View className="min-w-0 flex-1">
-            <AppText className="text-[13px] font-bold text-[#171D18]">
+            <AppText className="text-[14px] font-bold text-[#172019]">
               {selectedCrop.cropName}
             </AppText>
-            <AppText className="mt-0.5 text-[10px] text-[#69766D]">
+            <AppText className="mt-0.5 text-[11px] text-[#68756B]">
               {draft.harvestType === "HARVESTED"
-                ? "Harvested crop"
-                : `Upcoming harvest · ${dateLabel(selectedCrop.expectedHarvestDate)}`}
+                ? "Harvested and ready to sell"
+                : `Expected harvest · ${dateLabel(selectedCrop.expectedHarvestDate)}`}
             </AppText>
           </View>
           {!editingListing ? (
-            <Pressable onPress={() => setStep("CROP")}>
-              <AppText className="text-[10px] font-bold text-[#2F7D4E]">
+            <Pressable
+              onPress={() => setStep("CROP")}
+              className="rounded-full bg-white px-3 py-2"
+              accessibilityRole="button"
+              accessibilityLabel="Change selected crop"
+            >
+              <AppText className="text-[11px] font-bold text-[#2F7D4E]">
                 Change
               </AppText>
             </Pressable>
@@ -1770,20 +1738,20 @@ export default function MarketplaceSellScreen() {
 
       <View className="gap-3">
         <SectionTitle
-          title="Product details"
-          subtitle="Set the pack size, quantity and price buyers will see."
+          title="What are you selling?"
+          subtitle="Add the pack size, price and available stock."
         />
-        <View className="flex-row gap-3">
-          <View className="flex-1">
+        <View className="flex-row items-start gap-3">
+          <View className="w-[104px]">
             <Field
               label="Pack size"
               value={draft.packSizeValue}
               onChangeText={(value) => changeDraft({ packSizeValue: value })}
-              placeholder="e.g. 250"
+              placeholder="250"
               keyboardType="decimal-pad"
             />
           </View>
-          <View className="flex-1 gap-1.5">
+          <View className="min-w-0 flex-1 gap-1.5">
             <AppText className="text-[11px] font-semibold text-[#69766D]">
               Unit
             </AppText>
@@ -1793,10 +1761,10 @@ export default function MarketplaceSellScreen() {
                   <Pressable
                     key={unit}
                     onPress={() => changeDraft({ packSizeUnit: unit })}
-                    className={`rounded-[9px] border px-2.5 py-2.5 ${draft.packSizeUnit === unit ? "border-[#4A8154] bg-[#E6F3E7]" : "border-[#E1E8E2] bg-[#FFFFFF]"}`}
+                    className={`rounded-full border px-3 py-2 ${draft.packSizeUnit === unit ? "border-[#2F7D4E] bg-[#E5F3E7]" : "border-[#E1E8E2] bg-white"}`}
                   >
                     <AppText
-                      className={`text-[10px] font-bold ${draft.packSizeUnit === unit ? "text-[#2F7D4E]" : "text-[#69766D]"}`}
+                      className={`text-[10px] font-bold ${draft.packSizeUnit === unit ? "text-[#2F7D4E]" : "text-[#68756B]"}`}
                     >
                       {unit}
                     </AppText>
@@ -1806,100 +1774,69 @@ export default function MarketplaceSellScreen() {
             </View>
           </View>
         </View>
-        <View className="flex-row gap-3">
-          <View className="flex-1">
-            <Field
-              label="Price per pack"
-              value={draft.basePrice}
-              onChangeText={(value) => changeDraft({ basePrice: value })}
-              placeholder="₹ 0.00"
-              keyboardType="decimal-pad"
-              helper="Original price before discount"
-            />
-          </View>
-          <View className="flex-1">
-            <Field
-              label="Discount"
-              value={draft.discountPercent}
-              onChangeText={(value) => changeDraft({ discountPercent: value })}
-              placeholder="0"
-              keyboardType="decimal-pad"
-              suffix="%"
-              helper="Enter 0 if not discounted"
-            />
-          </View>
-        </View>
-        <View className="rounded-[12px] border border-[#E1E8E2] bg-[#FFFFFF] p-3">
-          <AppText className="text-[10px] text-[#69766D]">
-            Selling price per pack
-          </AppText>
-          <AppText className="mt-1 text-[22px] font-extrabold text-[#2F7D4E]">
-            {isPositive(draft.basePrice) &&
-            isNonNegative(draft.discountPercent) &&
-            Number(draft.discountPercent) <= 100
-              ? money(
-                  Number(draft.basePrice) *
-                    (1 - Number(draft.discountPercent) / 100),
-                )
-              : "—"}
-          </AppText>
-          <AppText className="mt-0.5 text-[10px] text-[#7A877D]">
-            Calculated from the price and discount you enter.
-          </AppText>
-        </View>
-        <View className="flex-row gap-3">
-          <View className="flex-1">
-            <Field
-              label="Available quantity"
-              value={draft.quantityAvailable}
-              onChangeText={(value) =>
-                changeDraft({ quantityAvailable: value })
-              }
-              placeholder="e.g. 20"
-              keyboardType="number-pad"
-              helper="Number of packs in stock"
-            />
-          </View>
-          <View className="flex-1">
-            <Field
-              label="Minimum order"
-              value={draft.minOrderQuantity}
-              onChangeText={(value) => changeDraft({ minOrderQuantity: value })}
-              placeholder="1"
-              keyboardType="number-pad"
-              helper="Packs per order"
-            />
-          </View>
-        </View>
+
         <Field
-          label="Maximum order (optional)"
-          value={draft.maxOrderQuantity}
-          onChangeText={(value) => changeDraft({ maxOrderQuantity: value })}
-          placeholder="Leave empty for no separate limit"
-          keyboardType="number-pad"
-          helper="Cannot exceed the available quantity."
+          label="Price per pack"
+          value={draft.basePrice}
+          onChangeText={(value) => changeDraft({ basePrice: value })}
+          placeholder="e.g. 120"
+          keyboardType="decimal-pad"
+          helper="You can add a discount in optional settings."
         />
+
+        <Field
+          label="Available packs"
+          value={draft.quantityAvailable}
+          onChangeText={(value) => changeDraft({ quantityAvailable: value })}
+          placeholder="e.g. 20"
+          keyboardType="number-pad"
+        />
+
+        <View className="rounded-[14px] border border-[#DDE9DA] bg-[#F4F9F1] px-3.5 py-3">
+          <View className="flex-row items-center justify-between gap-3">
+            <View className="min-w-0 flex-1">
+              <AppText className="text-[10px] font-medium text-[#68756B]">
+                Customer price
+              </AppText>
+              <AppText className="mt-1 text-[22px] font-extrabold text-[#246B40]">
+                {isPositive(draft.basePrice) &&
+                isNonNegative(draft.discountPercent) &&
+                Number(draft.discountPercent) <= 100
+                  ? money(
+                      Number(draft.basePrice) *
+                        (1 - Number(draft.discountPercent) / 100),
+                    )
+                  : "—"}
+              </AppText>
+            </View>
+            <View className="rounded-full bg-white px-3 py-1.5">
+              <AppText className="text-[10px] font-bold text-[#2F7D4E]">
+                {draft.quantityAvailable || "0"} packs in stock
+              </AppText>
+            </View>
+          </View>
+        </View>
       </View>
 
-      <View className="gap-3">
+      <View className="gap-2">
         <SectionTitle
-          title="Crop photo"
-          subtitle="A clear photo helps buyers understand what they are ordering."
+          title="Product photo"
+          subtitle="Optional, but a real crop photo helps customers decide."
         />
         {draft.imageUrl ? (
-          <View className="overflow-hidden rounded-[13px] border border-[#E1E8E2] bg-[#FFFFFF]">
+          <View className="overflow-hidden rounded-[16px] border border-[#E1E8E2] bg-white">
             <Image
               source={{ uri: draft.imageUrl }}
               resizeMode="cover"
-              className="h-[165px] w-full"
+              className="h-[170px] w-full"
             />
             <View className="flex-row gap-2 p-2.5">
               <Pressable
                 onPress={() => void pickPhoto()}
-                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#EDF2ED] py-2.5"
+                className="flex-1 flex-row items-center justify-center gap-2 rounded-full bg-[#EDF2ED] py-3"
               >
-                <Feather name="image" size={13} color={C.text} />
-                <AppText className="text-[10px] font-bold text-[#171D18]">
+                <Feather name="image" size={14} color={C.text} />
+                <AppText className="text-[11px] font-bold text-[#172019]">
                   Change photo
                 </AppText>
               </Pressable>
@@ -1912,10 +1849,10 @@ export default function MarketplaceSellScreen() {
                     imageSizeBytes: "",
                   });
                 }}
-                className="flex-row items-center justify-center gap-1.5 rounded-[10px] bg-[#FCEBE9] px-3 py-2.5"
+                className="flex-row items-center justify-center gap-1.5 rounded-full bg-[#FCEBE9] px-4 py-3"
               >
                 <Feather name="trash-2" size={13} color={C.red} />
-                <AppText className="text-[10px] font-bold text-[#C53D38]">
+                <AppText className="text-[11px] font-bold text-[#C53D38]">
                   Remove
                 </AppText>
               </Pressable>
@@ -1924,37 +1861,30 @@ export default function MarketplaceSellScreen() {
         ) : (
           <Pressable
             onPress={() => void pickPhoto()}
-            className="flex-row items-center gap-3 rounded-[13px] border border-dashed border-[#C9D9CC] bg-[#FFFFFF] p-4"
+            className="flex-row items-center gap-3 rounded-[16px] border border-dashed border-[#C9D9CC] bg-white p-4"
+            accessibilityRole="button"
+            accessibilityLabel="Add a crop photo"
           >
-            <View className="h-10 w-10 items-center justify-center rounded-[11px] bg-[#EAF4E4]">
-              <Feather name="camera" size={17} color={C.lime} />
+            <View className="h-11 w-11 items-center justify-center rounded-full bg-[#E5F3E7]">
+              <Feather name="camera" size={18} color={C.green} />
             </View>
             <View className="min-w-0 flex-1">
-              <AppText className="text-[12px] font-bold text-[#171D18]">
+              <AppText className="text-[12px] font-bold text-[#172019]">
                 Add crop photo
               </AppText>
-              <AppText className="mt-1 text-[10px] text-[#69766D]">
-                Optional · Choose an image from your gallery
+              <AppText className="mt-1 text-[10px] text-[#68756B]">
+                Choose from your photo library
               </AppText>
             </View>
-            <Feather name="chevron-right" size={16} color={C.muted} />
+            <Feather name="chevron-right" size={17} color={C.muted} />
           </Pressable>
         )}
-        <Field
-          label="Description (optional)"
-          value={draft.description}
-          onChangeText={(value) => changeDraft({ description: value })}
-          placeholder="Growing method, freshness, pack contents…"
-          multiline
-          maxLength={2000}
-          helper={`${draft.description.length}/2000 characters`}
-        />
       </View>
     </View>
   );
 
   const renderFulfilmentStep = () => (
-    <View className="gap-4">
+    <View className="gap-3">
       <View className="rounded-[13px] border border-[#E1E8E2] bg-[#FFFFFF] p-3.5">
         <View className="flex-row items-start gap-2">
           <Feather name="truck" size={15} color={C.lime} />
@@ -2135,7 +2065,83 @@ export default function MarketplaceSellScreen() {
           </View>
         )}
       </View>
-      <View className="rounded-[14px] border border-[#E1E8E2] bg-[#FFFFFF] p-3.5">
+      <View className="overflow-hidden rounded-[15px] border border-[#E1E8E2] bg-white">
+        <Pressable
+          onPress={() => setShowOptionalSettings((current) => !current)}
+          className="flex-row items-center gap-3 px-3.5 py-3.5"
+          accessibilityRole="button"
+          accessibilityLabel={
+            showOptionalSettings
+              ? "Hide optional listing settings"
+              : "Show optional listing settings"
+          }
+        >
+          <View className="h-9 w-9 items-center justify-center rounded-full bg-[#F0F4ED]">
+            <Feather name="sliders" size={16} color={C.green} />
+          </View>
+          <View className="min-w-0 flex-1">
+            <AppText className="text-[12px] font-bold text-[#172019]">
+              More options
+            </AppText>
+            <AppText className="mt-0.5 text-[10px] text-[#68756B]">
+              Discount, order limits and description
+            </AppText>
+          </View>
+          <Feather
+            name={showOptionalSettings ? "chevron-up" : "chevron-down"}
+            size={17}
+            color={C.muted}
+          />
+        </Pressable>
+        {showOptionalSettings ? (
+          <View className="gap-3 border-t border-[#E8EDE7] px-3.5 pb-3.5 pt-3">
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Field
+                  label="Discount (optional)"
+                  value={draft.discountPercent}
+                  onChangeText={(value) =>
+                    changeDraft({ discountPercent: value })
+                  }
+                  placeholder="0"
+                  keyboardType="decimal-pad"
+                  suffix="%"
+                  helper="0 means no discount"
+                />
+              </View>
+              <View className="flex-1">
+                <Field
+                  label="Minimum order"
+                  value={draft.minOrderQuantity}
+                  onChangeText={(value) =>
+                    changeDraft({ minOrderQuantity: value })
+                  }
+                  placeholder="1"
+                  keyboardType="number-pad"
+                />
+              </View>
+            </View>
+            <Field
+              label="Maximum order (optional)"
+              value={draft.maxOrderQuantity}
+              onChangeText={(value) => changeDraft({ maxOrderQuantity: value })}
+              placeholder="No separate limit"
+              keyboardType="number-pad"
+            />
+            <Field
+              label="Description (optional)"
+              value={draft.description}
+              onChangeText={(value) => changeDraft({ description: value })}
+              placeholder="Growing method, freshness, pack contents…"
+              multiline
+              maxLength={2000}
+              helper={`${draft.description.length}/2000 characters`}
+            />
+          </View>
+        ) : null}
+      </View>
+
+      <View className="rounded-[15px] border border-[#E1E8E2] bg-[#FFFFFF] p-3.5">
         <AppText className="text-[10px] font-semibold uppercase tracking-[0.8px] text-[#69766D]">
           Listing preview
         </AppText>
@@ -2174,6 +2180,70 @@ export default function MarketplaceSellScreen() {
             </View>
           ) : null}
         </View>
+      </View>
+    </View>
+  );
+
+  const renderSuccessStep = () => (
+    <View className="items-center px-2 pb-8 pt-6">
+      <View className="mb-5 h-[92px] w-[92px] items-center justify-center rounded-full bg-[#E5F3E7]">
+        <View className="h-[66px] w-[66px] items-center justify-center rounded-full bg-[#2F7D4E]">
+          <Feather name="check" size={34} color="#FFFFFF" />
+        </View>
+      </View>
+      <AppText className="text-center text-[24px] font-extrabold leading-8 text-[#172019]">
+        {successInfo?.wasEdit ? "Listing updated!" : "You're live!"}
+      </AppText>
+      <AppText className="mt-2 max-w-[280px] text-center text-[13px] leading-5 text-[#68756B]">
+        {successInfo?.wasEdit
+          ? "Your changes have been saved successfully. Your listing is up to date."
+          : "Your crop has been published to AgroMart. Customers can now discover your listing."}
+      </AppText>
+
+      <View className="mt-7 w-full rounded-[18px] border border-[#DDE9DA] bg-[#F5F9F2] p-4">
+        <View className="flex-row items-center gap-3">
+          <View className="h-12 w-12 items-center justify-center rounded-[14px] bg-[#E2F1DE]">
+            <Ionicons name="leaf" size={23} color={C.green} />
+          </View>
+          <View className="min-w-0 flex-1">
+            <AppText
+              className="text-[14px] font-bold text-[#172019]"
+              numberOfLines={2}
+            >
+              {successInfo?.cropName ?? selectedCrop?.cropName ?? "Your crop"}
+            </AppText>
+            <AppText className="mt-1 text-[11px] text-[#68756B]">
+              {draft.packSizeValue} {draft.packSizeUnit} ·{" "}
+              {draft.quantityAvailable} packs available
+            </AppText>
+          </View>
+          <Feather name="check-circle" size={20} color={C.green} />
+        </View>
+        <View className="mt-4 h-px bg-[#DDE9DA]" />
+        <View className="mt-3 flex-row items-center justify-between gap-3">
+          <View className="flex-row items-center gap-2">
+            <Feather name="tag" size={14} color={C.green} />
+            <AppText className="text-[11px] text-[#68756B]">
+              Customer price
+            </AppText>
+          </View>
+          <AppText className="text-[17px] font-extrabold text-[#246B40]">
+            {isPositive(draft.basePrice) && isNonNegative(draft.discountPercent)
+              ? money(
+                  Number(draft.basePrice) *
+                    (1 - Number(draft.discountPercent) / 100),
+                )
+              : "—"}
+          </AppText>
+        </View>
+      </View>
+
+      <View className="mt-5 w-full flex-row items-center gap-2 rounded-[13px] bg-[#F7F8F6] px-3.5 py-3">
+        <Feather name="check-circle" size={16} color={C.green} />
+        <AppText className="min-w-0 flex-1 text-[11px] leading-4 text-[#526052]">
+          Saved successfully. You can manage availability and orders from Seller
+          overview.
+        </AppText>
       </View>
     </View>
   );
@@ -2388,87 +2458,120 @@ export default function MarketplaceSellScreen() {
   ) : null;
 
   const formTitle =
-    step === "CROP"
-      ? "Choose a crop"
-      : step === "DETAILS"
-        ? editingListing
-          ? "Edit listing"
-          : "Listing details"
-        : "Fulfilment & publish";
+    step === "SUCCESS"
+      ? successInfo?.wasEdit
+        ? "Changes saved"
+        : "Listing published"
+      : step === "CROP"
+        ? "Choose a crop"
+        : step === "DETAILS"
+          ? editingListing
+            ? "Edit listing"
+            : "Product details"
+          : "Delivery & review";
   const formSubtitle =
-    step === "CROP"
-      ? "Pick one of your actual grow records."
-      : step === "DETAILS"
-        ? "Keep it simple: pack, price, quantity and photo."
-        : "Choose a saved location and delivery options.";
-  const formFooter = (
-    <View className="flex-row gap-2">
-      {step !== "CROP" ? (
-        <View className="w-[100px]">
-          <PrimaryButton
-            label="Back"
-            icon="arrow-left"
-            tone="muted"
-            onPress={() => setStep(step === "FULFILMENT" ? "DETAILS" : "CROP")}
-          />
-        </View>
-      ) : (
-        <View className="w-[100px]">
-          <PrimaryButton
-            label="Cancel"
-            tone="muted"
-            onPress={attemptCloseForm}
-          />
-        </View>
-      )}
-      <View className="flex-1">
-        {step === "CROP" ? (
-          <PrimaryButton
-            label="Continue"
-            icon="arrow-right"
-            onPress={() => {
-              if (!selectedCrop || !draft.cropCycleId) {
-                Alert.alert(
-                  "Choose a crop",
-                  "Select the crop you want to list.",
-                );
-                return;
-              }
-              setStep("DETAILS");
-            }}
-            disabled={!selectedCrop}
-          />
-        ) : step === "DETAILS" ? (
-          <PrimaryButton
-            label="Delivery options"
-            icon="arrow-right"
-            onPress={() => {
-              const error = validateDetails();
-              if (error) {
-                Alert.alert("Check listing details", error);
-                return;
-              }
-              setStep("FULFILMENT");
-            }}
-          />
-        ) : (
-          <PrimaryButton
-            label={
-              savingListing
-                ? "Saving listing…"
-                : editingListing && editingListing.status !== "REMOVED"
-                  ? "Save changes"
-                  : "Publish listing"
-            }
-            icon="check"
-            onPress={() => void submitListing()}
-            loading={savingListing}
-            disabled={savingListing || photoBusy}
-          />
-        )}
+    step === "SUCCESS"
+      ? "Everything is saved and ready to manage."
+      : step === "CROP"
+        ? "Choose an unlisted crop from your grow records."
+        : step === "DETAILS"
+          ? "Add only the essentials. Optional details come later."
+          : "Choose how customers receive the crop and review your listing.";
+
+  const formFooter =
+    step === "SUCCESS" ? (
+      <View className="gap-2 ">
+        <PrimaryButton
+          label="View my listings"
+          icon="arrow-right"
+          onPress={() => {
+            setTab("LISTINGS");
+            finishListingFlow();
+          }}
+        />
+        <Pressable
+          onPress={startNewListing}
+          className="min-h-[44px] items-center justify-center rounded-full border border-[#000000] bg-primary"
+          accessibilityRole="button"
+        >
+          <AppText className="text-[12px] font-bold text-[#2F7D4E]">
+            List another crop
+          </AppText>
+        </Pressable>
       </View>
-    </View>
-  );
+    ) : (
+      <View className="flex-row items-center gap-3">
+        {/* Secondary action */}
+        <Pressable
+          onPress={() => {
+            if (step === "CROP") {
+              attemptCloseForm();
+            } else {
+              setStep(step === "FULFILMENT" ? "DETAILS" : "CROP");
+            }
+          }}
+          accessibilityRole="button"
+          className="h-[54px] w-[104px] flex-row items-center justify-center gap-2 rounded-full border border-[#DDE5DB] bg-white active:bg-[#F3F6F0]"
+        >
+          <Feather
+            name={step === "CROP" ? "x" : "arrow-left"}
+            size={17}
+            color="#344238"
+          />
+          <AppText weight="bold" className="text-[13px]  text-[#344238]">
+            {step === "CROP" ? "Cancel" : "Back"}
+          </AppText>
+        </Pressable>
+
+        {/* Primary action */}
+        <View className="min-w-0 flex-1 overflow-hidden rounded-full  bg-primary border border-[#000000]">
+          {step === "CROP" ? (
+            <PrimaryButton
+              label="Continue"
+              icon="arrow-right"
+              onPress={() => {
+                if (!selectedCrop || !draft.cropCycleId) {
+                  Alert.alert(
+                    "Choose a crop",
+                    "Select the crop you want to list.",
+                  );
+                  return;
+                }
+                setStep("DETAILS");
+              }}
+              disabled={!selectedCrop || !draft.cropCycleId}
+            />
+          ) : step === "DETAILS" ? (
+            <PrimaryButton
+              label="Delivery & review"
+              icon="arrow-right"
+              onPress={() => {
+                const error = validateDetails();
+                if (error) {
+                  Alert.alert("Check listing details", error);
+                  return;
+                }
+                setStep("FULFILMENT");
+              }}
+            />
+          ) : (
+            <PrimaryButton
+              label={
+                savingListing
+                  ? "Publishing…"
+                  : editingListing && editingListing.status !== "REMOVED"
+                    ? "Save changes"
+                    : "Publish listing"
+              }
+              icon="check-circle"
+              onPress={() => void submitListing()}
+              loading={savingListing}
+              disabled={savingListing || photoBusy}
+            />
+          )}
+        </View>
+      </View>
+    );
 
   return (
     <View className="flex-1 bg-[#F5F7F5]">
@@ -2972,44 +3075,237 @@ export default function MarketplaceSellScreen() {
         )}
       </ScrollView>
 
-      <Drawer
+      <Modal
         visible={formVisible}
-        title={formTitle}
-        subtitle={formSubtitle}
-        insets={insets}
-        onClose={attemptCloseForm}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={attemptCloseForm}
-        footer={formFooter}
       >
-        {step === "CROP"
-          ? renderCropPicker()
-          : step === "DETAILS"
-            ? renderDetailsStep()
-            : renderFulfilmentStep()}
-      </Drawer>
+        <View className="relative flex-1 overflow-hidden justify-end bg-black/70">
+          <Pressable
+            className="flex-1"
+            onPress={attemptCloseForm}
+            accessibilityRole="button"
+            accessibilityLabel="Close listing form"
+          />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={{ height: "92%", maxHeight: "96%", width: "100%" }}
+          >
+            <View
+              className="flex-1 overflow-hidden rounded-t-[28px] border border-[#E1E8E2] bg-white"
+              style={{ paddingBottom: 0 }}
+            >
+              <View className="items-center pb-2 pt-2.5">
+                <View className="h-1 w-10 rounded-full bg-[#D7E0D8]" />
+              </View>
 
-      <Drawer
+              <View className="flex-row items-center gap-3 border-b border-[#E6ECE6] px-5 pb-3 pt-1">
+                <View className="min-w-0 flex-1 gap-0.5">
+                  <AppText className="text-[22px] font-bold text-[#172019]">
+                    {formTitle}
+                  </AppText>
+                  <AppText className="text-[11px] leading-4 text-[#69766D]">
+                    {formSubtitle}
+                  </AppText>
+                </View>
+                <Pressable
+                  onPress={attemptCloseForm}
+                  className="h-9 w-9 items-center justify-center rounded-full bg-[#F0F3EF]"
+                  accessibilityRole="button"
+                  accessibilityLabel="Close listing form"
+                  hitSlop={8}
+                >
+                  <AppText className="text-[22px] leading-6 text-[#667168]">
+                    ×
+                  </AppText>
+                </Pressable>
+              </View>
+
+              <ScrollView
+                className="relativeflex-1"
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{
+                  paddingHorizontal: 16,
+                  paddingTop: 14,
+                  paddingBottom: 90,
+                }}
+              >
+                {step !== "SUCCESS" ? (
+                  <View className="mb-4 rounded-[16px] border border-[#E5EBE1] bg-[#F7F9F5] px-3.5 py-3">
+                    <View className="flex-row items-start justify-between">
+                      {(
+                        [
+                          { key: "CROP", label: "Crop" },
+                          { key: "DETAILS", label: "Details" },
+                          { key: "FULFILMENT", label: "Delivery" },
+                        ] as const
+                      ).map((item, index) => {
+                        const activeIndex =
+                          step === "CROP" ? 0 : step === "DETAILS" ? 1 : 2;
+                        const complete = index < activeIndex;
+                        const active = index === activeIndex;
+                        return (
+                          <View
+                            key={item.key}
+                            className="items-center gap-1.5"
+                            style={{ width: "32%" }}
+                          >
+                            <View
+                              className={`h-7 w-7 items-center justify-center rounded-full ${complete || active ? "bg-[#2F7D4E]" : "bg-[#E5EBE1]"}`}
+                            >
+                              {complete ? (
+                                <Feather
+                                  name="check"
+                                  size={14}
+                                  color="#FFFFFF"
+                                />
+                              ) : (
+                                <AppText
+                                  className={`text-[11px] font-bold ${active ? "text-white" : "text-[#7A877D]"}`}
+                                >
+                                  {index + 1}
+                                </AppText>
+                              )}
+                            </View>
+                            <AppText
+                              className={`text-[10px] font-semibold ${active ? "text-[#246B40]" : complete ? "text-[#2F7D4E]" : "text-[#89958B]"}`}
+                            >
+                              {item.label}
+                            </AppText>
+                          </View>
+                        );
+                      })}
+                    </View>
+                    <View className="mt-2 h-1 overflow-hidden rounded-full bg-[#E5EBE1]">
+                      <View
+                        className="h-full rounded-full bg-[#65A875]"
+                        style={{
+                          width: `${((step === "CROP" ? 1 : step === "DETAILS" ? 2 : 3) / 3) * 100}%`,
+                        }}
+                      />
+                    </View>
+                  </View>
+                ) : null}
+                {step === "CROP"
+                  ? renderCropPicker()
+                  : step === "DETAILS"
+                    ? renderDetailsStep()
+                    : step === "FULFILMENT"
+                      ? renderFulfilmentStep()
+                      : renderSuccessStep()}
+              </ScrollView>
+
+              <LinearGradient
+                pointerEvents="box-none"
+                colors={[
+                  "#F5F7F500", // Transparent (fully clear)
+                  "rgba(200, 240, 160, 0.08)",
+                  "rgba(200, 240, 160, 0.25)",
+                  "rgba(200, 240, 160, 0.65)",
+                  "#C8F0A0", // Solid light lime green at the bottom
+                ]}
+                locations={[0, 0.2, 0.4, 0.7, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  zIndex: 10,
+                  paddingTop: 32,
+                  paddingBottom: Math.max(insets.bottom, 12),
+                }}
+              >
+                <View className="px-4 pt-3 bg-">{formFooter}</View>
+              </LinearGradient>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      <Modal
         visible={orderVisible}
-        title={
-          selectedOrder ? `Order ${selectedOrder.orderNumber}` : "Order details"
-        }
-        subtitle="Order details and seller actions"
-        insets={insets}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={attemptCloseOrder}
-        onClose={attemptCloseOrder}
-        footer={detailFooter}
       >
-        {orderBusy && !selectedOrder ? (
-          <View className="items-center py-10">
-            <ActivityIndicator color="#2F7D4E" />
-            <AppText className="mt-2 text-[10px] text-[#69766D]">
-              Loading order details…
-            </AppText>
+        <View className="flex-1 justify-end bg-black/70">
+          <Pressable
+            className="flex-1"
+            onPress={attemptCloseOrder}
+            accessibilityRole="button"
+            accessibilityLabel="Close order details"
+          />
+          <View
+            className="overflow-hidden rounded-t-[28px] border border-[#E1E8E2] bg-white"
+            style={{
+              height: "85%",
+              maxHeight: "92%",
+              paddingBottom: Math.max(insets.bottom, 12),
+            }}
+          >
+            <View className="items-center pb-2 pt-2.5">
+              <View className="h-1 w-10 rounded-full bg-[#D7E0D8]" />
+            </View>
+            <View className="flex-row items-center gap-3 border-b border-[#E6ECE6] px-5 pb-3 pt-1">
+              <View className="min-w-0 flex-1 gap-0.5">
+                <AppText className="text-[22px] font-bold text-[#172019]">
+                  {selectedOrder
+                    ? `Order ${selectedOrder.orderNumber}`
+                    : "Order details"}
+                </AppText>
+                <AppText className="text-[11px] leading-4 text-[#69766D]">
+                  Order details and seller actions
+                </AppText>
+              </View>
+              <Pressable
+                onPress={attemptCloseOrder}
+                className="h-9 w-9 items-center justify-center rounded-full bg-[#F0F3EF]"
+                accessibilityRole="button"
+                accessibilityLabel="Close order details"
+                hitSlop={8}
+              >
+                <AppText className="text-[22px] leading-6 text-[#667168]">
+                  ×
+                </AppText>
+              </Pressable>
+            </View>
+            <ScrollView
+              className="flex-1 "
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: 16,
+                paddingTop: 14,
+                paddingBottom: 18,
+              }}
+            >
+              {orderBusy && !selectedOrder ? (
+                <View className="items-center py-10">
+                  <ActivityIndicator color="#2F7D4E" />
+                  <AppText className="mt-2 text-[10px] text-[#69766D]">
+                    Loading order details…
+                  </AppText>
+                </View>
+              ) : (
+                renderOrderDetails()
+              )}
+            </ScrollView>
+            {detailFooter ? (
+              <View className="border-t border-[#E6ECE6] bg-white px-4 ">
+                {detailFooter}
+              </View>
+            ) : null}
           </View>
-        ) : (
-          renderOrderDetails()
-        )}
-      </Drawer>
+        </View>
+      </Modal>
     </View>
   );
 }
