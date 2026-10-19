@@ -1773,6 +1773,28 @@ export default function HomeScreen() {
           ) : null}
         </View>
       </Modal>
+
+      {/* Floating AI shortcut — opens app/ai/index.tsx via the /ai route. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open AI assistant"
+        onPress={() => router.push("/ai")}
+        className="absolute right-5 z-50 h-[58px] w-[58px] items-center justify-center"
+        style={{
+          bottom: Math.max(insets.bottom, 12) + 86,
+          shadowColor: "#C8FF67",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 12,
+          elevation: 10,
+        }}
+      >
+        <Image
+          source={require("../../assets/ailogo.png")}
+          resizeMode="contain"
+          className="h-[58px] w-[58px]"
+        />
+      </Pressable>
     </View>
   );
 }

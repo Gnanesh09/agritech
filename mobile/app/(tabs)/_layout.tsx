@@ -280,7 +280,7 @@ export default function TabsLayout() {
       {/* <Tabs.Screen name="notifications" options={{ title: "Alerts" }} /> */}
       <Tabs.Screen name="market" options={{ title: "Market" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
-      <Tabs.Screen name="coco" options={{ title: "CocoAi" }} />
+      {/* <Tabs.Screen name="coco" options={{ title: "CocoAi" }} /> */}
     </Tabs>
   );
 }

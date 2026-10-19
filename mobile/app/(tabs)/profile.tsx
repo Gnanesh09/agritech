@@ -331,7 +331,7 @@ export default function ProfileScreen() {
 
             <View className="overflow-hidden rounded-[18px] bg-primaryDark1">
               <Pressable
-                onPress={() => router.push("/cropHistory/index")}
+                onPress={() => router.push("/cropHistory")}
                 className="flex-row items-center justify-between px-5 py-[19px] active:bg-zinc-900"
                 accessibilityRole="button"
                 accessibilityLabel="Open crop history"
