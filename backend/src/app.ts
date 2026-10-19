@@ -8,6 +8,7 @@ import userRouter from "./routes/user.route";
 import deviceRouter from "./routes/device.routes";
 import automationRouter from "./routes/automation.routes";
 import { startCropHarvestReminderScheduler } from "./services/crop-harvest-reminder.scheduler";
+import aiRouter from "./routes/ai.routes";
 
 const app = express();
 
@@ -30,7 +31,7 @@ app.use("/api/admin", adminRouter);
 app.use("/api/user", userRouter);
 app.use("/api/device", deviceRouter);
 app.use("/api/user", automationRouter);
-
+app.use("/api/user/ai", aiRouter);
 // Start the crop-harvest reminder scheduler once.
 startCropHarvestReminderScheduler();
 
