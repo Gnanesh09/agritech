@@ -470,30 +470,52 @@ export default function DevicesScreen() {
   /* --------------------------------------------------------------------------
      LOADING
   -------------------------------------------------------------------------- */
+  /* --------------------------------------------------------------------------
+     LOADING
+  -------------------------------------------------------------------------- */
+  /* --------------------------------------------------------------------------
+     LOADING
+  -------------------------------------------------------------------------- */
 
   if (loading) {
     return (
       <View className="flex-1 bg-black">
+        {/* Safe Area Top */}
+        <View className="bg-black" style={{ height: insets.top }} />
         <StatusBar style="light" />
 
-        <View
-          className="flex-1 items-center justify-center"
-          style={{
-            paddingTop: insets.top,
-          }}
-        >
-          <View className="h-12 w-12 items-center justify-center rounded-2xl bg-primary">
-            <ActivityIndicator size="small" color="#000000" />
+        <View className="flex-1 px-5 pt-6">
+          {/* Simple Header Skeleton */}
+          <View className="mb-8 flex-row items-center justify-between animate-pulse">
+            <View>
+              <View className="mb-2 h-7 w-32 rounded-lg bg-white/10" />
+              <View className="h-4 w-20 rounded-md bg-white/5" />
+            </View>
+            <View className="h-10 w-10 rounded-full bg-white/10" />
           </View>
 
-          <Text className="mt-4 text-[14px] text-zinc-600">
-            Loading devices
-          </Text>
+          {/* Product Catalog Grid Skeleton */}
+          <View className="flex-row flex-wrap justify-between">
+            {[1, 2, 3, 4, 5, 6].map((item) => (
+              <View
+                key={item}
+                className="mb-4 w-[48%] rounded-[20px] border border-white/[0.05] bg-[#0A0E0A] p-3 animate-pulse"
+              >
+                {/* Catalog Image Placeholder */}
+                <View className="mb-3 h-32 w-full rounded-2xl bg-white/10" />
+
+                {/* Catalog Title Placeholder */}
+                <View className="mb-2 h-4 w-4/5 rounded-md bg-white/10" />
+
+                {/* Catalog Subtitle/Price Placeholder */}
+                <View className="h-3 w-1/2 rounded-md bg-white/[0.04]" />
+              </View>
+            ))}
+          </View>
         </View>
       </View>
     );
   }
-
   /* --------------------------------------------------------------------------
      MAIN
   -------------------------------------------------------------------------- */

@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+
+import { cssInterop } from "nativewind";
+
 import {
   ActivityIndicator,
+  Animated,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -9,412 +13,610 @@ import {
   TextInput,
   View,
 } from "react-native";
+
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+
 import { StatusBar } from "expo-status-bar";
+
 import { LinearGradient } from "expo-linear-gradient";
+
 import { router } from "expo-router";
+
 import { Ionicons } from "@expo/vector-icons";
+
 import AppText from "@/components/ui/AppText";
+
 import { apiRequest } from "@/lib/api";
+
+// Enable NativeWind classes on third-party/native wrapper components.
+
+cssInterop(LinearGradient, { className: "style" });
+
+cssInterop(SafeAreaView, { className: "style" });
+
+cssInterop(Animated.View, { className: "style" });
 
 type ChatMessage = {
   id: string;
+
   role: "user" | "assistant";
+
   content: string;
+
   sources?: Array<{ documentName?: string; cropName?: string; score?: number }>;
 };
 
 type SessionResponse = { sessionId?: string; message?: string };
+
 type MessageResponse = {
   answer?: string;
+
   sources?: ChatMessage["sources"];
+
   message?: string;
 };
 
 const SESSION_PATH = "/user/ai/sessions";
-const ACCENT = "#FF6A00";
+
+/** Agri AI theme tokens for the interface and animated glow. */
+
+const AGRI_AI_THEME = {
+  colors: {
+    primaryOrange: "#FF6A00",
+
+    neonOrange: "#FF4D00",
+
+    neonPurple: "#A855F7",
+
+    deepPurple: "#7C3AED",
+
+    amber: "#FF914D",
+
+    highlight: "#F3D8FF",
+
+    background: "#08040A",
+
+    backgroundTop: "#251027",
+
+    backgroundMid: "#100812",
+
+    codeText: "#FFD2A8",
+  },
+
+  glow: {
+    // Soft edge aura — transparent gradients, not a solid screen border.
+
+    auraTop: 0.14,
+
+    auraSide: 0.12,
+
+    auraBottom: 0.1,
+
+    auraFade: 0.045,
+
+    // Clockwise moving neon gradient: dim edge → orange → warm bright core → fade.
+
+    sweepEdge: 0.08,
+
+    sweepMiddle: 0.24,
+
+    sweepHighlight: 0.42,
+
+    sweepTail: 0.18,
+
+    // Motion and blur.
+
+    rotationDurationMs: 3600,
+
+    sweepLength: 140,
+
+    shadowOpacity: 0.36,
+
+    shadowRadius: 14,
+  },
+};
+
+const ACCENT = AGRI_AI_THEME.colors.primaryOrange;
+
+const orbShadow = {
+  shadowColor: ACCENT,
+
+  shadowOpacity: 0.45,
+
+  shadowRadius: 18,
+
+  elevation: 8,
+} as const;
+
+const orbCompactShadow = {
+  shadowColor: ACCENT,
+
+  shadowOpacity: 0.28,
+
+  shadowRadius: 8,
+
+  elevation: 3,
+} as const;
+
+/** Convert a hex color to RGBA. */
+
+function withAlpha(hexColor: string, alpha: number): string {
+  const hex = hexColor.replace("#", "");
+
+  const value = Number.parseInt(hex, 16);
+
+  const red = (value >> 16) & 255;
+
+  const green = (value >> 8) & 255;
+
+  const blue = value & 255;
+
+  return `rgba(${red},${green},${blue},${alpha})`;
+}
+
+const AURA_TOP_COLORS = [
+  withAlpha(AGRI_AI_THEME.colors.neonOrange, AGRI_AI_THEME.glow.auraTop),
+
+  withAlpha(AGRI_AI_THEME.colors.neonPurple, AGRI_AI_THEME.glow.auraFade * 1.8),
+
+  "transparent",
+] as const;
+
+const AURA_SIDE_COLORS = [
+  withAlpha(AGRI_AI_THEME.colors.neonPurple, AGRI_AI_THEME.glow.auraSide),
+
+  withAlpha(AGRI_AI_THEME.colors.amber, AGRI_AI_THEME.glow.auraFade * 1.2),
+
+  "transparent",
+];
+
+const AURA_BOTTOM_COLORS = [
+  withAlpha(AGRI_AI_THEME.colors.deepPurple, AGRI_AI_THEME.glow.auraBottom),
+
+  withAlpha(AGRI_AI_THEME.colors.neonOrange, AGRI_AI_THEME.glow.auraFade * 1.5),
+
+  "transparent",
+];
+
+const SWEEP_GRADIENT_COLORS = [
+  "transparent",
+
+  withAlpha(AGRI_AI_THEME.colors.neonOrange, AGRI_AI_THEME.glow.sweepEdge),
+
+  withAlpha(AGRI_AI_THEME.colors.neonPurple, AGRI_AI_THEME.glow.sweepMiddle),
+
+  withAlpha(AGRI_AI_THEME.colors.highlight, AGRI_AI_THEME.glow.sweepHighlight),
+
+  withAlpha(AGRI_AI_THEME.colors.amber, AGRI_AI_THEME.glow.sweepTail),
+
+  "transparent",
+];
+
+const SWEEP_GRADIENT_LOCATIONS = [0, 0.18, 0.38, 0.5, 0.67, 1];
+
 const SUGGESTIONS = [
   {
     icon: "leaf-outline" as const,
+
     title: "My tomato leaves are curling",
-    detail: "Check likely causes",
+
     prompt:
       "My tomato leaves are curling. Check my latest rack temperature and humidity if available, compare them with the crop documentation, and suggest what I should inspect first.",
   },
+
   {
     icon: "thermometer-outline" as const,
+
     title: "Are my growing conditions right?",
-    detail: "Review temperature and humidity",
+
     prompt:
       "Review my current crop cycles and latest sensor readings. Are the growing conditions suitable, and what information is missing?",
   },
+
   {
     icon: "calendar-outline" as const,
+
     title: "When can I harvest?",
-    detail: "Check my active crop cycles",
+
     prompt:
       "Review my active crop cycles and expected harvest dates. Which crops may be ready soon?",
   },
 ];
 
-function AIOrb({ small = false }: { small?: boolean }) {
-  const size = small ? 22 : 150;
+function TypingIndicator() {
+  const values = useRef([
+    new Animated.Value(0.35),
+
+    new Animated.Value(0.35),
+
+    new Animated.Value(0.35),
+  ]).current;
+
+  useEffect(() => {
+    const animations = values.map((value, index) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(index * 130),
+
+          Animated.timing(value, {
+            toValue: 1,
+
+            duration: 300,
+
+            useNativeDriver: true,
+          }),
+
+          Animated.timing(value, {
+            toValue: 0.35,
+
+            duration: 300,
+
+            useNativeDriver: true,
+          }),
+        ]),
+      ),
+    );
+
+    animations.forEach((animation) => animation.start());
+
+    return () => animations.forEach((animation) => animation.stop());
+  }, [values]);
+
   return (
     <View
-      className="items-center justify-center"
-      style={{ width: size, height: size }}
+      className="min-h-[28px] flex-row items-center self-start"
+
+      accessibilityLabel="Agri AI is thinking"
     >
-      <LinearGradient
-        colors={["#FFF2B4", "#FFB52F", "#FF6B00", "#A51A00", "#280300"]}
-        locations={[0, 0.26, 0.58, 0.82, 1]}
-        start={{ x: 0.12, y: 0.08 }}
-        end={{ x: 0.9, y: 0.95 }}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          shadowColor: ACCENT,
-          shadowOpacity: small ? 0.28 : 0.55,
-          shadowRadius: small ? 6 : 30,
-          elevation: small ? 3 : 15,
-          overflow: "hidden",
-        }}
-      >
-        <LinearGradient
-          colors={[
-            "rgba(255,255,255,0.78)",
-            "rgba(255,255,255,0.06)",
-            "rgba(0,0,0,0.72)",
-          ]}
-          start={{ x: 0.1, y: 0.05 }}
-          end={{ x: 0.95, y: 0.95 }}
-          style={{ flex: 1, borderRadius: size / 2 }}
+      {values.map((value, index) => (
+        <Animated.View
+          key={index}
+
+          className="mr-[5px] h-[6px] w-[6px] rounded-full bg-[#FF6A00]"
+
+          style={{ opacity: value, transform: [{ scale: value }] }}
         />
-      </LinearGradient>
+      ))}
+
+      <AppText className="ml-2 text-[12px] text-white/55">Thinking</AppText>
     </View>
   );
 }
 
-type MarkdownBlock =
-  | { type: "heading"; level: number; text: string }
-  | { type: "paragraph"; text: string }
-  | { type: "list"; ordered: boolean; items: string[] }
-  | { type: "table"; headers: string[]; rows: string[][] }
-  | { type: "code"; text: string; language?: string }
-  | { type: "quote"; text: string };
+function InlineMarkdown({ text }: { text: string }) {
+  const tokenPattern =
+    /(\*\*[^*]+\*\*|__[^_]+__|\x60[^\x60]+\x60|\*[^*]+\*|_[^_]+_)/g;
 
-function tableCells(line: string): string[] {
-  // Protect escaped pipes before splitting columns; avoids regex lookbehind on Hermes.
-  let value = line.trim().replace(/\\\|/g, "\u0000");
-  if (value.startsWith("|")) value = value.slice(1);
-  if (value.endsWith("|")) value = value.slice(0, -1);
-  return value.split("|").map((cell) => cell.trim().replace(/\u0000/g, "|"));
+  const parts = text.split(tokenPattern).filter(Boolean);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        const bold =
+          (part.startsWith("**") && part.endsWith("**")) ||
+          (part.startsWith("__") && part.endsWith("__"));
+
+        const code = part.startsWith("`") && part.endsWith("`");
+
+        const italic =
+          !bold &&
+          ((part.startsWith("*") && part.endsWith("*")) ||
+            (part.startsWith("_") && part.endsWith("_")));
+
+        const value =
+          bold || code || italic
+            ? part.slice(
+                bold || code ? 2 - (code ? 1 : 0) : 1,
+
+                -(bold || code ? 2 - (code ? 1 : 0) : 1),
+              )
+            : part;
+
+        return (
+          <AppText
+            key={index}
+
+            weight={bold ? "semibold" : undefined}
+
+            className={
+              code ? "font-mono text-[#FFD2A8]" : italic ? "italic" : ""
+            }
+          >
+            {value}
+          </AppText>
+        );
+      })}
+    </>
+  );
 }
 
-function isTableSeparator(line: string): boolean {
-  const cells = tableCells(line);
+type MarkdownBlock =
+  | { type: "text"; text: string }
+  | { type: "heading"; text: string; level: number }
+  | { type: "list"; text: string; marker: string }
+  | { type: "code"; text: string }
+  | { type: "table"; headers: string[]; rows: string[][] };
+
+function splitTableRow(line: string): string[] {
+  let value = line.trim();
+
+  if (value.startsWith("|")) value = value.slice(1);
+
+  if (value.endsWith("|")) value = value.slice(0, -1);
+
+  const cells: string[] = [];
+
+  let cell = "";
+
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+
+    if (char === "\\\\" && value[i + 1] === "|") {
+      cell += "|";
+
+      i += 1;
+    } else if (char === "|") {
+      cells.push(cell.trim());
+
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  cells.push(cell.trim());
+
+  return cells;
+}
+
+function isTableDivider(line: string): boolean {
+  const cells = splitTableRow(line);
+
   return (
     cells.length >= 2 &&
     cells.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s/g, "")))
   );
 }
 
-function isBlockStart(lines: string[], index: number): boolean {
-  const line = lines[index] ?? "";
-  return (
-    /^\s{0,3}#{1,6}\s+/.test(line) ||
-    /^\s*```/.test(line) ||
-    /^\s*>\s?/.test(line) ||
-    /^\s*[-*+]\s+/.test(line) ||
-    /^\s*\d+[.)]\s+/.test(line) ||
-    (index + 1 < lines.length &&
-      line.includes("|") &&
-      isTableSeparator(lines[index + 1] ?? ""))
-  );
-}
+function parseAssistantMarkdown(content: string): MarkdownBlock[] {
+  const lines = content.replace(/\r\n?/g, "\n").split("\n");
 
-function parseMarkdown(input: string): MarkdownBlock[] {
-  const lines = input.replace(/\r\n?/g, "\n").split("\n");
   const blocks: MarkdownBlock[] = [];
+
   let i = 0;
+
+  let inCode = false;
+
+  let codeLines: string[] = [];
 
   while (i < lines.length) {
     const line = lines[i] ?? "";
-    if (!line.trim()) {
-      i += 1;
-      continue;
-    }
 
-    const fence = line.match(/^\s*```\s*([\w-]*)\s*$/);
-    if (fence) {
-      const codeLines: string[] = [];
-      i += 1;
-      while (i < lines.length && !/^\s*```/.test(lines[i] ?? "")) {
-        codeLines.push(lines[i] ?? "");
-        i += 1;
+    if (/^\s*```/.test(line)) {
+      if (inCode) {
+        blocks.push({ type: "code", text: codeLines.join("\n") });
+
+        codeLines = [];
+
+        inCode = false;
+      } else {
+        inCode = true;
       }
-      if (i < lines.length) i += 1;
-      blocks.push({
-        type: "code",
-        text: codeLines.join("\n"),
-        language: fence[1],
-      });
-      continue;
-    }
 
-    const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
-    if (heading) {
-      blocks.push({
-        type: "heading",
-        level: heading[1].length,
-        text: heading[2] ?? "",
-      });
       i += 1;
+
       continue;
     }
 
-    if (/^\s*>\s?/.test(line)) {
-      const quoteLines: string[] = [];
-      while (i < lines.length && /^\s*>\s?/.test(lines[i] ?? "")) {
-        quoteLines.push((lines[i] ?? "").replace(/^\s*>\s?/, ""));
-        i += 1;
-      }
-      blocks.push({ type: "quote", text: quoteLines.join(" ").trim() });
+    if (inCode) {
+      codeLines.push(line);
+
+      i += 1;
+
       continue;
     }
+
+    if (!line.trim() || /^\s*(---+|___+|\*{3,})\s*$/.test(line)) {
+      i += 1;
+
+      continue;
+    }
+
+    // Parse GFM tables before paragraphs so pipe characters never leak into the UI.
 
     if (
       i + 1 < lines.length &&
       line.includes("|") &&
-      isTableSeparator(lines[i + 1] ?? "")
+      isTableDivider(lines[i + 1] ?? "")
     ) {
-      const headers = tableCells(line);
+      const headers = splitTableRow(line);
+
       i += 2;
+
       const rows: string[][] = [];
+
       while (
         i < lines.length &&
         (lines[i] ?? "").trim() &&
         (lines[i] ?? "").includes("|")
       ) {
-        const row = tableCells(lines[i] ?? "");
-        rows.push(headers.map((_, index) => row[index] ?? "—"));
+        const cells = splitTableRow(lines[i] ?? "");
+
+        rows.push(headers.map((_, index) => cells[index] ?? "—"));
+
         i += 1;
       }
+
       blocks.push({ type: "table", headers, rows });
+
       continue;
     }
 
-    const listMatch = line.match(/^\s*([-*+]\s+|\d+[.)]\s+)(.*)$/);
-    if (listMatch) {
-      const ordered = /^\s*\d/.test(line);
-      const items: string[] = [];
-      while (i < lines.length) {
-        const itemMatch = (lines[i] ?? "").match(
-          /^\s*([-*+]\s+|\d+[.)]\s+)(.*)$/,
-        );
-        if (!itemMatch || /^\s*\d/.test(lines[i] ?? "") !== ordered) break;
-        items.push(itemMatch[2] ?? "");
-        i += 1;
-      }
-      blocks.push({ type: "list", ordered, items });
+    const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
+
+    if (heading) {
+      blocks.push({
+        type: "heading",
+
+        text: heading[2] ?? "",
+
+        level: heading[1].length,
+      });
+
+      i += 1;
+
       continue;
     }
 
-    const paragraphLines: string[] = [];
-    while (
-      i < lines.length &&
-      (lines[i] ?? "").trim() &&
-      !(paragraphLines.length > 0 && isBlockStart(lines, i))
-    ) {
-      paragraphLines.push((lines[i] ?? "").trim());
+    const list = line.match(/^\s*(?:([-*+])\s+|(\d+)[.)]\s+)(.+)$/);
+
+    if (list) {
+      blocks.push({
+        type: "list",
+
+        marker: list[2] ? `${list[2]}.` : "•",
+
+        text: list[3] ?? "",
+      });
+
       i += 1;
+
+      continue;
     }
-    if (!paragraphLines.length) {
-      paragraphLines.push(line.trim());
-      i += 1;
-    }
-    blocks.push({ type: "paragraph", text: paragraphLines.join(" ") });
+
+    blocks.push({ type: "text", text: line.trim() });
+
+    i += 1;
   }
+
+  if (inCode && codeLines.length)
+    blocks.push({ type: "code", text: codeLines.join("\n") });
 
   return blocks;
 }
 
-function renderInlineMarkdown(
-  input: string,
-  keyPrefix: string,
-): React.ReactNode[] {
-  const cleaned = input.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1");
-  const tokenPattern =
-    /(\*\*[\s\S]+?\*\*|__[\s\S]+?__|~~[\s\S]+?~~|`[^`]+`|\*[^*\n]+?\*|_[^_\n]+?_)/g;
-  return cleaned
-    .split(tokenPattern)
-    .filter((part) => part.length > 0)
-    .map((part, index) => {
-      const key = `${keyPrefix}-${index}`;
-      if (
-        (part.startsWith("**") && part.endsWith("**")) ||
-        (part.startsWith("__") && part.endsWith("__"))
-      ) {
-        return (
-          <AppText key={key} weight="semibold">
-            {part.slice(2, -2)}
-          </AppText>
-        );
-      }
-      if (part.startsWith("~~") && part.endsWith("~~")) {
-        return (
-          <AppText key={key} className="line-through text-white/65">
-            {part.slice(2, -2)}
-          </AppText>
-        );
-      }
-      if (part.startsWith("`") && part.endsWith("`")) {
-        return (
-          <AppText key={key} className="rounded bg-white/10 text-orange-200">
-            {part.slice(1, -1)}
-          </AppText>
-        );
-      }
-      if (
-        (part.startsWith("*") && part.endsWith("*")) ||
-        (part.startsWith("_") && part.endsWith("_"))
-      ) {
-        return (
-          <AppText key={key} className="italic">
-            {part.slice(1, -1)}
-          </AppText>
-        );
-      }
-      return part;
-    });
-}
+function AssistantText({ content }: { content: string }) {
+  const blocks = parseAssistantMarkdown(content);
 
-function MarkdownContent({ content }: { content: string }) {
-  const blocks = parseMarkdown(content);
   return (
-    <View className="gap-2.5">
-      {blocks.map((block, blockIndex) => {
-        const key = `md-${blockIndex}`;
-        if (block.type === "heading") {
-          const className =
-            block.level <= 2
-              ? "mt-1 text-[15px] leading-[21px] text-white"
-              : "mt-1 text-[13px] leading-[19px] text-white";
-          return (
-            <AppText key={key} className={className} weight="semibold">
-              {renderInlineMarkdown(block.text, key)}
-            </AppText>
+    <View className="gap-[9px]">
+      {blocks.map((block, index) => {
+        if (block.type === "table") {
+          if (!block.rows.length) return null;
+
+          const cropColumn = block.headers.findIndex((header) =>
+            /crop|plant|name|item/i.test(header),
           );
-        }
-        if (block.type === "paragraph") {
+
+          const titleColumn = cropColumn >= 0 ? cropColumn : 0;
+
           return (
-            <AppText
-              key={key}
-              className="text-[13px] leading-[20px] text-white/95"
-            >
-              {renderInlineMarkdown(block.text, key)}
-            </AppText>
-          );
-        }
-        if (block.type === "quote") {
-          return (
-            <View
-              key={key}
-              className="border-l-2 border-[#FF8A32] bg-white/[0.04] px-3 py-2"
-            >
-              <AppText className="text-[13px] leading-[20px] text-white/80">
-                {renderInlineMarkdown(block.text, key)}
-              </AppText>
+            <View key={`table-${index}`} className="my-[2px] gap-[9px]">
+              {block.rows.map((row, rowIndex) => (
+                <View
+                  key={`table-${index}-row-${rowIndex}`}
+
+                  className="gap-[7px] rounded-[13px] border border-white/[0.11] bg-white/[0.045] px-3 py-[11px]"
+                >
+                  <AppText
+                    className="text-[14px] leading-[20px] text-white"
+
+                    weight="semibold"
+                  >
+                    <InlineMarkdown
+                      text={row[titleColumn] || `Item ${rowIndex + 1}`}
+                    />
+                  </AppText>
+
+                  {block.headers.map((header, cellIndex) => {
+                    if (cellIndex === titleColumn) return null;
+
+                    return (
+                      <View
+                        key={`table-${index}-${rowIndex}-${cellIndex}`}
+
+                        className="flex-row items-start gap-[10px]"
+                      >
+                        <AppText className="w-[104px] shrink-0 text-[11px] leading-[16px] text-white/45">
+                          {header.replace(/\*\*/g, "")}
+                        </AppText>
+
+                        <View className="min-w-0 flex-1">
+                          <AppText className="text-[12px] leading-[18px] text-white/90">
+                            <InlineMarkdown text={row[cellIndex] || "—"} />
+                          </AppText>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
           );
         }
+
+        if (block.type === "heading") {
+          return (
+            <AppText
+              key={index}
+
+              className={
+                block.level <= 2
+                  ? "mt-1 text-[17px] leading-[24px] text-white"
+                  : "mt-1 text-[15px] leading-[22px] text-white"
+              }
+
+              weight="semibold"
+            >
+              <InlineMarkdown text={block.text} />
+            </AppText>
+          );
+        }
+
         if (block.type === "code") {
           return (
             <View
-              key={key}
-              className="rounded-xl border border-white/10 bg-black/70 p-3"
+              key={index}
+
+              className="rounded-xl border border-white/[0.10] bg-[#171717] px-3 py-2.5"
             >
-              {block.language ? (
-                <AppText className="mb-2 text-[10px] uppercase tracking-wider text-orange-300">
-                  {block.language}
-                </AppText>
-              ) : null}
-              <AppText className="font-mono text-[11px] leading-[17px] text-white/85">
+              <AppText className="font-mono text-[12px] leading-[19px] text-white/90">
                 {block.text}
               </AppText>
             </View>
           );
         }
+
         if (block.type === "list") {
           return (
-            <View key={key} className="gap-1.5">
-              {block.items.map((item, itemIndex) => (
-                <View
-                  key={`${key}-${itemIndex}`}
-                  className="flex-row items-start gap-2"
-                >
-                  <AppText
-                    className="w-4 text-[13px] leading-[20px] text-orange-300"
-                    weight="semibold"
-                  >
-                    {block.ordered ? `${itemIndex + 1}.` : "•"}
-                  </AppText>
-                  <AppText className="flex-1 text-[13px] leading-[20px] text-white/95">
-                    {renderInlineMarkdown(item, `${key}-${itemIndex}`)}
-                  </AppText>
-                </View>
-              ))}
+            <View key={index} className="flex-row items-start gap-[5px]">
+              <AppText className="min-w-[17px] text-[15px] leading-[23px] text-orange-200">
+                {block.marker}
+              </AppText>
+
+              <View className="min-w-0 flex-1">
+                <AppText className="text-[15px] leading-[23px] text-white/95">
+                  <InlineMarkdown text={block.text} />
+                </AppText>
+              </View>
             </View>
           );
         }
-        if (block.type === "table") {
-          if (!block.rows.length) return null;
-          return (
-            <View key={key} className="gap-2">
-              {block.rows.map((row, rowIndex) => (
-                <View
-                  key={`${key}-row-${rowIndex}`}
-                  className="rounded-xl border border-white/[0.08] bg-white/[0.045] p-3"
-                >
-                  <AppText
-                    className="mb-2 text-[13px] leading-[19px] text-orange-200"
-                    weight="semibold"
-                  >
-                    {renderInlineMarkdown(
-                      row[0] || `Item ${rowIndex + 1}`,
-                      `${key}-${rowIndex}-title`,
-                    )}
-                  </AppText>
-                  {block.headers.slice(1).map((header, cellIndex) => (
-                    <View
-                      key={`${key}-${rowIndex}-cell-${cellIndex}`}
-                      className="mt-1 flex-row items-start"
-                    >
-                      <AppText
-                        className="w-[96px] pr-2 text-[10px] leading-[16px] text-white/45"
-                        weight="medium"
-                      >
-                        {header.replace(/\*\*/g, "")}
-                      </AppText>
-                      <View className="flex-1">
-                        <AppText className="text-[11px] leading-[17px] text-white/90">
-                          {renderInlineMarkdown(
-                            row[cellIndex + 1] ?? "—",
-                            `${key}-${rowIndex}-${cellIndex}`,
-                          )}
-                        </AppText>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </View>
-          );
-        }
-        return null;
+
+        return (
+          <AppText
+            key={index}
+
+            className="text-[15px] leading-[23px] text-white/95"
+          >
+            <InlineMarkdown
+              text={block.text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")}
+            />
+          </AppText>
+        );
       })}
     </View>
   );
@@ -422,27 +624,147 @@ function MarkdownContent({ content }: { content: string }) {
 
 export default function AIChatScreen() {
   const insets = useSafeAreaInsets();
+
   const scrollRef = useRef<ScrollView>(null);
+
   const inputRef = useRef<TextInput>(null);
+
   const sessionIdRef = useRef<string | null>(null);
+
   const sendingRef = useRef(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
   const [draft, setDraft] = useState("");
+
   const [sending, setSending] = useState(false);
+
   const [error, setError] = useState("");
+
   const [retryContent, setRetryContent] = useState("");
+
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
+  const [inputHeight, setInputHeight] = useState(42);
+
+  const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
+
+  const borderSweep = useRef(new Animated.Value(0)).current;
+
+  const hasMessages = messages.length > 0;
+
+  // A soft orange/neon highlight travels clockwise while the AI thinks.
+
   useEffect(() => {
-    const show = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      () => setKeyboardVisible(true),
+    if (!sending) {
+      borderSweep.stopAnimation();
+
+      borderSweep.setValue(0);
+
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.timing(borderSweep, {
+        toValue: 1,
+
+        duration: AGRI_AI_THEME.glow.rotationDurationMs,
+
+        useNativeDriver: true,
+      }),
     );
-    const hide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setKeyboardVisible(false),
-    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [sending, borderSweep]);
+
+  const sweepLength = AGRI_AI_THEME.glow.sweepLength;
+
+  const sweepX = Math.max(0, screenSize.width - sweepLength - 8);
+
+  const sweepY = Math.max(0, screenSize.height - sweepLength - 8);
+
+  const topSweepX = borderSweep.interpolate({
+    inputRange: [0, 0.25, 1],
+
+    outputRange: [4, sweepX, sweepX],
+  });
+
+  const rightSweepY = borderSweep.interpolate({
+    inputRange: [0, 0.25, 0.5, 1],
+
+    outputRange: [4, 4, sweepY, sweepY],
+  });
+
+  // Keep the bottom sweep on the same full-width track as the top.
+
+  // The display/window clips the edges naturally; do not draw an artificial inset curve.
+
+  const bottomSweepX = borderSweep.interpolate({
+    inputRange: [0, 0.5, 0.75, 1],
+
+    outputRange: [sweepX, sweepX, 4, 4],
+  });
+
+  const leftSweepY = borderSweep.interpolate({
+    inputRange: [0, 0.75, 1],
+
+    outputRange: [sweepY, sweepY, 4],
+  });
+
+  const topSweepOpacity = borderSweep.interpolate({
+    inputRange: [0, 0.025, 0.2, 0.25, 1],
+
+    outputRange: [0.15, 1, 1, 0.1, 0.1],
+
+    extrapolate: "clamp",
+  });
+
+  const rightSweepOpacity = borderSweep.interpolate({
+    inputRange: [0, 0.25, 0.275, 0.45, 0.5, 1],
+
+    outputRange: [0.1, 0.1, 1, 1, 0.1, 0.1],
+
+    extrapolate: "clamp",
+  });
+
+  const bottomSweepOpacity = borderSweep.interpolate({
+    inputRange: [0, 0.5, 0.525, 0.7, 0.75, 1],
+
+    outputRange: [0.1, 0.1, 1, 1, 0.1, 0.1],
+
+    extrapolate: "clamp",
+  });
+
+  const leftSweepOpacity = borderSweep.interpolate({
+    inputRange: [0, 0.75, 0.775, 0.975, 1],
+
+    outputRange: [0.1, 0.1, 1, 1, 0.1],
+
+    extrapolate: "clamp",
+  });
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const show = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+      requestAnimationFrame(() =>
+        scrollRef.current?.scrollToEnd({ animated: true }),
+      );
+    });
+
+    const hide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+      requestAnimationFrame(() =>
+        scrollRef.current?.scrollToEnd({ animated: false }),
+      );
+    });
+
     return () => {
       show.remove();
       hide.remove();
@@ -450,11 +772,13 @@ export default function AIChatScreen() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(
+    const id = setTimeout(
       () => scrollRef.current?.scrollToEnd({ animated: true }),
-      80,
+
+      100,
     );
-    return () => clearTimeout(timer);
+
+    return () => clearTimeout(id);
   }, [messages, sending, error]);
 
   const ensureSession = useCallback(async (): Promise<string> => {
@@ -462,6 +786,7 @@ export default function AIChatScreen() {
 
     const result = (await apiRequest(SESSION_PATH, {
       method: "POST",
+
       body: JSON.stringify({}),
     })) as SessionResponse;
 
@@ -472,16 +797,20 @@ export default function AIChatScreen() {
     }
 
     sessionIdRef.current = result.sessionId;
+
     return result.sessionId;
   }, []);
 
   const requestAnswer = useCallback(
     async (content: string) => {
       const activeSessionId = await ensureSession();
+
       const result = (await apiRequest(
         `${SESSION_PATH}/${encodeURIComponent(activeSessionId)}/messages`,
+
         {
           method: "POST",
+
           body: JSON.stringify({ message: content }),
         },
       )) as MessageResponse;
@@ -493,34 +822,56 @@ export default function AIChatScreen() {
         );
       }
 
-      const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        role: "assistant",
-        content: result.answer.trim(),
-        sources: result.sources ?? [],
-      };
-      setMessages((current) => [...current, assistantMessage]);
+      setMessages((current) => [
+        ...current,
+
+        {
+          id: `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+
+          role: "assistant",
+
+          content: result.answer!.trim(),
+
+          sources: result.sources ?? [],
+        },
+      ]);
+
       setRetryContent("");
     },
+
     [ensureSession],
   );
 
   const sendMessage = useCallback(
     async (rawContent?: string) => {
       const content = (rawContent ?? draft).trim();
+
       if (!content || sendingRef.current) return;
 
       sendingRef.current = true;
+
+      // Match ChatGPT: dismiss the IME as soon as Send is pressed.
+
+      Keyboard.dismiss();
+
       setSending(true);
+
       setDraft("");
+
+      setInputHeight(42);
+
       setError("");
+
       setRetryContent("");
 
       setMessages((current) => [
         ...current,
+
         {
           id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+
           role: "user",
+
           content,
         },
       ]);
@@ -528,54 +879,59 @@ export default function AIChatScreen() {
       try {
         await requestAnswer(content);
       } catch (err) {
-        const message =
+        setError(
           err instanceof Error
             ? err.message
-            : "Unable to contact the AI server.";
-        setError(message);
+            : "Unable to contact the AI server.",
+        );
+
         setRetryContent(content);
       } finally {
         sendingRef.current = false;
+
         setSending(false);
       }
     },
+
     [draft, requestAnswer],
   );
 
   const retryLastMessage = useCallback(async () => {
     if (!retryContent || sendingRef.current) return;
-    const content = retryContent;
+
     sendingRef.current = true;
+
     setSending(true);
+
     setError("");
+
     try {
-      await requestAnswer(content);
+      await requestAnswer(retryContent);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Retry failed. Please try again.",
       );
     } finally {
       sendingRef.current = false;
+
       setSending(false);
     }
   }, [retryContent, requestAnswer]);
 
-  const closeChat = useCallback(async () => {
-    const oldSessionId = sessionIdRef.current;
-    sessionIdRef.current = null;
-    setMessages([]);
-    setDraft("");
-    setError("");
-    setRetryContent("");
+  const goBack = useCallback(() => {
     Keyboard.dismiss();
+
+    const oldSessionId = sessionIdRef.current;
+
+    sessionIdRef.current = null;
 
     if (oldSessionId) {
       void apiRequest(`${SESSION_PATH}/${encodeURIComponent(oldSessionId)}`, {
         method: "DELETE",
       }).catch((err) => {
-        // The backend session TTL is a fallback if the close request cannot reach it.
         console.warn(
           "Unable to explicitly delete AI session; server TTL will clean it up.",
+
           err,
         );
       });
@@ -585,324 +941,647 @@ export default function AIChatScreen() {
     else router.replace("/(tabs)");
   }, []);
 
-  // Avoid a huge Android gap above the navigation bar. Cap the safe-area inset
-  // on Android; keep the full home-indicator inset on iOS.
-  const bottomPadding = keyboardVisible
-    ? 2
-    : Platform.OS === "android"
-      ? Math.min(Math.max(insets.bottom, 6), 12)
-      : Math.max(insets.bottom, 10);
-  const hasMessages = messages.length > 0;
+  const clearChat = useCallback(() => {
+    if (sendingRef.current) return;
+
+    const oldSessionId = sessionIdRef.current;
+
+    sessionIdRef.current = null;
+
+    setMessages([]);
+
+    setDraft("");
+
+    setInputHeight(42);
+
+    setError("");
+
+    setRetryContent("");
+
+    if (oldSessionId) {
+      void apiRequest(`${SESSION_PATH}/${encodeURIComponent(oldSessionId)}`, {
+        method: "DELETE",
+      }).catch((err) => {
+        console.warn(
+          "Unable to explicitly delete AI session; server TTL will clean it up.",
+
+          err,
+        );
+      });
+    }
+  }, []);
+
+  const submitDraft = () => {
+    if (draft.trim() && !sending) void sendMessage();
+  };
 
   return (
-    <View className="flex-1 bg-black">
-      <StatusBar style="light" translucent backgroundColor="transparent" />
+    <View
+      className="flex-1 bg-[#08040A]"
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        setScreenSize({ width, height });
+      }}
+    >
+      <StatusBar style="light" />
+
       <LinearGradient
         pointerEvents="none"
-        colors={["#F66B00", "#B92700", "#3B0800", "#050000", "#000000"]}
-        locations={[0, 0.2, 0.43, 0.66, 1]}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+
+        colors={[
+          AGRI_AI_THEME.colors.backgroundTop,
+
+          AGRI_AI_THEME.colors.backgroundMid,
+
+          "#050505",
+
+          AGRI_AI_THEME.colors.background,
+        ]}
+
+        locations={[0, 0.3, 0.65, 1]}
+
+        className="absolute inset-0"
       />
-      <SafeAreaView className="flex-1" edges={["left", "right"]}>
-        <KeyboardAvoidingView
-          className="flex-1"
-          // Keep the composer above the keyboard on both platforms.
-          // Android Expo Go may overlay the keyboard instead of resizing the app,
-          // so don't rely on windowSoftInputMode alone.
-          behavior="padding"
-          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
-          enabled
-        >
-          <View
-            className="min-h-[48px] flex-row items-center justify-between px-4 pb-2"
-            style={{ paddingTop: Math.max(insets.top, 10) + 4 }}
-          >
-            <Pressable
-              onPress={() => void closeChat()}
-              className="flex-row items-center gap-2"
-              accessibilityRole="button"
-              accessibilityLabel="Close chat and delete temporary conversation memory"
-            >
-              <View className="h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/20">
-                <Ionicons name="leaf-outline" size={18} color="#FFC16C" />
-              </View>
-              <View>
-                <AppText className="text-[14px] text-white" weight="semibold">
+
+      {sending && (
+        <View pointerEvents="none" className="absolute inset-0 overflow-hidden">
+          {/* Soft edge light only: no enclosing frame, so the screen never looks boxed in. */}
+
+          <LinearGradient
+            colors={AURA_TOP_COLORS}
+
+            locations={[0, 0.45, 1]}
+
+            start={{ x: 0.5, y: 0 }}
+
+            end={{ x: 0.5, y: 1 }}
+
+            className="absolute top-0 left-0 right-0 h-[86px]"
+          />
+
+          <LinearGradient
+            colors={AURA_SIDE_COLORS}
+
+            locations={[0, 0.42, 1]}
+
+            start={{ x: 1, y: 0.5 }}
+
+            end={{ x: 0, y: 0.5 }}
+
+            className="absolute top-0 right-0 w-[54px]"
+
+            style={{ bottom: 0 }}
+          />
+
+          <LinearGradient
+            colors={AURA_BOTTOM_COLORS}
+
+            locations={[0, 0.42, 1]}
+
+            start={{ x: 0.5, y: 1 }}
+
+            end={{ x: 0.5, y: 0 }}
+
+            className="absolute left-0 right-0 overflow-hidden"
+
+            // Extend the soft glow through the bottom safe-area region for a seamless edge.
+
+            style={{ height: 94, bottom: 0 }}
+          />
+
+          <LinearGradient
+            colors={AURA_SIDE_COLORS}
+
+            locations={[0, 0.42, 1]}
+
+            start={{ x: 0, y: 0.5 }}
+
+            end={{ x: 1, y: 0.5 }}
+
+            className="absolute top-0 left-0 w-[54px]"
+
+            style={{ bottom: 0 }}
+          />
+
+          {screenSize.width > 0 && screenSize.height > 0 && (
+            <>
+              <Animated.View
+                className="absolute top-0 left-0 w-[132px] h-[5px] rounded-full overflow-visible"
+
+                style={[
+                  {
+                    shadowColor: AGRI_AI_THEME.colors.neonPurple,
+
+                    shadowOpacity: AGRI_AI_THEME.glow.shadowOpacity,
+
+                    shadowRadius: AGRI_AI_THEME.glow.shadowRadius,
+
+                    elevation: 0,
+                  },
+
+                  {
+                    opacity: topSweepOpacity,
+
+                    transform: [{ translateX: topSweepX }],
+                  },
+                ]}
+              >
+                <LinearGradient
+                  colors={SWEEP_GRADIENT_COLORS}
+
+                  locations={SWEEP_GRADIENT_LOCATIONS}
+
+                  start={{ x: 0, y: 0.5 }}
+
+                  end={{ x: 1, y: 0.5 }}
+
+                  className="absolute inset-0"
+                />
+              </Animated.View>
+
+              <Animated.View
+                className="absolute top-0 right-0 w-[5px] h-[132px] rounded-full overflow-visible"
+
+                style={[
+                  {
+                    shadowColor: AGRI_AI_THEME.colors.neonPurple,
+
+                    shadowOpacity: AGRI_AI_THEME.glow.shadowOpacity,
+
+                    shadowRadius: AGRI_AI_THEME.glow.shadowRadius,
+
+                    elevation: 0,
+                  },
+
+                  {
+                    opacity: rightSweepOpacity,
+
+                    transform: [{ translateY: rightSweepY }],
+                  },
+                ]}
+              >
+                <LinearGradient
+                  colors={SWEEP_GRADIENT_COLORS}
+
+                  locations={SWEEP_GRADIENT_LOCATIONS}
+
+                  start={{ x: 0.5, y: 0 }}
+
+                  end={{ x: 0.5, y: 1 }}
+
+                  className="absolute inset-0"
+                />
+              </Animated.View>
+
+              <Animated.View
+                className="absolute left-0 w-[132px] h-[5px] rounded-full overflow-visible"
+
+                style={[
+                  {
+                    bottom: 0,
+
+                    shadowColor: AGRI_AI_THEME.colors.neonPurple,
+
+                    shadowOpacity: AGRI_AI_THEME.glow.shadowOpacity,
+
+                    shadowRadius: AGRI_AI_THEME.glow.shadowRadius,
+
+                    elevation: 0,
+                  },
+
+                  {
+                    opacity: bottomSweepOpacity,
+
+                    transform: [{ translateX: bottomSweepX }],
+                  },
+                ]}
+              >
+                <LinearGradient
+                  colors={SWEEP_GRADIENT_COLORS}
+
+                  locations={SWEEP_GRADIENT_LOCATIONS}
+
+                  start={{ x: 1, y: 0.5 }}
+
+                  end={{ x: 0, y: 0.5 }}
+
+                  className="absolute inset-0"
+                />
+              </Animated.View>
+
+              <Animated.View
+                className="absolute top-0 left-0 w-[5px] h-[132px] rounded-full overflow-visible"
+
+                style={[
+                  {
+                    shadowColor: AGRI_AI_THEME.colors.neonPurple,
+
+                    shadowOpacity: AGRI_AI_THEME.glow.shadowOpacity,
+
+                    shadowRadius: AGRI_AI_THEME.glow.shadowRadius,
+
+                    elevation: 0,
+                  },
+
+                  {
+                    opacity: leftSweepOpacity,
+
+                    transform: [{ translateY: leftSweepY }],
+                  },
+                ]}
+              >
+                <LinearGradient
+                  colors={SWEEP_GRADIENT_COLORS}
+
+                  locations={SWEEP_GRADIENT_LOCATIONS}
+
+                  start={{ x: 0.5, y: 1 }}
+
+                  end={{ x: 0.5, y: 0 }}
+
+                  className="absolute inset-0"
+                />
+              </Animated.View>
+            </>
+          )}
+        </View>
+      )}
+
+      <LinearGradient
+        pointerEvents="none"
+
+        colors={[
+          "transparent",
+
+          "rgba(124, 58, 237, 0.06)",
+
+          "rgba(255, 106, 0, 0.10)",
+
+          "#100812",
+
+          "#08040A",
+        ]}
+
+        locations={[0, 0.25, 0.5, 0.78, 1]}
+
+        start={{ x: 0.5, y: 0 }}
+
+        end={{ x: 0.5, y: 1 }}
+
+        style={{
+          position: "absolute",
+
+          left: 0,
+
+          right: 0,
+
+          bottom: 0,
+
+          height: Math.max(insets.bottom + 150, 170),
+
+          zIndex: 0,
+        }}
+      />
+
+      {/* Match the working ChatRoom layout: header, flexing message list, then composer.
+          Android window resize moves the whole flex column with the keyboard. */}
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior="padding"
+        keyboardVerticalOffset={0}
+      >
+        <SafeAreaView className="flex-1" edges={["top", "left", "right"]}>
+          <View className="flex-1">
+            <View className="min-h-[58px] flex-row items-center border-b border-white/[0.08] px-3.5">
+              <Pressable
+                onPress={goBack}
+
+                className="h-10 w-10 items-center justify-center rounded-full"
+
+                accessibilityRole="button"
+
+                accessibilityLabel="Go back"
+              >
+                <Ionicons name="arrow-back" size={21} color="#F5F5F5" />
+              </Pressable>
+
+              <View className="flex-1 gap-0.5 pl-[7px]">
+                <AppText className="text-[16px] text-white" weight="semibold">
                   Agri AI
                 </AppText>
-                <AppText className="text-[10px] text-white/55">
+
+                <AppText className="text-[11px] text-white/45">
                   Crop growing assistant
                 </AppText>
               </View>
-            </Pressable>
 
-            {hasMessages ? (
               <Pressable
-                onPress={() => void closeChat()}
-                className="flex-row items-center rounded-full border border-white/15 bg-white/10 px-3 py-2"
+                onPress={clearChat}
+
+                disabled={!hasMessages || sending}
+
+                className={`h-10 w-10 items-center justify-center rounded-full ${!hasMessages || sending ? "opacity-70" : ""}`}
+
                 accessibilityRole="button"
-              >
-                <Ionicons name="close" size={14} color="white" />
-                <AppText className="ml-1 text-[11px] text-white">
-                  Close chat
-                </AppText>
-              </Pressable>
-            ) : null}
-          </View>
 
-          {!hasMessages ? (
-            keyboardVisible ? (
-              <View className="flex-1 items-center justify-center px-6">
-                <AIOrb small />
-                <AppText className="mt-3 text-center text-[13px] text-white/60">
-                  Ask Agri AI about your crops
-                </AppText>
-              </View>
-            ) : (
-              <ScrollView
-                className="flex-1"
-                contentContainerStyle={{
-                  flexGrow: 1,
-                  justifyContent: "center",
-                  paddingHorizontal: 22,
-                  paddingTop: 10,
-                  paddingBottom: 18,
-                }}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                <View className="items-center pb-7">
-                  <AIOrb />
-                  <AppText className="mt-5 text-[11px] text-white/45">
-                    Ready to help your crops grow
-                  </AppText>
-                  <AppText
-                    className="mt-5 max-w-[300px] text-center text-[27px] leading-[33px] text-white"
-                    weight="medium"
-                  >
-                    What’s happening in your grow rack?
-                  </AppText>
-                  <AppText className="mt-3 max-w-[310px] text-center text-[13px] leading-5 text-white/60">
-                    Ask about a crop, spot a possible issue, or review your
-                    rack’s sensor readings and growing conditions.
-                  </AppText>
-                </View>
-
-                <View className="gap-2">
-                  {SUGGESTIONS.map((item) => (
-                    <Pressable
-                      key={item.title}
-                      disabled={sending}
-                      onPress={() => void sendMessage(item.prompt)}
-                      className="flex-row items-center rounded-[18px] border border-white/10 bg-black/45 px-4 py-3.5 active:opacity-75"
-                    >
-                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-[13px] bg-[#FF6A00]/15">
-                        <Ionicons name={item.icon} size={19} color="#FF963D" />
-                      </View>
-                      <View className="flex-1 pr-2">
-                        <AppText
-                          className="text-[13px] leading-[18px] text-white"
-                          weight="medium"
-                        >
-                          {item.title}
-                        </AppText>
-                        <AppText className="mt-0.5 text-[11px] text-white/45">
-                          {item.detail}
-                        </AppText>
-                      </View>
-                      <Ionicons
-                        name="arrow-up-forward"
-                        size={16}
-                        color="#A9A9A9"
-                      />
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            )
-          ) : (
-            <ScrollView
-              ref={scrollRef}
-              className="flex-1"
-              contentContainerStyle={{
-                paddingHorizontal: 16,
-                paddingTop: 12,
-                paddingBottom: 16,
-                gap: 14,
-              }}
-              keyboardShouldPersistTaps="always"
-              keyboardDismissMode={
-                Platform.OS === "ios" ? "interactive" : "on-drag"
-              }
-              showsVerticalScrollIndicator={false}
-              onContentSizeChange={() =>
-                scrollRef.current?.scrollToEnd({ animated: true })
-              }
-              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
-            >
-              {messages.map((message) => (
-                <View
-                  key={message.id}
-                  className={`flex-row ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  {message.role === "assistant" ? (
-                    <View className="mr-2.5 mt-1">
-                      <AIOrb small />
-                    </View>
-                  ) : null}
-                  <View
-                    className={`max-w-[84%] rounded-[18px] px-3.5 py-3 ${
-                      message.role === "user"
-                        ? "rounded-tr-[5px] bg-[#F46A00]"
-                        : "rounded-tl-[5px] border border-white/[0.06] bg-black/70"
-                    }`}
-                  >
-                    {message.role === "assistant" ? (
-                      <MarkdownContent content={message.content} />
-                    ) : (
-                      <AppText className="text-[13px] leading-[19px] text-white">
-                        {message.content}
-                      </AppText>
-                    )}
-                    {message.role === "assistant" &&
-                    message.sources &&
-                    message.sources.length > 0 ? (
-                      <View className="mt-3 border-t border-white/10 pt-2">
-                        <AppText
-                          className="text-[10px] text-white/45"
-                          weight="medium"
-                        >
-                          Sources
-                        </AppText>
-                        {message.sources.slice(0, 4).map((source, index) => (
-                          <AppText
-                            key={`${source.documentName ?? "source"}-${index}`}
-                            className="mt-1 text-[10px] text-orange-200/80"
-                          >
-                            {source.documentName ??
-                              source.cropName ??
-                              "Crop documentation"}
-                          </AppText>
-                        ))}
-                      </View>
-                    ) : null}
-                  </View>
-                </View>
-              ))}
-
-              {sending ? (
-                <View className="flex-row items-center">
-                  <View className="mr-2.5">
-                    <AIOrb small />
-                  </View>
-                  <View className="flex-row items-center gap-2 rounded-2xl border border-white/[0.06] bg-black/65 px-3.5 py-3">
-                    <ActivityIndicator size="small" color={ACCENT} />
-                    <AppText className="text-[11px] text-white/55">
-                      Checking crop data…
-                    </AppText>
-                  </View>
-                </View>
-              ) : null}
-
-              {error ? (
-                <View className="self-start max-w-[92%] rounded-[16px] border border-red-400/20 bg-[#300B08]/95 px-3.5 py-3">
-                  <AppText className="text-[12px] leading-[18px] text-red-100">
-                    {error}
-                  </AppText>
-                  <View className="mt-2 flex-row items-center gap-4">
-                    {retryContent ? (
-                      <Pressable
-                        onPress={() => void retryLastMessage()}
-                        disabled={sending}
-                      >
-                        <AppText
-                          className="text-[12px] text-orange-300"
-                          weight="semibold"
-                        >
-                          Try again
-                        </AppText>
-                      </Pressable>
-                    ) : null}
-                    <Pressable onPress={() => setError("")}>
-                      <AppText className="text-[12px] text-white/55">
-                        Dismiss
-                      </AppText>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : null}
-            </ScrollView>
-          )}
-
-          <View className="px-3 pt-1" style={{ paddingBottom: bottomPadding }}>
-            <View className="min-h-[54px] flex-row items-end rounded-[27px] border border-white/10 bg-[#100907]/95 px-2.5 py-1.5">
-              <Pressable
-                onPress={() => inputRef.current?.focus()}
-                className="h-9 w-8 items-center justify-center"
-                accessibilityRole="button"
-                accessibilityLabel="Focus message field"
+                accessibilityLabel="Clear chat and start a new conversation"
               >
                 <Ionicons
-                  name="chatbubble-ellipses-outline"
+                  name="trash-outline"
+
                   size={18}
-                  color="#A8A8A8"
+
+                  color={hasMessages && !sending ? "#E7E7E7" : "#666666"}
                 />
               </Pressable>
-              <TextInput
-                ref={inputRef}
-                value={draft}
-                onChangeText={setDraft}
-                placeholder="Ask about your crops…"
-                placeholderTextColor="rgba(255,255,255,0.42)"
-                multiline
-                maxLength={8000}
-                blurOnSubmit={false}
-                returnKeyType="default"
-                textAlignVertical="top"
-                scrollEnabled
-                className="max-h-[104px] min-h-[38px] flex-1 px-2 py-2 text-[14px] leading-5 text-white"
-                onFocus={() => {
-                  setKeyboardVisible(true);
-                  requestAnimationFrame(() =>
-                    scrollRef.current?.scrollToEnd({ animated: true }),
-                  );
-                }}
-                onSubmitEditing={() => {
-                  if (draft.trim()) void sendMessage();
-                }}
-                accessibilityLabel="Message the Agri AI assistant"
-              />
-              <Pressable
-                onPress={() => {
-                  if (draft.trim() && !sending) void sendMessage();
-                  else if (!draft.trim()) inputRef.current?.focus();
-                }}
-                disabled={sending || !draft.trim()}
-                className={`mb-0.5 h-9 w-9 items-center justify-center rounded-full ${draft.trim() && !sending ? "bg-[#FF6A00]" : "bg-white/10"}`}
-                accessibilityRole="button"
-                accessibilityLabel="Send message"
-              >
-                {sending ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Ionicons
-                    name="arrow-up"
-                    size={20}
-                    color={draft.trim() ? "white" : "#777777"}
-                  />
-                )}
-              </Pressable>
             </View>
+
             {!hasMessages ? (
-              <AppText className="mt-2 text-center text-[10px] text-white/35">
-                Answers use your indexed crop guides and available rack data.
-              </AppText>
-            ) : null}
+              <ScrollView
+                className="flex-1"
+
+                contentContainerClassName={`grow items-center px-5 py-[26px] ${keyboardVisible ? "justify-start pt-[14px]" : "justify-center"}`}
+                contentContainerStyle={{ paddingBottom: 16 }}
+                keyboardShouldPersistTaps="handled"
+
+                showsVerticalScrollIndicator={false}
+              >
+                <View
+                  className={
+                    keyboardVisible
+                      ? "h-[38px] w-[38px] overflow-hidden rounded-[19px] p-0.5"
+                      : "h-[72px] w-[72px] overflow-hidden rounded-[36px] p-0.5"
+                  }
+
+                  style={keyboardVisible ? orbCompactShadow : orbShadow}
+                >
+                  <LinearGradient
+                    colors={["#FFF2B4", "#FFB52F", "#FF6B00", "#A51A00"]}
+
+                    className="flex-1 rounded-[35px]"
+                  />
+                </View>
+
+                <AppText
+                  className={
+                    keyboardVisible
+                      ? "mt-2 text-[10px] text-white/45"
+                      : "mt-5 text-[11px] text-white/45"
+                  }
+                >
+                  YOUR GROWING ASSISTANT
+                </AppText>
+
+                <AppText
+                  className={
+                    keyboardVisible
+                      ? "mt-2 max-w-[320px] text-center text-[21px] leading-[27px] text-white"
+                      : "mt-3 max-w-[320px] text-center text-[27px] leading-[34px] text-white"
+                  }
+
+                  weight="medium"
+                >
+                  What’s happening in your grow rack?
+                </AppText>
+
+                {!keyboardVisible && (
+                  <AppText className="mt-3 max-w-[320px] text-center text-[14px] leading-[21px] text-white/55">
+                    Ask about a crop, troubleshoot a problem, or understand your
+                    growing conditions.
+                  </AppText>
+                )}
+
+                {keyboardVisible ? (
+                  <AppText className="mt-2 text-center text-[11px] text-white/40">
+                    Type a question below to get started.
+                  </AppText>
+                ) : (
+                  <View className="mt-7 w-full max-w-[440px] gap-[9px]">
+                    {SUGGESTIONS.map((item) => (
+                      <Pressable
+                        key={item.title}
+
+                        disabled={sending}
+
+                        onPress={() => void sendMessage(item.prompt)}
+
+                        className="min-h-[58px] flex-row items-center gap-[11px] rounded-[17px] border border-white/[0.09] bg-white/[0.035] px-3 py-[10px] active:opacity-70"
+                      >
+                        <View className="h-[37px] w-[37px] items-center justify-center rounded-[12px] bg-[#FF6A00]/[0.12]">
+                          <Ionicons
+                            name={item.icon}
+                            size={19}
+                            color="#FF974D"
+                          />
+                        </View>
+
+                        <AppText className="flex-1 text-[13px] leading-[19px] text-white/90">
+                          {item.title}
+                        </AppText>
+
+                        <Ionicons
+                          name="arrow-up-forward"
+
+                          size={15}
+
+                          color="#8A8A8A"
+                        />
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            ) : (
+              <ScrollView
+                ref={scrollRef}
+
+                onLayout={() => {
+                  if (keyboardVisible) {
+                    requestAnimationFrame(() =>
+                      scrollRef.current?.scrollToEnd({ animated: false }),
+                    );
+                  }
+                }}
+
+                className="flex-1"
+
+                contentContainerClassName="gap-[22px] px-[17px] pt-5"
+                contentContainerStyle={{ paddingBottom: 16 }}
+                keyboardShouldPersistTaps="handled"
+
+                keyboardDismissMode={
+                  Platform.OS === "ios" ? "interactive" : "on-drag"
+                }
+
+                showsVerticalScrollIndicator={false}
+
+                onContentSizeChange={() =>
+                  scrollRef.current?.scrollToEnd({ animated: true })
+                }
+              >
+                {messages.map((message) =>
+                  message.role === "user" ? (
+                    <View key={message.id} className="w-full items-end">
+                      <View className="max-w-[94%] rounded-[22px] rounded-tr-[7px] bg-[#303030] px-[15px] py-[11px]">
+                        <AppText className="text-[15px] leading-[22px] text-white">
+                          {message.content}
+                        </AppText>
+                      </View>
+                    </View>
+                  ) : (
+                    <View
+                      key={message.id}
+                      className="w-full self-stretch pr-0.5"
+                    >
+                      <AssistantText content={message.content} />
+
+                      {!!message.sources?.length && (
+                        <View className="mt-[13px] border-t border-white/[0.13] pt-[9px]">
+                          <AppText
+                            className="text-[11px] text-white/45"
+
+                            weight="medium"
+                          >
+                            Sources
+                          </AppText>
+
+                          {message.sources.slice(0, 4).map((source, index) => (
+                            <AppText
+                              key={`${source.documentName ?? "source"}-${index}`}
+
+                              className="mt-1 text-[11px] text-orange-200/80"
+                            >
+                              {source.documentName ??
+                                source.cropName ??
+                                "Crop documentation"}
+                            </AppText>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  ),
+                )}
+
+                {sending && <TypingIndicator />}
+
+                {!!error && (
+                  <View className="self-stretch rounded-[14px] border border-red-400/25 bg-[#460A0A]/70 p-3">
+                    <AppText className="text-[12px] leading-[18px] text-red-100">
+                      {error}
+                    </AppText>
+
+                    <View className="mt-[10px] flex-row gap-[18px]">
+                      {!!retryContent && (
+                        <Pressable
+                          onPress={() => void retryLastMessage()}
+
+                          disabled={sending}
+                        >
+                          <AppText
+                            className="text-[12px] text-orange-300"
+
+                            weight="semibold"
+                          >
+                            Try again
+                          </AppText>
+                        </Pressable>
+                      )}
+
+                      <Pressable onPress={() => setError("")}>
+                        <AppText className="text-[12px] text-white/55">
+                          Dismiss
+                        </AppText>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+
+            <View
+              className="shrink-0 bg-transparent px-3 pt-[9px]"
+              style={{ paddingBottom: keyboardVisible ? 4 : insets.bottom }}
+            >
+              <View className="min-h-[52px] max-h-[150px] w-full max-w-[760px] flex-row items-end self-center rounded-[27px] border border-white/[0.15] bg-[#1B1B1B] py-[6px] pl-[17px] pr-[6px]">
+                <TextInput
+                  ref={inputRef}
+
+                  value={draft}
+
+                  onChangeText={setDraft}
+
+                  placeholder="Message Agri AI"
+
+                  placeholderTextColor="rgba(255,255,255,0.42)"
+
+                  multiline
+
+                  maxLength={8000}
+
+                  blurOnSubmit={false}
+
+                  returnKeyType="default"
+
+                  textAlignVertical="top"
+
+                  scrollEnabled
+
+                  onContentSizeChange={(event) => {
+                    const nextHeight = Math.min(
+                      122,
+
+                      Math.max(42, event.nativeEvent.contentSize.height + 2),
+                    );
+
+                    setInputHeight(nextHeight);
+
+                    if (hasMessages)
+                      requestAnimationFrame(() =>
+                        scrollRef.current?.scrollToEnd({ animated: true }),
+                      );
+                  }}
+
+                  className="min-h-[42px] max-h-[122px] flex-1 pr-[9px] pt-[9px] pb-2 text-[15px] leading-[21px] text-white"
+
+                  style={{ height: inputHeight }}
+
+                  accessibilityLabel="Message Agri AI"
+                />
+
+                <Pressable
+                  onPress={submitDraft}
+
+                  disabled={sending || !draft.trim()}
+
+                  className={`mb-px h-[38px] w-[38px] items-center justify-center rounded-full ${!draft.trim() || sending ? "bg-[#343434]" : "bg-[#FF6A00]"}`}
+
+                  accessibilityRole="button"
+
+                  accessibilityLabel="Send message"
+                >
+                  {sending ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Ionicons
+                      name="arrow-up"
+
+                      size={21}
+
+                      color={draft.trim() ? "#FFFFFF" : "#777777"}
+                    />
+                  )}
+                </Pressable>
+              </View>
+
+              {!hasMessages && !keyboardVisible && (
+                <AppText className="mt-2 text-center text-[10px] text-white/30">
+                  Answers use your indexed crop guides and available rack data.
+                </AppText>
+              )}
+            </View>
           </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

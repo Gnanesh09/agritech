@@ -1027,32 +1027,95 @@ export default function HomeScreen() {
   /* --------------------------------------------------------------------------
      LOADING
   -------------------------------------------------------------------------- */
+  /* --------------------------------------------------------------------------
+     LOADING
+  -------------------------------------------------------------------------- */
 
   if (loading) {
     return (
       <View className="flex-1 bg-black">
-        <View
-          className="bg-primary"
-          style={{
-            height: insets.top,
-          }}
-        />
+        {/* Safe Area Top */}
+        <View className="bg-black" style={{ height: insets.top }} />
+        <StatusBar style="light" />
 
-        <StatusBar style="dark" />
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+          scrollEnabled={false}
+        >
+          {/* ================================================================
+              HERO SKELETON
+          ================================================================ */}
+          <View className="overflow-hidden rounded-b-[30px] border-b border-white/[0.08] bg-[#0A0E0A] animate-pulse">
+            <View className="relative h-[500px] overflow-hidden">
+              {/* Header */}
+              <View className="absolute left-5 right-5 top-5 z-30 flex-row items-center justify-between">
+                <View className="h-7 w-32 rounded-lg bg-white/10" />
+                <View className="h-10 w-10 rounded-full bg-white/10" />
+              </View>
 
-        <View className="flex-1 items-center justify-center">
-          <View className="h-12 w-12 items-center justify-center rounded-2xl bg-[#E7EF58]">
-            <ActivityIndicator size="small" color="#000000" />
+              {/* Central Device Shape Placeholder */}
+              <View className="absolute bottom-[140px] left-0 right-0 z-10 items-center">
+                <View className="h-[240px] w-[200px] rounded-3xl bg-white/[0.03]" />
+              </View>
+
+              {/* Device Selector Button Placeholder */}
+              <View className="absolute bottom-[92px] left-4 right-4 z-30 flex-row items-center justify-between rounded-[17px] bg-white/[0.03] px-4 py-3">
+                <View>
+                  <View className="mb-2 h-5 w-40 rounded-md bg-white/10" />
+                  <View className="h-3 w-20 rounded-sm bg-white/5" />
+                </View>
+                <View className="h-9 w-9 rounded-full bg-white/10" />
+              </View>
+
+              {/* Stats Overlay */}
+              <View className="absolute bottom-3 left-3 right-3 z-40 rounded-[20px] bg-black/85 p-2 flex-row">
+                {[1, 2, 3].map((item, i) => (
+                  <View key={item} className="flex-1 px-1">
+                    <View
+                      className={`items-center rounded-[14px] py-4 ${i === 0 ? "bg-[#182118]" : "bg-[#182118]"}`}
+                    >
+                      <View className="mb-2 h-6 w-12 rounded-md bg-white/10" />
+                      <View className="h-2 w-16 rounded-sm bg-white/5" />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
           </View>
 
-          <AppText className="mt-4 text-[15px] text-zinc-500">
-            Loading your garden
-          </AppText>
-        </View>
+          {/* ================================================================
+              LIST SKELETON
+          ================================================================ */}
+          <View className="mt-8 px-5">
+            {/* Title */}
+            <View className="mb-5 flex-row items-end justify-between animate-pulse">
+              <View className="h-8 w-36 rounded-lg bg-white/10" />
+              <View className="h-4 w-12 rounded bg-white/10" />
+            </View>
+
+            {/* Expandable Rows Skeletons */}
+            {[1, 2, 3, 4].map((item) => (
+              <View
+                key={item}
+                className="mb-3 flex-row items-center justify-between rounded-[21px] border border-white/[0.05] bg-[#071107] px-5 py-5 animate-pulse"
+              >
+                <View>
+                  <View className="mb-2 h-5 w-20 rounded bg-white/10" />
+                  <View className="h-3 w-12 rounded bg-white/[0.04]" />
+                </View>
+
+                <View className="flex-row items-center gap-3">
+                  <View className="h-3 w-8 rounded bg-white/10" />
+                  <View className="h-5 w-5 rounded bg-white/10" />
+                </View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </View>
     );
   }
-
   /* --------------------------------------------------------------------------
      MAIN
   -------------------------------------------------------------------------- */

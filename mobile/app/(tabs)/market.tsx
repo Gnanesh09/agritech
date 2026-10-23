@@ -1793,18 +1793,16 @@ export default function MarketplaceScreen() {
             style={{ paddingTop: insets.top + 8 }}
           >
             <LinearGradient
-              // Starts with a rich organic purple, fades smoothly to transparent
               colors={[
-                "#7E22CE", // Rich organic plum purple
-                "rgba(126, 34, 206, 0.85)", // 85% opacity
-                "rgba(126, 34, 206, 0.3)", // Rapid fade
-                "rgba(126, 34, 206, 0)", // 100% transparent at the bottom
+                "rgba(220, 235, 255, 0.25)", // Bright center light source
+                "rgba(80, 95, 110, 0.18)", // Metallic sheen spread
+                "#13161B", // Graphite mid-layer
+                "#000000", // Solid black floor
               ]}
-              locations={[0, 0.4, 0.75, 1]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
+              locations={[0, 0.22, 0.6, 1]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
               style={StyleSheet.absoluteFillObject}
-              pointerEvents="none"
             />
             {/* Rest of your content goes here */}
             {/* Search stays shared between map and list. */}
