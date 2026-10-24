@@ -1211,15 +1211,10 @@ export default function AIChatScreen() {
         pointerEvents="none"
 
         colors={[
-          "transparent",
-
-          "rgba(124, 58, 237, 0.06)",
-
-          "rgba(255, 106, 0, 0.10)",
-
-          "#100812",
-
-          "#08040A",
+          "transparent", // Top: Fully transparent
+          "rgba(0, 0, 0, 0.3)", // Mid: Starting to darken
+          "rgba(0, 0, 0, 0.8)", // Lower-mid: Almost solid
+          "#000000", // Bottom: Solid black
         ]}
 
         locations={[0, 0.25, 0.5, 0.78, 1]}
