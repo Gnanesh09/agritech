@@ -52,6 +52,7 @@
  
 }
 
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);
@@ -163,4 +164,192 @@
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
 }
+
+
+/* ==========================================================
+   SMARTAGRI — GLOBAL THEME SYSTEM
+========================================================== */
+
+:root {
+  color-scheme: dark;
+
+  --app-bg: #0b100d;
+  --sidebar-bg: #0b100d;
+  --surface: #151f18;
+  --surface-hover: #1c2a20;
+  --border: #29362b;
+
+  --text-primary: #e8f0e7;
+  --text-secondary: #91a092;
+  --text-muted: #69786b;
+
+  --accent: #b6ff3b;
+  --accent-hover: #c6ff67;
+  --accent-text: #0b100d;
+
+  --status-online: #35e86b;
+  --status-warning: #f4bf58;
+  --status-error: #ff7777;
+
+  --input-bg: #111a13;
+  --overlay: rgb(0 0 0 / 65%);
+  --card-shadow: 0 8px 35px rgb(0 0 0 / 18%);
+
+  /* shadcn semantic colors — dark */
+  --background: #0b100d;
+  --foreground: #e8f0e7;
+  --card: #151f18;
+  --card-foreground: #e8f0e7;
+  --popover: #151f18;
+  --popover-foreground: #e8f0e7;
+  --primary: #b6ff3b;
+  --primary-foreground: #0b100d;
+  --secondary: #1c2a20;
+  --secondary-foreground: #e8f0e7;
+  --muted: #1c2a20;
+  --muted-foreground: #91a092;
+  --accent: #1c2a20;
+  --accent-foreground: #e8f0e7;
+  --border: #29362b;
+  --input: #29362b;
+  --ring: #b6ff3b;
+
+  --sidebar: #0b100d;
+  --sidebar-foreground: #e8f0e7;
+  --sidebar-primary: #b6ff3b;
+  --sidebar-primary-foreground: #0b100d;
+  --sidebar-accent: #1c2a20;
+  --sidebar-accent-foreground: #e8f0e7;
+  --sidebar-border: #29362b;
+  --sidebar-ring: #b6ff3b;
+}
+
+/* Light mode: supports both theme selectors */
+html[data-theme="light"],
+html:not(.dark):not([data-theme="dark"]) {
+  color-scheme: light;
+
+  --app-bg: #f5f8f0;
+  --sidebar-bg: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f0f5e9;
+  --border: #e2eadb;
+
+  --text-primary: #203b28;
+  --text-secondary: #748572;
+  --text-muted: #929d8d;
+
+  --accent: #4e8a42;
+  --accent-hover: #3d7333;
+  --accent-text: #ffffff;
+
+  --status-online: #268744;
+  --status-warning: #a66d16;
+  --status-error: #c33d3d;
+
+  --input-bg: #f8faf5;
+  --overlay: rgb(25 45 25 / 35%);
+  --card-shadow: 0 8px 30px rgb(40 65 35 / 6%);
+
+  --background: #f5f8f0;
+  --foreground: #203b28;
+  --card: #ffffff;
+  --card-foreground: #203b28;
+  --popover: #ffffff;
+  --popover-foreground: #203b28;
+  --primary: #4e8a42;
+  --primary-foreground: #ffffff;
+  --secondary: #f0f5e9;
+  --secondary-foreground: #203b28;
+  --muted: #f0f5e9;
+  --muted-foreground: #748572;
+  --accent: #f0f5e9;
+  --accent-foreground: #203b28;
+  --border: #e2eadb;
+  --input: #e2eadb;
+  --ring: #4e8a42;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #203b28;
+  --sidebar-primary: #4e8a42;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0f5e9;
+  --sidebar-accent-foreground: #203b28;
+  --sidebar-border: #e2eadb;
+  --sidebar-ring: #4e8a42;
+}
+
+/* Explicit dark mode wins over the light-mode default */
+html.dark,
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--app-bg);
+  color: var(--text-primary);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+html {
+  background: var(--app-bg);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+
+/* ==========================================================
+   LIGHT MODE — BOTANICAL FRESH
+========================================================== */
+
+html[data-theme="light"] {
+  color-scheme: light;
+
+  --app-bg: #f5f8f0;
+  --sidebar-bg: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f0f5e9;
+  --border: #e2eadb;
+
+  --text-primary: #203b28;
+  --text-secondary: #748572;
+  --text-muted: #929d8d;
+
+  --accent: #4e8a42;
+  --accent-hover: #3d7333;
+  --accent-text: #ffffff;
+
+  --status-online: #268744;
+  --status-warning: #a66d16;
+  --status-error: #c33d3d;
+
+  --input-bg: #f8faf5;
+  --overlay: rgb(25 45 25 / 35%);
+  --card-shadow: 0 8px 30px rgb(40 65 35 / 6%);
+}
+
+/* ==========================================================
+   SHARED APPLICATION SURFACES
+========================================================== */
+
+body {
+  background: var(--app-bg);
+  color: var(--text-primary);
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+html {
+  background: var(--app-bg);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
 

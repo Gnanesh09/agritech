@@ -1,3 +1,4 @@
+
 import BottomNav from "../../components/BoottomNav";
 
 export default function HomeLayout({
@@ -6,14 +7,20 @@ export default function HomeLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="relative mx-auto min-h-screen w-full bg-white lg:max-w-[430px]">
-        {/* Page content */}
-        <main className="min-h-screen ">{children}</main>
+    <div className="min-h-screen w-full bg-[#0c1410] text-[#f4efe4]">
+      {/* =====================================================
+          MAIN APPLICATION CONTENT
+      ===================================================== */}
 
-        {/* Bottom navigation */}
-        <BottomNav />
-      </div>
+      <main className="min-h-screen w-full pb-24 lg:pb-8 lg:pl-64">
+        {children}
+      </main>
+
+
+      {/* =====================================================
+          SHARED NAVIGATION
+      ===================================================== */}
+      <BottomNav />
     </div>
   );
 }

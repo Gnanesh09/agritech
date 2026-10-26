@@ -1,96 +1,243 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronRight, Plus, Wifi } from "lucide-react";
+// ==========================================================
+// IMPORTS
+// ==========================================================
+
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Activity,
+  ChevronRight,
+  CircleAlert,
+  Plus,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  Thermometer,
+  Droplets,
+  Sun,
+  Sprout,
+} from "lucide-react";
 
 import api from "../../lib/axios";
 
-// ============================================================
+// ==========================================================
 // TYPES
-// ============================================================
+// ==========================================================
 
-type DeviceCapability = {
+type Capability = {
   key: string;
   label?: string;
   type: "number" | "boolean" | "string";
   unit?: string;
-  min?: number;
-  max?: number;
-};
-
-type DeviceCapabilities = {
-  sensors: DeviceCapability[];
-  actuators: DeviceCapability[];
-};
-
-type DeviceState = {
-  actual: Record<string, unknown>;
-  desired: Record<string, unknown>;
-  modes: Record<string, unknown>;
-  lastReportedAt: string | null;
 };
 
 type Device = {
   id: string;
   deviceCode: string;
-  serialNumber: string;
-  status: string;
-
-  linkedAt: string | null;
   lastSeenAt: string | null;
-  firmwareVersion: string | null;
-
   name: string | null;
-
   deviceModel: {
-    id: string;
     name: string;
-    code: string;
-    imageUrl: string | null;
-    capabilities: DeviceCapabilities;
+    imageUrl?: string | null;
+    capabilities: {
+      sensors: Capability[];
+      actuators: Capability[];
+    };
   };
-
-  state: DeviceState | null;
 };
 
-// ============================================================
-// PAGE
-// ============================================================
+type Telemetry = {
+  id: string;
+  data: Record<string, unknown>;
+  recordedAt: string;
+};
 
-export default function MonitorPage() {
+type Reading = {
+  key: string;
+  label: string;
+  value: string;
+  unit: string;
+};
+
+type DeviceSummary = {
+  device: Device;
+  readings: Reading[];
+  telemetryAt: string | null;
+};
+
+// ==========================================================
+// HELPERS
+// ==========================================================
+
+function isOnline(lastSeenAt: string | null) {
+  if (!lastSeenAt) return false;
+
+  const timestamp = new Date(lastSeenAt).getTime();
+
+  return (
+    Number.isFinite(timestamp) &&
+    timestamp <= Date.now() &&
+    Date.now() - timestamp < 2 * 60 * 1000
+  );
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "--";
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : "--";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "On" : "Off";
+  }
+
+  if (typeof value === "string") return value;
+
+  return "--";
+}
+
+function formatTime(value: string | null) {
+  if (!value) return "No telemetry yet";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Unknown time";
+
+  return date.toLocaleString([], {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function sensorIcon(label: string) {
+  const name = label.toLowerCase();
+
+  if (name.includes("temp")) return Thermometer;
+  if (name.includes("humid")) return Droplets;
+  if (name.includes("light") || name.includes("ldr")) return Sun;
+
+  return Activity;
+}
+
+// ==========================================================
+// DASHBOARD PAGE
+// ==========================================================
+
+export default function DashboardPage() {
   const router = useRouter();
 
   const [devices, setDevices] = useState<Device[]>([]);
-
+  const [summaries, setSummaries] = useState<DeviceSummary[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   // ==========================================================
-  // LOAD DEVICES
+  // LOAD DASHBOARD DATA
+  // ==========================================================
+
+  const loadDashboard = useCallback(async (manual = false) => {
+    if (manual) setRefreshing(true);
+    else setLoading(true);
+
+    setError("");
+
+    try {
+      const response = await api.get("/user/devices");
+      const deviceList: Device[] = response.data?.devices ?? [];
+
+      setDevices(deviceList);
+
+      const results = await Promise.all(
+        deviceList.map(async (device): Promise<DeviceSummary> => {
+          try {
+            const telemetryResponse = await api.get(
+              `/user/devices/${device.id}/telemetry`,
+            );
+
+            const telemetry: Telemetry[] =
+              telemetryResponse.data?.telemetry ?? [];
+
+            const latest = telemetry[0];
+            const data = latest?.data ?? {};
+
+            const readings = device.deviceModel.capabilities.sensors.map(
+              (sensor) => ({
+                key: sensor.key,
+                label: sensor.label || sensor.key,
+                value: formatValue(data[sensor.key]),
+                unit: sensor.unit || "",
+              }),
+            );
+
+            return {
+              device,
+              readings,
+              telemetryAt: latest?.recordedAt ?? null,
+            };
+          } catch (err) {
+            console.error(
+              `Failed to load telemetry for ${device.deviceCode}`,
+              err,
+            );
+
+            return {
+              device,
+              readings: [],
+              telemetryAt: null,
+            };
+          }
+        }),
+      );
+
+      setSummaries(results);
+    } catch (err) {
+      console.error("Dashboard loading failed:", err);
+      setError("Unable to load your devices. Please try again.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  // ==========================================================
+  // AUTO REFRESH
   // ==========================================================
 
   useEffect(() => {
-    loadDevices();
-  }, []);
+    void loadDashboard();
 
-  async function loadDevices() {
-    try {
-      setLoading(true);
-      setError("");
+    const interval = window.setInterval(() => {
+      void loadDashboard(true);
+    }, 30_000);
 
-      const response = await api.get("/user/devices");
+    return () => window.clearInterval(interval);
+  }, [loadDashboard]);
 
-      setDevices(response.data.devices || []);
-    } catch (error) {
-      console.error("Failed to load devices:", error);
+  // ==========================================================
+  // DEVICE COUNTS
+  // ==========================================================
 
-      setError("Unable to load your devices.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const onlineCount = devices.filter((device) =>
+    isOnline(device.lastSeenAt),
+  ).length;
+
+  const offlineCount = devices.length - onlineCount;
+
+  const reportedReadings = summaries.reduce(
+    (total, summary) =>
+      total +
+      summary.readings.filter((reading) => reading.value !== "--").length,
+    0,
+  );
 
   // ==========================================================
   // LOADING
@@ -98,17 +245,25 @@ export default function MonitorPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6">
-        <div className="mx-auto max-w-md">
-          <div className="h-7 w-32 animate-pulse rounded-lg bg-[#e7e7e1]" />
+      <main className="min-h-screen bg-[#f6f6f2] px-4 pb-32 pt-7 sm:px-6">
+        <div className="mx-auto max-w-5xl">
+          <div className="h-8 w-48 animate-pulse rounded-xl bg-[#e7e7e1]" />
+          <div className="mt-3 h-4 w-64 animate-pulse rounded-lg bg-[#e7e7e1]" />
 
-          <div className="mt-2 h-4 w-56 animate-pulse rounded-lg bg-[#e7e7e1]" />
-
-          <div className="mt-7 space-y-3">
+          <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {[1, 2, 3].map((item) => (
               <div
                 key={item}
-                className="h-[112px] animate-pulse rounded-[27px] bg-white"
+                className="h-28 animate-pulse rounded-[28px] bg-white"
+              />
+            ))}
+          </div>
+
+          <div className="mt-7 space-y-4">
+            {[1, 2].map((item) => (
+              <div
+                key={item}
+                className="h-44 animate-pulse rounded-[30px] bg-white"
               />
             ))}
           </div>
@@ -118,160 +273,321 @@ export default function MonitorPage() {
   }
 
   // ==========================================================
-  // PAGE
+  // MAIN DASHBOARD
   // ==========================================================
 
   return (
-    <main className="min-h-screen bg-[#f6f6f2] px-4 pb-28 pt-6">
-      <div className="mx-auto max-w-md">
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
+    <main className="min-h-screen bg-[#f6f6f2] px-4 pb-32 pt-7 text-[#202020] sm:px-6">
+      <div className="mx-auto w-full max-w-5xl">
 
-        <header className="flex items-end justify-between">
+        {/* ==========================================================
+            HEADER
+        ========================================================== */}
+
+        <header className="flex items-end justify-between gap-3">
           <div>
-            <h1 className="text-[29px] font-semibold tracking-[-0.06em] text-[#202020]">
-              My devices
+            <p className="text-[10px] font-medium tracking-[0.16em] text-[#999991]">
+              SMART AGRICULTURE
+            </p>
+
+            <h1 className="mt-1 text-[29px] font-semibold tracking-[-0.06em]">
+              Good growing.
             </h1>
 
-            <p className="mt-1 text-[10px] text-[#999991]">
-              Everything connected to your account
+            <p className="mt-1 text-xs text-[#999991]">
+              Your greenhouse at a glance
             </p>
           </div>
 
-          <span className="rounded-full bg-white px-3 py-1.5 text-[9px] font-bold text-[#777770] shadow-[0_3px_12px_rgba(0,0,0,0.03)]">
-            {devices.length}
-          </span>
+          <button
+            type="button"
+            onClick={() => void loadDashboard(true)}
+            disabled={refreshing}
+            aria-label="Refresh dashboard"
+            className="mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-[0_3px_12px_rgba(0,0,0,0.03)] transition active:scale-95"
+          >
+            <RefreshCw
+              size={17}
+              className={refreshing ? "animate-spin" : ""}
+            />
+          </button>
         </header>
 
-        {/* =====================================================
-            ERROR
-        ===================================================== */}
+        {/* ==========================================================
+            ERROR MESSAGE
+        ========================================================== */}
 
         {error && (
-          <div className="mt-5 rounded-[18px] bg-[#fff0f0] px-4 py-3 text-[11px] text-red-600">
+          <div className="mt-5 flex items-center gap-2 rounded-[20px] bg-[#fff0f0] px-4 py-3 text-xs text-red-600">
+            <CircleAlert size={17} />
             {error}
           </div>
         )}
 
-        {/* =====================================================
-            DEVICE LIST
-        ===================================================== */}
+        {/* ==========================================================
+            OVERVIEW CARDS
+        ========================================================== */}
 
-        <section className="mt-6 space-y-3">
-          {devices.length === 0 ? (
-            <div className="rounded-[30px] bg-white px-6 py-14 text-center shadow-[0_5px_25px_rgba(0,0,0,0.035)]">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-brand/30">
-                <Wifi size={28} className="text-black" />
-              </div>
+        <section className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <OverviewCard
+            label="My devices"
+            value={devices.length}
+            icon={<Sprout size={19} />}
+          />
 
-              <h2 className="mt-5 text-[20px] font-semibold tracking-[-0.04em]">
-                No devices yet
-              </h2>
+          <OverviewCard
+            label="Online"
+            value={onlineCount}
+            icon={<Wifi size={19} />}
+          />
 
-              <p className="mx-auto mt-2 max-w-[250px] text-[10px] leading-5 text-[#999991]">
-                Add your first device and start monitoring its data.
+          <div className="col-span-2 sm:col-span-1">
+            <OverviewCard
+              label="Offline"
+              value={offlineCount}
+              icon={<WifiOff size={19} />}
+            />
+          </div>
+        </section>
+
+        {/* ==========================================================
+            SENSOR SUMMARY
+        ========================================================== */}
+
+        <section className="mt-8">
+          <div className="mb-4">
+            <h2 className="text-[21px] font-semibold tracking-[-0.045em]">
+              Environment
+            </h2>
+
+            <p className="mt-1 text-[11px] text-[#999991]">
+              Latest reported sensor values
+            </p>
+          </div>
+
+          {reportedReadings === 0 ? (
+            <div className="rounded-[28px] bg-white px-5 py-7 shadow-[0_5px_25px_rgba(0,0,0,0.025)]">
+              <Activity size={23} className="text-[#9b9d91]" />
+
+              <p className="mt-3 text-sm font-semibold">
+                No sensor readings available
               </p>
 
-              {/* <button
-                type="button"
-                onClick={() => router.push("/home/devices/add")}
-                className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#1c1c1c] px-5 py-3 text-[11px] font-semibold text-white"
-              >
-                <Plus size={14} />
-                Add device
-              </button> */}
+              <p className="mt-1 text-xs leading-5 text-[#999991]">
+                When your devices report telemetry, the available readings
+                will appear here.
+              </p>
             </div>
           ) : (
-            devices.map((device) => (
-              <button
-                type="button"
-                key={device.id}
-                onClick={() => router.push(`/home/monitor/${device.id}`)}
-                className="group flex w-full items-center rounded-[27px] bg-white p-3 text-left shadow-[0_5px_20px_rgba(0,0,0,0.035)] transition active:scale-[0.985]"
-              >
-                {/* IMAGE */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {summaries.flatMap((summary) =>
+                summary.readings
+                  .filter((reading) => reading.value !== "--")
+                  .map((reading) => {
+                    const Icon = sensorIcon(reading.label);
 
-                <div className="flex h-[80px] w-[80px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] bg-brand/30">
-                  {device.deviceModel.imageUrl ? (
-                    <img
-                      src={device.deviceModel.imageUrl}
-                      alt={device.deviceModel.name}
-                      className="h-full w-full object-contain p-1 drop-shadow-[0_8px_10px_rgba(0,0,0,0.08)]"
-                    />
-                  ) : (
-                    <Wifi size={25} className="text-[#b5b8ad]" />
-                  )}
-                </div>
+                    return (
+                      <button
+                        key={`${summary.device.id}-${reading.key}`}
+                        type="button"
+                        onClick={() =>
+                          router.push(`/home/monitor/${summary.device.id}`)
+                        }
+                        className="min-w-0 rounded-[27px] bg-white p-4 text-left shadow-[0_5px_25px_rgba(0,0,0,0.025)] transition active:scale-[0.98]"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#e5ffad]">
+                          <Icon size={19} className="text-[#242b18]" />
+                        </div>
 
-                {/* DETAILS */}
+                        <p className="mt-4 truncate text-[11px] text-[#999991]">
+                          {reading.label}
+                        </p>
 
-                <div className="min-w-0 flex-1 px-4">
-                  <h2 className="truncate text-[16px] font-semibold tracking-[-0.035em] text-[#202020]">
-                    {device.name || device.deviceModel.name}
-                  </h2>
+                        <p className="mt-1 break-words text-[24px] font-semibold tracking-[-0.05em]">
+                          {reading.value}
+                          {reading.unit ? (
+                            <span className="ml-1 text-xs font-medium tracking-normal text-[#777970]">
+                              {reading.unit}
+                            </span>
+                          ) : null}
+                        </p>
 
-                  <p className="mt-1 truncate text-[9px] text-[#aaa9a2]">
-                    {device.deviceCode}
-                  </p>
-
-                  <div className="mt-4 flex items-center gap-1.5">
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        isRecentlySeen(device.lastSeenAt)
-                          ? "bg-[#93fc32]"
-                          : "bg-gray-400"
-                      }`}
-                    />
-
-                    <span className="text-[9px] font-semibold capitalize text-[#67943e]">
-                      {isRecentlySeen(device.lastSeenAt) ? "online" : "offline"}
-                    </span>
-                  </div>
-                </div>
-
-                <ChevronRight
-                  size={17}
-                  className="mr-2 shrink-0 text-[#c3c3bd]"
-                />
-              </button>
-            ))
+                        <p className="mt-2 truncate text-[10px] text-[#999991]">
+                          {summary.device.name ||
+                            summary.device.deviceModel.name}
+                        </p>
+                      </button>
+                    );
+                  }),
+              )}
+            </div>
           )}
         </section>
 
-        {/* =====================================================
-            ADD DEVICE
-        ===================================================== */}
+        {/* ==========================================================
+            MY DEVICES
+        ========================================================== */}
 
-        {devices.length > 0 && (
-          <button
-            type="button"
-            onClick={() => router.push("/home/devices/add")}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border border-[#deded8] bg-transparent py-3.5 text-[11px] font-semibold text-[#696963]"
-          >
-            <Plus size={14} />
-            Add another device
-          </button>
-        )}
+        <section className="mt-8">
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <h2 className="text-[21px] font-semibold tracking-[-0.045em]">
+                My devices
+              </h2>
+
+              <p className="mt-1 text-[11px] text-[#999991]">
+                Everything connected to your account
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => router.push("/home/monitor")}
+              className="pb-1 text-[11px] font-semibold text-[#647d45]"
+            >
+              View all
+            </button>
+          </div>
+
+          {devices.length === 0 ? (
+            <div className="rounded-[30px] bg-white px-6 py-12 text-center shadow-[0_5px_25px_rgba(0,0,0,0.025)]">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#e5ffad]">
+                <Wifi size={25} />
+              </div>
+
+              <h3 className="mt-4 text-lg font-semibold">
+                No devices yet
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-[250px] text-xs leading-5 text-[#999991]">
+                Add your first device to start monitoring your growing
+                environment.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => router.push("/home/add")}
+                className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#e5ffad] px-5 py-3 text-xs font-semibold text-[#202020]"
+              >
+                <Plus size={15} />
+                Add device
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {devices.map((device) => {
+                const online = isOnline(device.lastSeenAt);
+
+                return (
+                  <button
+                    key={device.id}
+                    type="button"
+                    onClick={() =>
+                      router.push(`/home/monitor/${device.id}`)
+                    }
+                    className="flex w-full items-center rounded-[30px] bg-white p-3.5 text-left shadow-[0_5px_25px_rgba(0,0,0,0.025)] transition active:scale-[0.985]"
+                  >
+                    {/* DEVICE IMAGE */}
+
+                    <div className="flex h-[82px] w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-[23px] bg-[#e5ffad]">
+                      {device.deviceModel.imageUrl ? (
+                        <img
+                          src={device.deviceModel.imageUrl}
+                          alt={device.deviceModel.name}
+                          className="h-full w-full object-contain p-2"
+                        />
+                      ) : (
+                        <Wifi size={25} className="text-[#7e9563]" />
+                      )}
+                    </div>
+
+                    {/* DEVICE DETAILS */}
+
+                    <div className="min-w-0 flex-1 px-4">
+                      <h3 className="truncate text-[16px] font-semibold tracking-[-0.04em]">
+                        {device.name || device.deviceModel.name}
+                      </h3>
+
+                      <p className="mt-1 truncate text-[10px] text-[#999991]">
+                        {device.deviceCode}
+                      </p>
+
+                      <div className="mt-4 flex items-center gap-1.5">
+                        <span
+                          className={`h-2 w-2 rounded-full ${online ? "bg-[#a6d94e]" : "bg-[#9ca3af]"
+                            }`}
+                        />
+
+                        <span className="text-[10px] font-medium text-[#647d45]">
+                          {online ? "Online" : "Offline"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* NAVIGATION */}
+
+                    <ChevronRight
+                      size={18}
+                      className="mr-1 shrink-0 text-[#c3c3bd]"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ==========================================================
+              ADD DEVICE BUTTON
+          ========================================================== */}
+
+          {devices.length > 0 && (
+            <button
+              type="button"
+              onClick={() => router.push("/home/add")}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full border border-[#deded8] py-4 text-xs font-semibold text-[#696963] transition hover:bg-white active:scale-[0.99]"
+            >
+              <Plus size={16} />
+              Add another device
+            </button>
+          )}
+        </section>
+
+        {/* ==========================================================
+            FOOTER
+        ========================================================== */}
+
+        <p className="mt-7 text-center text-[10px] text-[#aaa9a2]">
+          Refreshes every 30 seconds while this page is open
+        </p>
       </div>
     </main>
   );
 }
 
-// ============================================================
-// HELPERS
-// ============================================================
+// ==========================================================
+// OVERVIEW CARD COMPONENT
+// ==========================================================
 
-function isRecentlySeen(value: string | null): boolean {
-  if (!value) {
-    return false;
-  }
+function OverviewCard({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-[27px] bg-white p-4 shadow-[0_5px_25px_rgba(0,0,0,0.025)] sm:p-5">
+      <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#e5ffad] text-[#242b18]">
+        {icon}
+      </div>
 
-  const timestamp = new Date(value).getTime();
+      <p className="mt-4 text-[11px] text-[#999991]">{label}</p>
 
-  if (Number.isNaN(timestamp)) {
-    return false;
-  }
-
-  return Date.now() - timestamp < 2 * 60 * 1000;
+      <p className="mt-1 text-[27px] font-semibold tracking-[-0.055em]">
+        {value}
+      </p>
+    </div>
+  );
 }

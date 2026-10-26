@@ -43,11 +43,10 @@ export default function LandingPage() {
       <div className="w-full relative pb-40">
         {/* Floating Top Menu Button & Dropdown */}
         <div
-          className={`fixed top-4 right-4 md:top-8 md:right-8 z-50 transition-all duration-300 transform ${
-            isScrolled
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 -translate-y-4 pointer-events-none"
-          }`}
+          className={`fixed top-4 right-4 md:top-8 md:right-8 z-50 transition-all duration-300 transform ${isScrolled
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 -translate-y-4 pointer-events-none"
+            }`}
         >
           <div className="relative">
             <button
@@ -142,11 +141,10 @@ export default function LandingPage() {
 
         {/* Fixed Bottom Action Bar */}
         <div
-          className={`fixed bottom-6 left-0 w-full flex justify-center px-4 z-40 transition-all duration-500 transform ${
-            isScrolled
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-12 pointer-events-none"
-          }`}
+          className={`fixed bottom-6 left-0 w-full flex justify-center px-4 z-40 transition-all duration-500 transform ${isScrolled
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 translate-y-12 pointer-events-none"
+            }`}
         >
           <div className="w-full max-w-md md:max-w-lg pointer-events-auto">
             <Link href="/login" className="block w-full">
