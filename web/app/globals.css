@@ -300,6 +300,285 @@ html {
   color: var(--accent-text);
 }
 
+/* SmartAgri dashboard palette shared by the dashboard and its navigation. */
+:root,
+html[data-theme="light"] {
+  color-scheme: light;
+  --dash-bg: #f7f8f3;
+  --dash-sidebar: #ffffff;
+  --dash-surface: #ffffff;
+  --dash-surface-hover: #edf3e9;
+  --dash-border: #e2e8dc;
+  --dash-text-primary: #1f3425;
+  --dash-text-secondary: #667568;
+  --dash-text-muted: #879487;
+  --dash-accent: #2e7d3c;
+  --dash-accent-hover: #256f34;
+  --dash-on-accent: #ffffff;
+  --dash-sage: #e8f1e4;
+  --dash-warning: #b7791f;
+  --dash-error: #dc4545;
+  --dash-info: #3478c5;
+  --dash-chart-line: #2e9b50;
+  --dash-chart-grid: #e4eae1;
+  --dash-chart-fill: #82b96e;
+  --dash-shadow: 0 8px 28px rgb(36 57 37 / 7%);
+  --app-bg: var(--dash-bg);
+  --sidebar-bg: var(--dash-sidebar);
+  --surface: var(--dash-surface);
+  --surface-hover: var(--dash-surface-hover);
+  --border: var(--dash-border);
+  --text-primary: var(--dash-text-primary);
+  --text-secondary: var(--dash-text-secondary);
+  --text-muted: var(--dash-text-muted);
+  --accent: var(--dash-accent);
+  --accent-hover: var(--dash-accent-hover);
+  --accent-text: var(--dash-on-accent);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --dash-bg: #0a0f0b;
+  --dash-sidebar: #121a14;
+  --dash-surface: #121a14;
+  --dash-surface-hover: #19251c;
+  --dash-border: #27372b;
+  --dash-text-primary: #f1f5f3;
+  --dash-text-secondary: #94a3b8;
+  --dash-text-muted: #77879a;
+  --dash-accent: #22c55e;
+  --dash-accent-hover: #16a34a;
+  --dash-on-accent: #07130b;
+  --dash-sage: #153522;
+  --dash-warning: #fbbf24;
+  --dash-error: #f87171;
+  --dash-info: #60a5fa;
+  --dash-chart-line: #22c55e;
+  --dash-chart-grid: #26372b;
+  --dash-chart-fill: #22c55e;
+  --dash-shadow: 0 8px 28px rgb(0 0 0 / 22%);
+  --app-bg: var(--dash-bg);
+  --sidebar-bg: var(--dash-sidebar);
+  --surface: var(--dash-surface);
+  --surface-hover: var(--dash-surface-hover);
+  --border: var(--dash-border);
+  --text-primary: var(--dash-text-primary);
+  --text-secondary: var(--dash-text-secondary);
+  --text-muted: var(--dash-text-muted);
+  --accent: var(--dash-accent);
+  --accent-hover: var(--dash-accent-hover);
+  --accent-text: var(--dash-on-accent);
+}
+
+html[data-theme] body {
+  background-color: var(--dash-bg);
+  color: var(--dash-text-primary);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.dashboard-root {
+  background-color: var(--dash-bg) !important;
+  color: var(--dash-text-primary);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.dashboard-sidebar,
+.dashboard-sidebar nav a,
+.dashboard-theme-toggle,
+.dashboard-root article,
+.dashboard-root section,
+.dashboard-root header {
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.dashboard-root article[class*="bg-white"]:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--dash-shadow);
+}
+
+.dashboard-root :focus-visible,
+.dashboard-sidebar :focus-visible {
+  outline: 2px solid var(--dash-accent);
+  outline-offset: 2px;
+}
+
+.dashboard-root [class~="bg-white"] {
+  background-color: var(--dash-surface) !important;
+}
+
+.dashboard-root > header {
+  background-color: color-mix(in srgb, var(--dash-surface) 96%, transparent) !important;
+  border-color: var(--dash-border) !important;
+}
+
+.dashboard-root [class~="bg-[#f6f7f2]"],
+.dashboard-root [class~="bg-[#f6f7f1]"] {
+  background-color: var(--dash-bg) !important;
+}
+
+.dashboard-root [class~="bg-[#fcfcfa]"] {
+  background-color: var(--dash-surface) !important;
+}
+
+.dashboard-root [class~="bg-[#315b38]"] {
+  background-color: var(--dash-accent) !important;
+  color: var(--dash-on-accent) !important;
+}
+
+.dashboard-root [class~="hover:bg-[#264c2f]"]:hover {
+  background-color: var(--dash-accent-hover) !important;
+}
+
+.dashboard-root [class*="bg-[#e"],
+.dashboard-root [class*="bg-[#f"] {
+  background-color: var(--dash-surface-hover) !important;
+}
+
+.dashboard-root [class*="bg-[#f7f0"],
+.dashboard-root [class*="bg-[#f5f2"],
+.dashboard-root [class*="bg-[#fffaf0"] {
+  background-color: color-mix(in srgb, var(--dash-warning) 14%, var(--dash-surface)) !important;
+}
+
+.dashboard-root [class*="bg-[#f8eee"],
+.dashboard-root [class*="bg-[#fff6f"] {
+  background-color: color-mix(in srgb, var(--dash-error) 13%, var(--dash-surface)) !important;
+}
+
+.dashboard-root [class*="border-[#"] {
+  border-color: var(--dash-border) !important;
+}
+
+.dashboard-root [class*="border-[#edc9bc]"] {
+  border-color: color-mix(in srgb, var(--dash-error) 45%, var(--dash-border)) !important;
+}
+
+.dashboard-root [class*="border-[#eadfbe]"] {
+  border-color: color-mix(in srgb, var(--dash-warning) 45%, var(--dash-border)) !important;
+}
+
+.dashboard-root [class*="divide-[#"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--dash-border) !important;
+}
+
+.dashboard-root [class*="text-[#"] {
+  color: var(--dash-text-secondary) !important;
+}
+
+.dashboard-root h1[class],
+.dashboard-root h2[class],
+.dashboard-root h3[class],
+.dashboard-root [class*="text-[#23392b]"],
+.dashboard-root [class*="text-[#263b2c]"],
+.dashboard-root [class*="text-[#293c2d]"],
+.dashboard-root [class*="text-[#294532]"],
+.dashboard-root [class*="text-[#344a37]"],
+.dashboard-root [class*="text-[#405642]"],
+.dashboard-root [class*="text-[#435446]"] {
+  color: var(--dash-text-primary) !important;
+}
+
+.dashboard-root [class*="text-[#315b38]"],
+.dashboard-root [class*="text-[#36573a]"],
+.dashboard-root [class*="text-[#4e6e45]"],
+.dashboard-root [class*="text-[#4e7047]"],
+.dashboard-root [class*="text-[#52664b]"],
+.dashboard-root [class*="text-[#64765a]"],
+.dashboard-root [class*="text-[#668451]"],
+.dashboard-root [class*="text-[#6f8d5e]"],
+.dashboard-root [class*="text-[#718665]"],
+.dashboard-root [class*="text-[#73945f]"],
+.dashboard-root [class*="text-[#7d9464]"] {
+  color: var(--dash-accent) !important;
+}
+
+.dashboard-root [class*="text-[#826e3d]"],
+.dashboard-root [class*="text-[#9b8553]"],
+.dashboard-root [class*="text-[#9c8959]"],
+.dashboard-root [class*="text-[#ad8c46]"],
+.dashboard-root [class*="text-[#b39148]"],
+.dashboard-root [class*="text-[#b89d58]"] {
+  color: var(--dash-warning) !important;
+}
+
+.dashboard-root [class*="text-[#8c5140]"],
+.dashboard-root [class*="text-[#bb8051]"] {
+  color: var(--dash-error) !important;
+}
+
+.dashboard-root [class*="bg-[#315b38]"]:hover {
+  background-color: var(--dash-accent-hover) !important;
+}
+
+.dashboard-root .dashboard-hero {
+  background-color: var(--dash-surface) !important;
+  border-color: var(--dash-border) !important;
+}
+
+.dashboard-root .dashboard-hero-overlay {
+  background-image: linear-gradient(
+    90deg,
+    var(--dash-bg) 0%,
+    color-mix(in srgb, var(--dash-bg) 94%, transparent) 55%,
+    color-mix(in srgb, var(--dash-bg) 5%, transparent) 100%
+  ) !important;
+}
+
+.dashboard-root .dashboard-chart-grid {
+  stroke: var(--dash-chart-grid);
+}
+
+.dashboard-root .dashboard-chart-line {
+  stroke: var(--dash-chart-line);
+}
+
+.dashboard-root .dashboard-chart-blue {
+  stroke: var(--dash-info) !important;
+}
+
+.dashboard-root .dashboard-chart-area {
+  stop-color: var(--dash-chart-fill);
+}
+
+.dashboard-root .dashboard-chart-area-blue {
+  stop-color: var(--dash-info);
+}
+
+.dashboard-root .dashboard-chart-point {
+  fill: var(--dash-chart-line);
+  stroke: var(--dash-surface);
+}
+
+.dashboard-root .dashboard-chart-point.dashboard-chart-blue {
+  fill: var(--dash-info);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme] body,
+  .dashboard-root,
+  .dashboard-sidebar,
+  .dashboard-sidebar nav a,
+  .dashboard-theme-toggle,
+  .dashboard-root article,
+  .dashboard-root section,
+  .dashboard-root header {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms !important;
+  }
+
+  .dashboard-root .animate-pulse {
+    animation: none !important;
+  }
+
+  .dashboard-root article[class*="bg-white"]:hover {
+    transform: none;
+  }
+}
 
 /* ==========================================================
    LIGHT MODE — BOTANICAL FRESH
@@ -351,5 +630,3 @@ html {
   background: var(--accent);
   color: var(--accent-text);
 }
-
-

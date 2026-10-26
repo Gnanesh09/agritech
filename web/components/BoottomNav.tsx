@@ -2,18 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import {
+  Activity,
+  Bell,
+  ChartNoAxesCombined,
+  ChevronDown,
+  Cpu,
+  Globe2,
   Home,
-  User,
+  Layers3,
   Radar,
   Plus,
-  Sprout,
-  ChartNoAxesCombined,
   Settings,
-  Sun,
-  Moon,
+  ShoppingBag,
+  Sparkles,
+  Sprout,
+  User,
+  Warehouse,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import ThemeToggle from "../app/lib/ThemeToggle";
 
 const navigation = [
   { label: "Dashboard", href: "/home", icon: Home },
@@ -23,34 +31,172 @@ const navigation = [
   { label: "Profile", href: "/home/profile", icon: User },
 ];
 
-type Theme = "dark" | "light";
+const dashboardGroups: {
+  label: string;
+  items: { label: string; href: string; icon: LucideIcon }[];
+}[] = [
+  {
+    label: "Overview",
+    items: [
+      { label: "Dashboard", href: "/home", icon: Home },
+      { label: "Microgreens", href: "/home/microgreens", icon: Layers3 },
+      { label: "Greenhouses", href: "/home/greenhouses", icon: Warehouse },
+    ],
+  },
+  {
+    label: "Farm operations",
+    items: [
+      { label: "Devices & Sensors", href: "/home/monitor", icon: Cpu },
+      { label: "Automation", href: "/home/automations", icon: Activity },
+      { label: "Alerts & Notifications", href: "/home/alerts", icon: Bell },
+      { label: "AI Agronomist", href: "/home/ai-agronomist", icon: Sparkles },
+    ],
+  },
+  {
+    label: "Business",
+    items: [
+      { label: "Marketplace", href: "/home/marketplace", icon: ShoppingBag },
+      { label: "Market Intelligence", href: "/home/analytics", icon: ChartNoAxesCombined },
+      { label: "Import & Export", href: "/home/import-export", icon: Globe2 },
+    ],
+  },
+];
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [themeLoaded, setThemeLoaded] = useState(false);
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("smartagri-theme");
-    const initialTheme: Theme = savedTheme === "light" ? "light" : "dark";
-
-    setTheme(initialTheme);
-    document.documentElement.dataset.theme = initialTheme;
-    setThemeLoaded(true);
-  }, []);
-
-  function toggleTheme() {
-    const nextTheme: Theme = theme === "dark" ? "light" : "dark";
-
-    setTheme(nextTheme);
-    document.documentElement.dataset.theme = nextTheme;
-    localStorage.setItem("smartagri-theme", nextTheme);
-  }
 
   const isActive = (href: string) =>
     href === "/home"
       ? pathname === "/home"
       : pathname === href || pathname.startsWith(`${href}/`);
+
+  if (pathname.startsWith("/home")) {
+    return (
+      <>
+        <aside className="dashboard-sidebar fixed inset-y-0 left-0 z-40 hidden w-[250px] flex-col border-r border-[var(--dash-border)] bg-[var(--dash-sidebar)] px-[18px] py-7 text-[var(--dash-text-secondary)] lg:flex">
+          <Link href="/home" className="mb-8 flex items-center gap-3 px-2">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--dash-sage)] text-[var(--dash-accent)]">
+              <Sprout size={24} />
+            </span>
+            <span>
+              <span className="block text-[18px] font-bold tracking-[-0.04em] text-[var(--dash-text-primary)]">
+                smartagri
+              </span>
+              <span className="block text-[8px] font-semibold uppercase tracking-[0.22em] text-[var(--dash-text-secondary)]">
+                Autonomous agriculture
+              </span>
+            </span>
+          </Link>
+
+          <div className="mb-6 flex items-center gap-3 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] p-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--dash-sage)] text-[var(--dash-accent)]">
+              <Sprout size={18} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-semibold text-[var(--dash-text-primary)]">
+                Your growing space
+              </span>
+              <span className="mt-0.5 block text-[10px] text-[var(--dash-text-secondary)]">
+                Connected workspace
+              </span>
+            </span>
+            <ChevronDown size={14} className="text-[var(--dash-text-secondary)]" />
+          </div>
+
+          <nav aria-label="Dashboard navigation" className="min-h-0 flex-1 space-y-6 overflow-y-auto">
+            {dashboardGroups.map((group) => (
+              <div key={group.label}>
+                <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--dash-text-muted)]">
+                  {group.label}
+                </p>
+                <div className="space-y-1">
+                  {group.items.map(({ label, href, icon: Icon }) => {
+                    const active = isActive(href);
+                    const className = `flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] font-medium transition ${
+                      active
+                        ? "bg-[var(--dash-sage)] text-[var(--dash-accent)]"
+                        : "text-[var(--dash-text-secondary)] hover:bg-[var(--dash-surface-hover)] hover:text-[var(--dash-text-primary)]"
+                    }`;
+                    const content = (
+                      <>
+                        <Icon size={16} aria-hidden="true" />
+                        <span>{label}</span>
+                      </>
+                    );
+                    return (
+                      <Link
+                        key={label}
+                        href={href}
+                        aria-current={active ? "page" : undefined}
+                        className={className}
+                      >
+                        {content}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <Link
+              href="/home/profile"
+              aria-current={isActive("/home/profile") ? "page" : undefined}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] font-medium transition ${
+                isActive("/home/profile")
+                  ? "bg-[var(--dash-sage)] text-[var(--dash-accent)]"
+                  : "text-[var(--dash-text-secondary)] hover:bg-[var(--dash-surface-hover)] hover:text-[var(--dash-text-primary)]"
+              }`}
+            >
+              <User size={16} aria-hidden="true" />
+              Profile
+            </Link>
+          </nav>
+
+          <div className="mt-5 border-t border-[var(--dash-border)] pt-4">
+            <ThemeToggle />
+            <div className="mt-3 rounded-xl bg-[var(--dash-surface-hover)] p-3">
+              <p className="text-[11px] font-semibold text-[var(--dash-text-primary)]">Smart farming</p>
+              <p className="mt-1 text-[10px] leading-4 text-[var(--dash-text-secondary)]">
+                Monitor growing conditions from one place.
+              </p>
+            </div>
+          </div>
+        </aside>
+
+        <nav
+          aria-label="Mobile dashboard navigation"
+          className="fixed bottom-3 left-3 right-3 z-50 lg:hidden"
+        >
+          <div className="flex h-[62px] items-center rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-sidebar)]/95 p-1 shadow-[var(--dash-shadow)] backdrop-blur">
+            <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+              {dashboardGroups.flatMap((group) => group.items).map(({ label, href, icon: Icon }) => {
+                const active = isActive(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    aria-label={label}
+                    title={label}
+                    aria-current={active ? "page" : undefined}
+                    className={`flex h-full min-w-[62px] shrink-0 flex-col items-center justify-center rounded-xl px-2 ${
+                      active ? "bg-[var(--dash-sage)] text-[var(--dash-accent)]" : "text-[var(--dash-text-secondary)]"
+                    }`}
+                  >
+                    <Icon size={17} />
+                    <span className="mt-0.5 max-w-[74px] truncate text-[9px] font-medium">
+                      {label === "Dashboard" ? "Home" : label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="ml-1 shrink-0 border-l border-[var(--dash-border)] pl-1">
+              <ThemeToggle compact />
+            </div>
+          </div>
+        </nav>
+      </>
+    );
+  }
 
   return (
     <>
@@ -102,26 +248,7 @@ export default function BottomNav() {
         </nav>
 
         <div className="mt-auto space-y-4">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            disabled={!themeLoaded}
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            className="flex w-full items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 text-left transition-all duration-200 hover:border-[var(--accent)]/30 hover:bg-[var(--surface-hover)] disabled:opacity-60"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--accent)]/20 bg-[var(--accent)]/10 text-[var(--accent)]">
-              {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-[var(--text-primary)]">
-                {theme === "dark" ? "Light mode" : "Dark mode"}
-              </span>
-              <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">
-                {theme === "dark" ? "Botanical Fresh" : "Neon Forest"}
-              </span>
-            </span>
-            <span className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_9px_var(--accent)]" />
-          </button>
+          <ThemeToggle />
 
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 transition-colors">
             <div className="mb-2 flex items-center gap-2 text-[var(--accent)]">

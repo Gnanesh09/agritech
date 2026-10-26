@@ -1,7 +1,5 @@
-import React from "react";
+import WorkspacePage from "../WorkspacePage";
 
-const analytics = () => {
-  return <div>analytics</div>;
-};
-
-export default analytics;
+export default function MarketIntelligencePage() {
+  return <WorkspacePage page="intelligence" />;
+}

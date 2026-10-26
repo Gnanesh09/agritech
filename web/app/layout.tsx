@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
-import { Montserrat, Poppins, Lato } from "next/font/google";
+import Script from "next/script";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "../components/ui/toast";
 
-// 1. Configure Montserrat (we don't even need the 'variable' property anymore)
-const montserrat = Montserrat({
-  subsets: ["latin"],
-});
 const poppins = Poppins({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-});
-const lato = Lato({
-  subsets: ["latin"],
-  weight: ["100", "400", "300", "900", "700"],
 });
 
 export const metadata: Metadata = {
@@ -27,12 +20,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      {/* 2. Force Next.js to apply the font directly to the body! */}
-      {/* We removed 'font-sans' because montserrat.className handles it directly */}
-      <body
-        className={`${poppins.className} antialiased bg-brand-light text-brand-dark`}
-      >
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${poppins.className} antialiased`}>
+        <Script
+          id="theme-bootstrap"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `(()=>{let theme;try{theme=localStorage.getItem("smartagri-theme")}catch{console.warn("Theme preference storage is unavailable.")}if(theme!=="light"&&theme!=="dark"){theme=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=theme})()`,
+          }}
+        />
         {children}
         <Toaster />
       </body>
