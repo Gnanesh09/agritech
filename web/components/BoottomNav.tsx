@@ -73,7 +73,7 @@ export default function BottomNav() {
   if (pathname.startsWith("/home")) {
     return (
       <>
-        <aside className="dashboard-sidebar fixed inset-y-0 left-0 z-40 hidden w-[250px] flex-col border-r border-[var(--dash-border)] bg-[var(--dash-sidebar)] px-[18px] py-7 text-[var(--dash-text-secondary)] lg:flex">
+        <aside className="dashboard-sidebar fixed inset-y-0 left-0 z-40 hidden w-[250px] flex-col border-r-0 bg-[var(--dash-sidebar)] px-[18px] py-7 text-[var(--dash-text-secondary)] shadow-none lg:flex">
           <Link href="/home" className="mb-8 flex items-center gap-3 px-2">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--dash-sage)] text-[var(--dash-accent)]">
               <Sprout size={24} />
@@ -103,7 +103,7 @@ export default function BottomNav() {
             <ChevronDown size={14} className="text-[var(--dash-text-secondary)]" />
           </div>
 
-          <nav aria-label="Dashboard navigation" className="min-h-0 flex-1 space-y-6 overflow-y-auto">
+          <nav aria-label="Dashboard navigation" className="dashboard-nav-scroll min-h-0 flex-1 space-y-6 overflow-y-auto">
             {dashboardGroups.map((group) => (
               <div key={group.label}>
                 <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--dash-text-muted)]">

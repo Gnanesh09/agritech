@@ -1,5 +1,5 @@
-import WorkspacePage from "../WorkspacePage";
+import MicrogreensClient from "./MicrogreensClient";
 
 export default function MicrogreensPage() {
-  return <WorkspacePage page="microgreens" />;
+  return <MicrogreensClient />;
 }

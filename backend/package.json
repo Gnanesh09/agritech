@@ -23,6 +23,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@google/genai": "^2.32.0",
     "@imagekit/nodejs": "^7.12.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "7.9.1",

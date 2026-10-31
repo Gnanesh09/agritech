@@ -31,7 +31,6 @@ type PageKey =
   | "greenhouses"
   | "automations"
   | "alerts"
-  | "agronomist"
   | "marketplace"
   | "intelligence"
   | "import-export";
@@ -80,10 +79,6 @@ const pageDetails: Record<PageKey, { title: string; description: string }> = {
   alerts: {
     title: "Alerts & Notifications",
     description: "Connection and sensor-range warnings derived from your latest device data.",
-  },
-  agronomist: {
-    title: "AI Agronomist",
-    description: "Farm readings and the current availability of agronomy assistance.",
   },
   marketplace: {
     title: "Marketplace",
@@ -233,11 +228,11 @@ export default function WorkspacePage({ page }: { page: PageKey }) {
       }
     };
 
-    const needsDevices = ["greenhouses", "automations", "alerts", "agronomist", "intelligence", "import-export"].includes(page);
-    const needsRacks = ["microgreens", "greenhouses", "agronomist", "intelligence", "import-export"].includes(page);
+    const needsDevices = ["greenhouses", "automations", "alerts", "intelligence", "import-export"].includes(page);
+    const needsRacks = ["microgreens", "greenhouses", "intelligence", "import-export"].includes(page);
     const needsHistory = ["microgreens", "import-export"].includes(page);
-    const needsDue = ["microgreens", "agronomist", "intelligence"].includes(page);
-    const needsTelemetry = ["alerts", "agronomist", "intelligence"].includes(page);
+    const needsDue = ["microgreens", "intelligence"].includes(page);
+    const needsTelemetry = ["alerts", "intelligence"].includes(page);
 
     const [deviceResponse, rackResponse, historyResponse, dueResponse] = await Promise.all([
       needsDevices ? request("Devices", () => api.get<{ devices: UserDevice[] }>("/user/devices")) : undefined,
@@ -524,27 +519,6 @@ export default function WorkspacePage({ page }: { page: PageKey }) {
                     <AlertTriangle size={17} className={`mt-0.5 shrink-0 ${alert.critical ? "text-red-600" : "text-amber-700"}`} />
                     <div><h3 className={`text-sm font-semibold ${alert.critical ? "text-red-800" : "text-amber-900"}`}>{alert.title}</h3><p className="mt-1 text-xs text-[#7b7462]">{alert.detail}</p></div>
                   </article>)}</div> : <EmptyState title={devices.length ? "No device warnings" : "No devices to monitor"} detail={devices.length ? "Your latest reported values are within the configured sensor ranges and devices are checking in." : "Link a device to see connection and sensor-range warnings."} /> }
-                </Section>
-              </>
-            ) : null}
-
-            {page === "agronomist" ? (
-              <>
-                <FieldNotice title="AI agronomy is not connected" tone="warning">
-                  No AI agronomist endpoint appears in the supplied API documentation. This page does not generate or invent AI recommendations.
-                </FieldNotice>
-                <Section title="Your latest sensor readings" detail="Live account readings only; no recommendation is inferred from missing values.">
-                  {devices.length ? <div className="grid gap-3 sm:grid-cols-2">{devices.flatMap((device) => {
-                    const latest = latestTelemetry(telemetry[device.id]);
-                    return device.deviceModel.capabilities.sensors.map((sensor) => {
-                      const value = latest?.data?.[sensor.key];
-                      return <div key={`${device.id}-${sensor.key}`} className="rounded-xl border border-[#edf0e8] p-4">
-                        <p className="text-[11px] text-[#899284]">{device.name || device.deviceModel.name} · {sensorLabel(sensor)}</p>
-                        <p className="mt-2 text-lg font-semibold text-[#405642]">{value === undefined || value === null ? "No reading" : `${String(value)}${sensor.unit ? ` ${sensor.unit}` : ""}`}</p>
-                        <p className="mt-1 text-[10px] text-[#899284]">{latest ? `Reported ${formatDate(latest.recordedAt)}` : "No telemetry recorded"}</p>
-                      </div>;
-                    });
-                  })}</div> : <EmptyState title="No farm readings yet" detail="Link a device to view the sensor data available to your account." action={<Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#647d45]" href="/home/add">Add a device <ArrowRight size={14} /></Link>} /> }
                 </Section>
               </>
             ) : null}

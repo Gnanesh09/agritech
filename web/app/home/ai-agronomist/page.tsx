@@ -1,5 +1,5 @@
-import WorkspacePage from "../WorkspacePage";
+import AgronomistChat from "./AgronomistChat";
 
 export default function AgronomistPage() {
-  return <WorkspacePage page="agronomist" />;
+  return <AgronomistChat />;
 }
