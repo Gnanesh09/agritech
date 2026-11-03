@@ -504,7 +504,7 @@ export default function WorkspacePage({ page }: { page: PageKey }) {
                         <button type="button" onClick={() => void deleteAutomation(automation)} className="rounded-full border border-red-200 px-3 py-2 text-[11px] font-semibold text-red-700 hover:bg-red-50">Delete</button>
                       </div>
                     </article>;
-                  })}</div> : <EmptyState title={devices.length ? "No automations configured" : "No linked devices"} detail={devices.length ? "No rules were returned for your devices." : "Link a device before managing its automations."} action={<Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#647d45]" href="/home/add">Add a device <ArrowRight size={14} /></Link>} /> }
+                  })}</div> : <EmptyState title={devices.length ? "No automations configured" : "No linked devices"} detail={devices.length ? "No rules were returned for your devices." : "Link a device before managing its automations."} action={<Link className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#647d45]" href="/home/add-device">Add a device <ArrowRight size={14} /></Link>} /> }
                 </Section>
               </>
             ) : null}
@@ -596,7 +596,7 @@ export default function WorkspacePage({ page }: { page: PageKey }) {
                 </Section>
                 <Section title="Supported data entry">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Link href="/home/add" className="flex items-center justify-between rounded-xl border border-[#edf0e8] p-4 text-xs font-medium text-[#52664b] hover:bg-[#fafbf8]">Link a device <ArrowRight size={15} /></Link>
+                    <Link href="/home/add-device" className="flex items-center justify-between rounded-xl border border-[#edf0e8] p-4 text-xs font-medium text-[#52664b] hover:bg-[#fafbf8]">Link a device <ArrowRight size={15} /></Link>
                     <Link href="/home/microgreens" className="flex items-center justify-between rounded-xl border border-[#edf0e8] p-4 text-xs font-medium text-[#52664b] hover:bg-[#fafbf8]">Review crop records <ArrowRight size={15} /></Link>
                   </div>
                 </Section>

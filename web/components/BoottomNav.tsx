@@ -12,7 +12,7 @@ import {
   Home,
   Layers3,
   Radar,
-  Plus,
+  PlusCircle,
   Settings,
   ShoppingBag,
   Sparkles,
@@ -25,7 +25,7 @@ import ThemeToggle from "../app/lib/ThemeToggle";
 
 const navigation = [
   { label: "Dashboard", href: "/home", icon: Home },
-  { label: "Add Device", href: "/home/add", icon: Plus },
+  { label: "Add Device", href: "/home/add-device", icon: PlusCircle },
   { label: "Monitor", href: "/home/monitor", icon: Radar },
   { label: "Analytics", href: "/home/analytics", icon: ChartNoAxesCombined },
   { label: "Profile", href: "/home/profile", icon: User },
@@ -47,6 +47,7 @@ const dashboardGroups: {
     label: "Farm operations",
     items: [
       { label: "Devices & Sensors", href: "/home/monitor", icon: Cpu },
+      { label: "Add Device", href: "/home/add-device", icon: PlusCircle },
       { label: "Automation", href: "/home/automations", icon: Activity },
       { label: "Alerts & Notifications", href: "/home/alerts", icon: Bell },
       { label: "AI Agronomist", href: "/home/ai-agronomist", icon: Sparkles },

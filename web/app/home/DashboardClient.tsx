@@ -684,7 +684,7 @@ export default function DashboardClient() {
               View devices
             </Link>
             <Link
-              href="/home/add"
+              href="/home/add-device"
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#315b38] px-3.5 text-xs font-medium text-white transition hover:bg-[#264c2f]"
             >
               <Plus size={15} />
@@ -915,7 +915,7 @@ export default function DashboardClient() {
                 action={
                   !loadError ? (
                     <Link
-                      href="/home/add"
+                      href="/home/add-device"
                       className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#315b38] px-3.5 py-2 text-xs font-medium text-white"
                     >
                       <Plus size={14} /> Add a device
