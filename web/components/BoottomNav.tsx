@@ -74,7 +74,7 @@ export default function BottomNav() {
   if (pathname.startsWith("/home")) {
     return (
       <>
-        <aside className="dashboard-sidebar fixed inset-y-0 left-0 z-40 hidden w-[250px] flex-col border-r-0 bg-[var(--dash-sidebar)] px-[18px] py-7 text-[var(--dash-text-secondary)] shadow-none lg:flex">
+        <aside className="dashboard-sidebar fixed inset-y-0 left-0 z-40 hidden w-[var(--dashboard-sidebar-width)] flex-col border-r-0 bg-[var(--dash-sidebar)] px-[18px] py-7 text-[var(--dash-text-secondary)] shadow-none lg:flex">
           <Link href="/home" className="mb-8 flex items-center gap-3 px-2">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--dash-sage)] text-[var(--dash-accent)]">
               <Sprout size={24} />

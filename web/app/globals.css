@@ -303,6 +303,7 @@ html {
 /* SmartAgri dashboard palette shared by the dashboard and its navigation. */
 :root,
 html[data-theme="light"] {
+  --dashboard-sidebar-width: 250px;
   color-scheme: light;
   --dash-bg: #f7f8f3;
   --dash-sidebar: #ffffff;
