@@ -432,108 +432,114 @@ export async function receiveTelemetry(req: DeviceRequest, res: Response) {
     // SAVE EVERYTHING
     // =====================================================
 
-    const telemetry = await prisma.$transaction(async (tx) => {
-      // -------------------------------------------------
-      // TELEMETRY
-      // -------------------------------------------------
+    const telemetry = await prisma.$transaction(
+      async (tx) => {
+        // -------------------------------------------------
+        // TELEMETRY
+        // -------------------------------------------------
 
-      const createdTelemetry = await tx.deviceTelemetry.create({
-        data: {
-          deviceId: device.id,
+        const createdTelemetry = await tx.deviceTelemetry.create({
+          data: {
+            deviceId: device.id,
 
-          data: toJsonInput(telemetryData),
+            data: toJsonInput(telemetryData),
 
-          temperature,
+            temperature,
 
-          humidity,
+            humidity,
 
-          recordedAt,
-        },
-      });
+            recordedAt,
+          },
+        });
 
-      // -------------------------------------------------
-      // EXISTING STATE
-      // -------------------------------------------------
+        // -------------------------------------------------
+        // EXISTING STATE
+        // -------------------------------------------------
 
-      const existingState = await tx.deviceState.findUnique({
-        where: {
-          deviceId: device.id,
-        },
-      });
+        const existingState = await tx.deviceState.findUnique({
+          where: {
+            deviceId: device.id,
+          },
+        });
 
-      // -------------------------------------------------
-      // ACTUAL STATE
-      // -------------------------------------------------
+        // -------------------------------------------------
+        // ACTUAL STATE
+        // -------------------------------------------------
 
-      const currentActual = toJsonObject(existingState?.actual);
+        const currentActual = toJsonObject(existingState?.actual);
 
-      const nextActual = stateData
-        ? {
-            ...currentActual,
-            ...stateData,
-          }
-        : currentActual;
+        const nextActual = stateData
+          ? {
+              ...currentActual,
+              ...stateData,
+            }
+          : currentActual;
 
-      // -------------------------------------------------
-      // DESIRED STATE
-      // -------------------------------------------------
+        // -------------------------------------------------
+        // DESIRED STATE
+        // -------------------------------------------------
 
-      const desiredState = toJsonObject(existingState?.desired);
+        const desiredState = toJsonObject(existingState?.desired);
 
-      // -------------------------------------------------
-      // MODES
-      // -------------------------------------------------
+        // -------------------------------------------------
+        // MODES
+        // -------------------------------------------------
 
-      const modes = toJsonObject(existingState?.modes);
+        const modes = toJsonObject(existingState?.modes);
 
-      // -------------------------------------------------
-      // UPSERT STATE
-      // -------------------------------------------------
-      await tx.deviceState.upsert({
-        where: {
-          deviceId: device.id,
-        },
+        // -------------------------------------------------
+        // UPSERT STATE
+        // -------------------------------------------------
+        await tx.deviceState.upsert({
+          where: {
+            deviceId: device.id,
+          },
 
-        create: {
-          deviceId: device.id,
+          create: {
+            deviceId: device.id,
 
-          actual: nextActual as Prisma.InputJsonValue,
+            actual: nextActual as Prisma.InputJsonValue,
 
-          desired: desiredState as Prisma.InputJsonValue,
+            desired: desiredState as Prisma.InputJsonValue,
 
-          modes: modes as Prisma.InputJsonValue,
+            modes: modes as Prisma.InputJsonValue,
 
-          lastReportedAt: recordedAt,
-        },
+            lastReportedAt: recordedAt,
+          },
 
-        update: {
-          actual: nextActual as Prisma.InputJsonValue,
+          update: {
+            actual: nextActual as Prisma.InputJsonValue,
 
-          lastReportedAt: recordedAt,
-        },
-      });
-      // -------------------------------------------------
-      // UPDATE DEVICE HEARTBEAT
-      // -------------------------------------------------
+            lastReportedAt: recordedAt,
+          },
+        });
+        // -------------------------------------------------
+        // UPDATE DEVICE HEARTBEAT
+        // -------------------------------------------------
 
-      await tx.device.update({
-        where: {
-          id: device.id,
-        },
+        await tx.device.update({
+          where: {
+            id: device.id,
+          },
 
-        data: {
-          lastSeenAt: new Date(),
+          data: {
+            lastSeenAt: new Date(),
 
-          ...(body.firmwareVersion
-            ? {
-                firmwareVersion: body.firmwareVersion,
-              }
-            : {}),
-        },
-      });
+            ...(body.firmwareVersion
+              ? {
+                  firmwareVersion: body.firmwareVersion,
+                }
+              : {}),
+          },
+        });
 
-      return createdTelemetry;
-    });
+        return createdTelemetry;
+      },
+      {
+        maxWait: 5000,
+        timeout: 10000,
+      },
+    );
 
     // =====================================================
     // RESPONSE
