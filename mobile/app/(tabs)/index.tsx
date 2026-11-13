@@ -1151,7 +1151,7 @@ export default function HomeScreen() {
         style={{
           height: insets.top,
         }}
-        className={isScrolled ? "bg-black" : "bg-primary"}
+        className={isScrolled ? "bg-black" : "bg-[#F5FFD6]"}
       />
 
       <StatusBar style={isScrolled ? "light" : "dark"} />
@@ -1184,15 +1184,16 @@ export default function HomeScreen() {
 
               <LinearGradient
                 colors={[
-                  "#C8FF67", // 0% - Solid primary
-                  "#C8FF67", // 20% - Solid primary until here
-                  "rgba(200, 255, 103, 0.60)", // 40% - Start fading
-                  "rgba(200, 255, 103, 0.20)", // 70% - Mostly faded
-                  "transparent", // 100% - Fully transparent at the bottom
+                  "#F5FFD6", // Soft bright top
+                  "#E5FFAE", // Light lime
+                  "#C8F77A", // Vibrant lime
+                  "#A9D95B", // Smooth green transition
+                  "#83B83D", // Muted metallic lime
+                  "#547C27", // Subtle deep green at bottom
                 ]}
-                locations={[0, 0.2, 0.4, 0.7, 1]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
+                locations={[0, 0.18, 0.38, 0.58, 0.8, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
                 className="absolute inset-0"
               />
               {/* GREETING */}
@@ -2718,7 +2719,7 @@ function DeviceSelector({
 
             <Pressable
               onPress={onClose}
-              className="h-10 w-10 items-center justify-center rounded-full bg-[#171C17]"
+              className="h-10 w-10 items-center justify-center rounded-full bg-[#181b18]"
             >
               <Ionicons name="close" size={18} color="#FFFFFF" />
             </Pressable>
@@ -2736,7 +2737,7 @@ function DeviceSelector({
                   onPress={() => onSelect(device.id)}
                   className={`mb-3 overflow-hidden rounded-[19px] border ${
                     selected
-                      ? " bg-zinc-700"
+                      ? " bg-lime-50"
                       : "border-white/[0.06] bg-[#121712]"
                   }`}
                 >
@@ -2814,17 +2815,6 @@ function DeviceSelector({
                       />
                     )}
                   </View>
-
-                  {selected ? (
-                    <View className="border-t border-black/10 px-4 py-2.5">
-                      <AppText
-                        className="text-[10px] uppercase tracking-[1px] text-black/45"
-                        weight="semibold"
-                      >
-                        Currently selected
-                      </AppText>
-                    </View>
-                  ) : null}
                 </Pressable>
               );
             })}

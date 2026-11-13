@@ -228,7 +228,7 @@ export default function CropHistoryScreen() {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
-          paddingHorizontal: 20,
+          paddingHorizontal: 0,
           paddingTop: 12,
           paddingBottom: 36,
         }}
@@ -367,7 +367,7 @@ export default function CropHistoryScreen() {
         {error ? (
           <View
             className="rounded-2xl border p-4"
-            style={{ borderColor: "#64332F", backgroundColor: "#211311" }}
+            style={{ backgroundColor: "#211318" }}
           >
             <AppText className="text-[13px] text-[#FF9C94]">{error}</AppText>
             <Pressable onPress={() => void load(1)} className="mt-3 self-start">
@@ -433,8 +433,8 @@ export default function CropHistoryScreen() {
             return (
               <View
                 key={crop.id}
-                className="mb-3 rounded-2xl border p-4"
-                style={{ borderColor: BORDER, backgroundColor: PANEL }}
+                className="mb-3 p-5"
+                style={{ backgroundColor: PANEL }}
               >
                 <View className="flex-row items-start justify-between gap-3">
                   <View className="flex-1">
