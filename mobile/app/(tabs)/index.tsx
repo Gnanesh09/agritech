@@ -954,9 +954,32 @@ export default function HomeScreen() {
     target: string,
     value: boolean | number | string,
     mode: "AUTO" | "MANUAL",
+    allowModeChange = false,
   ) {
     if (!selectedDevice || !target) {
       return;
+    }
+
+    // Actuator values may only be changed while the target is in MANUAL mode.
+    // Mode changes themselves pass allowModeChange=true so AUTO/MANUAL remains usable.
+    if (!allowModeChange) {
+      const rackRow = selectedDevice.rack?.rows?.find(
+        (row) => row.fanTarget === target || row.lightTarget === target,
+      );
+      const targets = rackRow
+        ? [rackRow.fanTarget, rackRow.lightTarget].filter(Boolean)
+        : [target];
+      const canControl =
+        targets.length > 0 &&
+        targets.every((key) => getMode(selectedDevice.state, key) === "MANUAL");
+
+      if (mode !== "MANUAL" || !canControl) {
+        Alert.alert(
+          "Manual mode required",
+          "Switch this actuator to MANUAL mode before changing its value.",
+        );
+        return;
+      }
     }
 
     const loadingKey = `${target}-${mode}`;
@@ -1338,7 +1361,7 @@ export default function HomeScreen() {
         ================================================================ */}
 
         {isRack && rack ? (
-          <View className="mt-8 px-5">
+          <View className="mt-8 ">
             <View className="flex-row items-end justify-between">
               <View>
                 <AppText
@@ -1424,6 +1447,28 @@ export default function HomeScreen() {
                 onCommand={(target, value, mode) =>
                   sendCommand(target, value, mode)
                 }
+                onSetMode={(target, mode) => {
+                  const current =
+                    selectedDevice.state?.desired?.[target] ??
+                    selectedDevice.state?.actual?.[target];
+                  const capability =
+                    selectedDevice.deviceModel.capabilities?.actuators?.find(
+                      (actuator) => actuator.key === target,
+                    );
+                  const fallbackValue =
+                    capability?.type === "number"
+                      ? (capability.min ?? 0)
+                      : capability?.type === "string"
+                        ? ""
+                        : false;
+                  const value =
+                    typeof current === "boolean" ||
+                    typeof current === "number" ||
+                    typeof current === "string"
+                      ? current
+                      : fallbackValue;
+                  void sendCommand(target, value, mode, true);
+                }}
               />
             </View>
 
@@ -1989,10 +2034,10 @@ function ExpandableRow({
 
   return (
     <View
-      className={`mb-3 overflow-hidden rounded-[21px] border ${
+      className={`mb-3 overflow-hidden rounded-[14px] border ${
         expanded
-          ? "border-[#2A371E] bg-[#071107]"
-          : "border-white/[0.05] bg-[#071107]"
+          ? "border-[#2a371e00] bg-[#111111]"
+          : "border-white/[0.05] bg-[#111111]"
       }`}
     >
       {/* ROW HEADER */}
@@ -2104,6 +2149,7 @@ function ExpandableRow({
             title="Fan"
             target={row.fanTarget}
             enabled={fanOn}
+            disabled={rowMode !== "MANUAL"}
             loading={controlLoading?.startsWith(`${row.fanTarget}-`) ?? false}
             onPress={() => onToggleActuator(row.fanTarget, !fanOn)}
           />
@@ -2115,6 +2161,7 @@ function ExpandableRow({
             title="Light"
             target={row.lightTarget}
             enabled={lightOn}
+            disabled={rowMode !== "MANUAL"}
             loading={controlLoading?.startsWith(`${row.lightTarget}-`) ?? false}
             onPress={() => onToggleActuator(row.lightTarget, !lightOn)}
           />
@@ -2246,6 +2293,7 @@ function ControlRow({
   title,
   target,
   enabled,
+  disabled = false,
   loading,
   onPress,
 }: {
@@ -2253,41 +2301,127 @@ function ControlRow({
   title: string;
   target: string;
   enabled: boolean;
+  disabled?: boolean;
   loading: boolean;
   onPress: () => void;
 }) {
+  const isDisabled = disabled || !target;
+
   return (
-    <View className="mt-2 flex-row items-center justify-between rounded-[12px] border border-[#243219] bg-[#091008] px-3.5 py-2.5">
+    <View
+      className={`mt-2 flex-row items-center justify-between rounded-[12px] border px-3.5 py-2.5 ${
+        isDisabled
+          ? "border-white/[0.035] bg-[#080B08]"
+          : "border-[#243219] bg-[#091008]"
+      }`}
+    >
       <View className="flex-row items-center">
         {icon === "fan" ? (
-          <MaterialCommunityIcons name="fan" size={21} color="#BFFF45" />
+          <MaterialCommunityIcons
+            name="fan"
+            size={21}
+            color={isDisabled ? "#596159" : "#BFFF45"}
+          />
         ) : (
-          <Ionicons name={icon} size={21} color="#BFFF45" />
+          <Ionicons
+            name={icon}
+            size={21}
+            color={isDisabled ? "#596159" : "#BFFF45"}
+          />
         )}
 
-        <AppText className="ml-3 text-[15px] text-white">{title}</AppText>
+        <View className="ml-3">
+          <AppText
+            className={`text-[15px] ${isDisabled ? "text-zinc-600" : "text-white"}`}
+          >
+            {title}
+          </AppText>
+          {isDisabled ? (
+            <AppText className="mt-0.5 text-[10px] text-zinc-700">
+              Locked in auto mode
+            </AppText>
+          ) : null}
+        </View>
       </View>
 
       <Pressable
         onPress={onPress}
-        disabled={!target || loading}
+        disabled={isDisabled || loading}
+        accessibilityRole="switch"
+        accessibilityState={{
+          checked: enabled,
+          disabled: isDisabled || loading,
+        }}
         className={`h-7 w-12 justify-center rounded-full px-1 ${
-          enabled ? "bg-[#BFFF45]" : "bg-[#2B312B]"
-        } ${!target ? "opacity-30" : ""}`}
+          isDisabled
+            ? "bg-[#202620] opacity-50"
+            : enabled
+              ? "bg-[#BFFF45]"
+              : "bg-[#2B312B]"
+        }`}
       >
         {loading ? (
           <ActivityIndicator
             size="small"
-            color={enabled ? "#000000" : "#8A918A"}
+            color={isDisabled ? "#687068" : enabled ? "#000000" : "#8A918A"}
           />
         ) : (
           <View
             className={`h-5 w-5 rounded-full ${
-              enabled ? "ml-auto bg-black" : "bg-[#858B85]"
+              isDisabled
+                ? enabled
+                  ? "ml-auto bg-[#687068]"
+                  : "bg-[#687068]"
+                : enabled
+                  ? "ml-auto bg-black"
+                  : "bg-[#858B85]"
             }`}
           />
         )}
       </Pressable>
+    </View>
+  );
+}
+
+/* ============================================================================
+   GENERIC ACTUATOR MODE SELECTOR
+============================================================================ */
+
+function ActuatorModeSelector({
+  mode,
+  loading,
+  onChange,
+}: {
+  mode: "AUTO" | "MANUAL";
+  loading: boolean;
+  onChange: (mode: "AUTO" | "MANUAL") => void;
+}) {
+  return (
+    <View className="flex-row items-center rounded-[10px] border border-white/[0.06] bg-[#080D08] p-1">
+      {(["AUTO", "MANUAL"] as const).map((option) => {
+        const selected = mode === option;
+        return (
+          <Pressable
+            key={option}
+            onPress={() => onChange(option)}
+            disabled={loading || selected}
+            accessibilityRole="button"
+            accessibilityState={{ selected, disabled: loading || selected }}
+            className={`min-w-[66px] items-center rounded-[7px] px-3 py-2 ${
+              selected ? "bg-[#BFFF45]" : "bg-transparent"
+            }`}
+          >
+            <AppText
+              className={`text-[10px] ${
+                selected ? "text-black" : "text-zinc-500"
+              }`}
+              weight="semibold"
+            >
+              {option}
+            </AppText>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -2300,6 +2434,7 @@ function GenericControls({
   device,
   controlLoading,
   onCommand,
+  onSetMode,
 }: {
   device: Device;
   controlLoading: string | null;
@@ -2308,6 +2443,7 @@ function GenericControls({
     value: boolean | number | string,
     mode: "AUTO" | "MANUAL",
   ) => void;
+  onSetMode: (target: string, mode: "AUTO" | "MANUAL") => void;
 }) {
   const actuators = device.deviceModel.capabilities?.actuators ?? [];
 
@@ -2325,8 +2461,25 @@ function GenericControls({
     <View>
       {actuators.map((actuator) => {
         const desired = device.state?.desired?.[actuator.key];
-
         const actual = device.state?.actual?.[actuator.key];
+        const mode = getMode(device.state, actuator.key);
+        const manualEnabled = mode === "MANUAL";
+        const loading =
+          controlLoading === `${actuator.key}-MANUAL` ||
+          controlLoading === `${actuator.key}-AUTO`;
+        const mutedControl = !manualEnabled;
+        const modeSelector = (
+          <View className="mt-3 flex-row items-center justify-between">
+            <AppText className="text-[10px] uppercase tracking-[1px] text-zinc-600">
+              Control mode
+            </AppText>
+            <ActuatorModeSelector
+              mode={mode}
+              loading={loading}
+              onChange={(nextMode) => onSetMode(actuator.key, nextMode)}
+            />
+          </View>
+        );
 
         if (actuator.type === "boolean") {
           const enabled =
@@ -2336,48 +2489,72 @@ function GenericControls({
                 ? actual
                 : false;
 
-          const loading = controlLoading === `${actuator.key}-MANUAL`;
-
           return (
             <View
               key={actuator.key}
-              className="mb-2 flex-row items-center justify-between rounded-[13px] border border-[#243219] bg-[#091008] px-4 py-3"
+              className={`mb-2 rounded-[13px] border px-4 py-3 ${
+                mutedControl
+                  ? "border-white/[0.035] bg-[#080B08]"
+                  : "border-[#243219] bg-[#091008]"
+              }`}
             >
-              <View className="flex-row items-center">
-                <Ionicons
-                  name={getActuatorIcon(actuator.key)}
-                  size={20}
-                  color="#BFFF45"
-                />
-
-                <View className="ml-3">
-                  <AppText className="text-[15px] text-white">
-                    {actuator.label || actuator.key}
-                  </AppText>
-
-                  <AppText className="mt-0.5 text-[10px] text-zinc-600">
-                    Manual
-                  </AppText>
-                </View>
-              </View>
-
-              <Pressable
-                onPress={() => onCommand(actuator.key, !enabled, "MANUAL")}
-                disabled={loading}
-                className={`h-7 w-12 justify-center rounded-full px-1 ${
-                  enabled ? "bg-[#BFFF45]" : "bg-[#2B312B]"
-                }`}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#000000" />
-                ) : (
-                  <View
-                    className={`h-5 w-5 rounded-full ${
-                      enabled ? "ml-auto bg-black" : "bg-[#858B85]"
-                    }`}
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name={getActuatorIcon(actuator.key)}
+                    size={20}
+                    color={mutedControl ? "#596159" : "#BFFF45"}
                   />
-                )}
-              </Pressable>
+
+                  <View className="ml-3">
+                    <AppText
+                      className={`text-[15px] ${mutedControl ? "text-zinc-600" : "text-white"}`}
+                    >
+                      {actuator.label || actuator.key}
+                    </AppText>
+                    <AppText className="mt-0.5 text-[10px] text-zinc-700">
+                      {manualEnabled
+                        ? "Manual control enabled"
+                        : "Read-only in auto mode"}
+                    </AppText>
+                  </View>
+                </View>
+
+                <Pressable
+                  onPress={() => onCommand(actuator.key, !enabled, "MANUAL")}
+                  disabled={!manualEnabled || loading}
+                  accessibilityRole="switch"
+                  accessibilityState={{
+                    checked: enabled,
+                    disabled: !manualEnabled || loading,
+                  }}
+                  className={`h-7 w-12 justify-center rounded-full px-1 ${
+                    mutedControl
+                      ? "bg-[#202620] opacity-50"
+                      : enabled
+                        ? "bg-[#BFFF45]"
+                        : "bg-[#2B312B]"
+                  }`}
+                >
+                  {loading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={mutedControl ? "#687068" : "#000000"}
+                    />
+                  ) : (
+                    <View
+                      className={`h-5 w-5 rounded-full ${
+                        mutedControl
+                          ? "bg-[#687068]"
+                          : enabled
+                            ? "ml-auto bg-black"
+                            : "bg-[#858B85]"
+                      }`}
+                    />
+                  )}
+                </Pressable>
+              </View>
+              {modeSelector}
             </View>
           );
         }
@@ -2389,35 +2566,35 @@ function GenericControls({
               : typeof actual === "number"
                 ? actual
                 : (actuator.min ?? 0);
-
           const min = actuator.min ?? 0;
-
           const max = actuator.max ?? 100;
-
           const step = Math.max(1, Math.round((max - min) / 20));
-
-          const loading = controlLoading === `${actuator.key}-MANUAL`;
 
           return (
             <View
               key={actuator.key}
-              className="mb-2 rounded-[13px] border border-[#243219] bg-[#091008] px-4 py-3"
+              className={`mb-2 rounded-[13px] border px-4 py-3 ${
+                mutedControl
+                  ? "border-white/[0.035] bg-[#080B08]"
+                  : "border-[#243219] bg-[#091008]"
+              }`}
             >
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-center">
                   <Ionicons
                     name="speedometer-outline"
                     size={20}
-                    color="#BFFF45"
+                    color={mutedControl ? "#596159" : "#BFFF45"}
                   />
-
-                  <AppText className="ml-3 text-[15px] text-white">
+                  <AppText
+                    className={`ml-3 text-[15px] ${mutedControl ? "text-zinc-600" : "text-white"}`}
+                  >
                     {actuator.label || actuator.key}
                   </AppText>
                 </View>
 
                 <AppText
-                  className="text-[15px] text-[#C8FF58]"
+                  className={`text-[15px] ${mutedControl ? "text-zinc-700" : "text-[#C8FF58]"}`}
                   weight="semibold"
                 >
                   {formatValue(current)}
@@ -2427,7 +2604,7 @@ function GenericControls({
 
               <View className="mt-3 flex-row gap-2">
                 <Pressable
-                  disabled={loading}
+                  disabled={!manualEnabled || loading || current <= min}
                   onPress={() =>
                     onCommand(
                       actuator.key,
@@ -2435,13 +2612,19 @@ function GenericControls({
                       "MANUAL",
                     )
                   }
-                  className="h-10 flex-1 items-center justify-center rounded-xl bg-[#182118]"
+                  className={`h-10 flex-1 items-center justify-center rounded-xl ${
+                    mutedControl ? "bg-[#171C17] opacity-50" : "bg-[#182118]"
+                  }`}
                 >
-                  <AppText className="text-[20px] text-white">−</AppText>
+                  <AppText
+                    className={`text-[20px] ${mutedControl ? "text-zinc-700" : "text-white"}`}
+                  >
+                    −
+                  </AppText>
                 </Pressable>
 
                 <Pressable
-                  disabled={loading}
+                  disabled={!manualEnabled || loading || current >= max}
                   onPress={() =>
                     onCommand(
                       actuator.key,
@@ -2449,13 +2632,19 @@ function GenericControls({
                       "MANUAL",
                     )
                   }
-                  className="h-10 flex-1 items-center justify-center rounded-xl bg-[#BFFF45]"
+                  className={`h-10 flex-1 items-center justify-center rounded-xl ${
+                    mutedControl ? "bg-[#202620] opacity-50" : "bg-[#BFFF45]"
+                  }`}
                 >
-                  <AppText className="text-[20px] text-black" weight="semibold">
+                  <AppText
+                    className={`text-[20px] ${mutedControl ? "text-zinc-700" : "text-black"}`}
+                    weight="semibold"
+                  >
                     +
                   </AppText>
                 </Pressable>
               </View>
+              {modeSelector}
             </View>
           );
         }
@@ -2468,6 +2657,7 @@ function GenericControls({
             <AppText className="text-[15px] text-white">
               {actuator.label || actuator.key}
             </AppText>
+            {modeSelector}
           </View>
         );
       })}
@@ -2546,7 +2736,7 @@ function DeviceSelector({
                   onPress={() => onSelect(device.id)}
                   className={`mb-3 overflow-hidden rounded-[19px] border ${
                     selected
-                      ? "border-[#E7EF58] bg-primary"
+                      ? " bg-zinc-700"
                       : "border-white/[0.06] bg-[#121712]"
                   }`}
                 >
