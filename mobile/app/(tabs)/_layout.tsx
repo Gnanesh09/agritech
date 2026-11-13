@@ -1,116 +1,114 @@
-import React, { useRef, useEffect } from "react";
-import { Pressable, Text, View, Animated } from "react-native";
-import { Tabs } from "expo-router";
+import React, { useEffect, useRef } from "react";
+
+import { Animated, Pressable, Text, View } from "react-native";
+
+import { Tabs, TabList, TabTrigger, TabSlot } from "expo-router/ui";
+
 import Feather from "@expo/vector-icons/Feather";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+
+// --------------------------------------------------
+// COLORS
+// --------------------------------------------------
 
 const ACTIVE_COLOR = "#C8FF67";
 const AI_COLOR = "#D8B4FE";
 const BAR_COLOR = "#111111";
 const ICON_COLOR = "#8E8E93";
 
-// ------------------------------------------------------------------
-// CENTRAL TAB CONFIGURATION
-// Add, update, or change frameworks easily here.
-// ------------------------------------------------------------------
+// --------------------------------------------------
+// TAB CONFIGURATION
+// --------------------------------------------------
+
 const TAB_CONFIG: Record<string, any> = {
-  index: {
+  home: {
     label: "Home",
-    IconLibrary: Feather,
-    iconName: "home",
+    Icon: Feather,
+    icon: "home",
   },
+
   devices: {
     label: "Devices",
-    IconLibrary: FontAwesome6, // Using FontAwesome6 here
-    iconName: "server", // You can change this to any FA6 icon
+    Icon: FontAwesome6,
+    icon: "server",
   },
-  // notifications: {
-  //   label: "Alerts",
-  //   IconLibrary: Feather,
-  //   iconName: "bell",
-  // },
+
   market: {
     label: "Market",
-    IconLibrary: Feather,
-    iconName: "shopping-bag",
+    Icon: Feather,
+    icon: "shopping-bag",
   },
+
   profile: {
     label: "Profile",
-    IconLibrary: Feather,
-    iconName: "user",
+    Icon: Feather,
+    icon: "user",
   },
+
   coco: {
-    label: "CocoAi",
-    IconLibrary: Feather,
-    iconName: "aperture",
+    label: "CocoAI",
+    Icon: Feather,
+    icon: "aperture",
   },
 };
 
-// Fallback for undefined routes
-const FALLBACK_CONFIG = {
-  label: "Unknown",
-  IconLibrary: Feather,
-  iconName: "circle",
-};
+// --------------------------------------------------
+// ANIMATED TAB BUTTON
+// --------------------------------------------------
 
-function TabButton({ route, isFocused, options, navigation }: any) {
-  const isCoco = route.name === "coco";
+function TabButton({ name, isFocused, ...triggerProps }: any) {
+  const config = TAB_CONFIG[name];
 
-  // Pull the specific tab's configuration (Icon library, name, and fallback label)
-  const currentTab = TAB_CONFIG[route.name] || FALLBACK_CONFIG;
-  const IconComponent = currentTab.IconLibrary;
-  const iconName = currentTab.iconName;
+  const isCoco = name === "coco";
+
+  const Icon = config.Icon;
 
   const scale = useRef(new Animated.Value(1)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulse = useRef(new Animated.Value(1)).current;
 
-  const label =
-    options.tabBarLabel !== undefined
-      ? options.tabBarLabel
-      : options.title !== undefined
-        ? options.title
-        : currentTab.label;
+  // CocoAI pulse animation
 
-  // --- Continuous Animation for Coco (Only when INACTIVE) ---
   useEffect(() => {
-    let loopAnim: Animated.CompositeAnimation | null = null;
-
-    if (isCoco && !isFocused) {
-      loopAnim = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.15,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ]),
-      );
-      loopAnim.start();
-    } else {
-      pulseAnim.setValue(1);
+    if (!isCoco || isFocused) {
+      pulse.stopAnimation();
+      pulse.setValue(1);
+      return;
     }
 
-    return () => {
-      if (loopAnim) loopAnim.stop();
-    };
-  }, [isFocused, isCoco]);
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1.15,
+          duration: 800,
+          useNativeDriver: true,
+        }),
 
-  // --- Press Animations ---
-  const onPressIn = () => {
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [isCoco, isFocused, pulse]);
+
+  // Press animations
+
+  const handlePressIn = () => {
     Animated.spring(scale, {
       toValue: 0.85,
       useNativeDriver: true,
     }).start();
   };
 
-  const onPressOut = () => {
+  const handlePressOut = () => {
     Animated.spring(scale, {
       toValue: 1,
       friction: 5,
@@ -119,37 +117,20 @@ function TabButton({ route, isFocused, options, navigation }: any) {
     }).start();
   };
 
-  const onPress = () => {
-    const event = navigation.emit({
-      type: "tabPress",
-      target: route.key,
-      canPreventDefault: true,
-    });
-
-    if (!isFocused && !event.defaultPrevented) {
-      navigation.navigate(route.name);
-    }
-  };
-
-  const onLongPress = () => {
-    navigation.emit({
-      type: "tabLongPress",
-      target: route.key,
-    });
-  };
-
-  const currentActiveColor = isCoco ? AI_COLOR : ACTIVE_COLOR;
+  const activeColor = isCoco ? AI_COLOR : ACTIVE_COLOR;
 
   return (
     <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
+      {...triggerProps}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isFocused }}
+      accessibilityLabel={config.label}
       className="items-center justify-center mx-1"
       style={{
-        height: 54,
         width: 64,
+        height: 54,
       }}
     >
       <Animated.View
@@ -159,7 +140,8 @@ function TabButton({ route, isFocused, options, navigation }: any) {
         }}
       >
         {isFocused ? (
-          // --- ACTIVE STATE ---
+          // ACTIVE TAB
+
           <LinearGradient
             colors={
               isCoco
@@ -171,51 +153,51 @@ function TabButton({ route, isFocused, options, navigation }: any) {
             style={{
               borderTopWidth: 1.5,
               borderTopColor: isCoco ? "#7A4EAB" : "#545458",
+
               borderBottomWidth: 1.5,
               borderBottomColor: "#000000",
             }}
           >
-            {/* Dynamically renders FontAwesome6, Feather, etc. */}
-            <IconComponent
-              name={iconName as any}
-              size={18}
-              color={currentActiveColor}
-            />
+            <Icon name={config.icon} size={18} color={activeColor} />
+
             <Text
+              numberOfLines={1}
               className="text-[9px] font-bold mt-[2px] uppercase tracking-wider"
               style={{
-                color: currentActiveColor,
-                fontFamily: isCoco ? "Your-Custom-Font-Name" : undefined,
+                color: activeColor,
                 fontStyle: isCoco ? "italic" : "normal",
               }}
-              numberOfLines={1}
             >
-              {label}
+              {config.label}
             </Text>
           </LinearGradient>
         ) : (
-          // --- INACTIVE STATE ---
+          // INACTIVE TAB
+
           <Animated.View
-            className="items-center justify-center w-full h-full"
+            className="w-full h-full items-center justify-center"
             style={{
-              transform: [{ scale: isCoco ? pulseAnim : 1 }],
+              transform: [
+                {
+                  scale: isCoco ? pulse : 1,
+                },
+              ],
             }}
           >
-            {/* Dynamically renders FontAwesome6, Feather, etc. */}
-            <IconComponent
-              name={iconName as any}
+            <Icon
+              name={config.icon}
               size={18}
               color={isCoco ? "#645577" : ICON_COLOR}
             />
+
             <Text
+              numberOfLines={1}
               className="text-[9px] font-bold mt-[2px] uppercase tracking-wider"
               style={{
                 color: isCoco ? "#645577" : ICON_COLOR,
-                fontFamily: isCoco ? "Your-Custom-Font-Name" : undefined,
               }}
-              numberOfLines={1}
             >
-              {label}
+              {config.label}
             </Text>
           </Animated.View>
         )}
@@ -224,7 +206,11 @@ function TabButton({ route, isFocused, options, navigation }: any) {
   );
 }
 
-function CustomTabBar({ state, descriptors, navigation }: any) {
+// --------------------------------------------------
+// FLOATING TAB BAR
+// --------------------------------------------------
+
+function FloatingTabBar() {
   const insets = useSafeAreaInsets();
 
   return (
@@ -240,47 +226,63 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         style={{
           padding: 6,
           backgroundColor: BAR_COLOR,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 8 },
+
+          shadowColor: "#000000",
+          shadowOffset: {
+            width: 0,
+            height: 8,
+          },
           shadowOpacity: 0.8,
           shadowRadius: 20,
+
           elevation: 10,
         }}
       >
-        {state.routes.map((route: any, index: number) => {
-          const { options } = descriptors[route.key];
-          const isFocused = state.index === index;
+        <TabTrigger name="home" asChild>
+          <TabButton name="home" />
+        </TabTrigger>
 
-          return (
-            <TabButton
-              key={route.key}
-              route={route}
-              isFocused={isFocused}
-              options={options}
-              navigation={navigation}
-            />
-          );
-        })}
+        <TabTrigger name="devices" asChild>
+          <TabButton name="devices" />
+        </TabTrigger>
+
+        <TabTrigger name="market" asChild>
+          <TabButton name="market" />
+        </TabTrigger>
+
+        <TabTrigger name="profile" asChild>
+          <TabButton name="profile" />
+        </TabTrigger>
       </View>
     </View>
   );
 }
 
+// --------------------------------------------------
+// MAIN LAYOUT
+// --------------------------------------------------
+
 export default function TabsLayout() {
   return (
-    <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-      }}
-    >
-      <Tabs.Screen name="index" options={{ title: "Home" }} />
-      <Tabs.Screen name="devices" options={{ title: "Devices" }} />
-      {/* <Tabs.Screen name="notifications" options={{ title: "Alerts" }} /> */}
-      <Tabs.Screen name="market" options={{ title: "Market" }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
-      {/* <Tabs.Screen name="coco" options={{ title: "CocoAi" }} /> */}
+    <Tabs>
+      {/* Current screen */}
+
+      <View className="flex-1">
+        <TabSlot />
+      </View>
+
+      {/* Floating navigation */}
+
+      <FloatingTabBar />
+
+      {/* Route registration */}
+
+      <TabList style={{ display: "none" }}>
+        <TabTrigger name="home" href="/(tabs)" />
+        <TabTrigger name="devices" href="/(tabs)/devices" />
+        <TabTrigger name="market" href="/(tabs)/market" />
+        <TabTrigger name="profile" href="/(tabs)/profile" />
+      </TabList>
     </Tabs>
   );
 }

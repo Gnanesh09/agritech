@@ -252,7 +252,7 @@ export default function RootIndex() {
         backgroundColor: COLORS.background,
       }}
     >
-      <StatusBar style="light" translucent backgroundColor="transparent" />
+      <StatusBar style="light" />
 
       {/* PROGRESS INDICATORS */}
 

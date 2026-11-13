@@ -87,7 +87,7 @@ export default function BrandSplash({ onFinish }: Props) {
 
 const styles = StyleSheet.create({
   screen: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1000,
     backgroundColor: BLACK,
     overflow: "hidden",
